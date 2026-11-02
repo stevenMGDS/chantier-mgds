@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1F5F8B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Poseurs MGDS">
+<link rel="manifest" href="manifest-poseurs.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Poseurs MGDS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Espace poseurs : planning de la semaine, fiche chantier (fiches PDF, photos, consommables), heures. Vue gestion pour Marine / Steven. */
+:root{
+  --bg:#EEF0F1; --surface:#FFFFFF; --sunk:#E3E6E8; --ink:#2E3438; --muted:#5F6A73; --line:#D3D8DC;
+  --accent:#1F5F8B; --accent-ink:#FFFFFF;
+  --s-orange:#E08A52; --s-vert:#469A61; --s-rouge:#CC4141;
+  --t-orange:#FBE3D3; --t-bleu:#DCE8F4; --t-vert:#DDF0E2; --t-rouge:#F8DADA;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1B1F22; --surface:#252A2E; --sunk:#2F353A; --ink:#E7EAEC; --muted:#9AA4AC; --line:#3A4146;
+  --accent:#6FA8D6; --accent-ink:#10202C; --s-orange:#E39A6B; --s-vert:#62B47C; --s-rouge:#E06464;
+  --t-orange:#4A3226; --t-bleu:#23384B; --t-vert:#213B2A; --t-rouge:#4A2526; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1B1F22; --surface:#252A2E; --sunk:#2F353A; --ink:#E7EAEC; --muted:#9AA4AC; --line:#3A4146;
+  --accent:#6FA8D6; --accent-ink:#10202C; --s-orange:#E39A6B; --s-vert:#62B47C; --s-rouge:#E06464;
+  --t-orange:#4A3226; --t-bleu:#23384B; --t-vert:#213B2A; --t-rouge:#4A2526; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.45;overflow-x:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{padding:16px max(16px,env(safe-area-inset-right)) 96px max(16px,env(safe-area-inset-left));max-width:1100px;margin:0 auto}
+header.top{display:flex;justify-content:space-between;align-items:end;gap:12px;border-bottom:3px solid var(--ink);padding-bottom:10px;padding-top:env(safe-area-inset-top)}
+h1{font:700 30px var(--f-display);margin:0;line-height:1}
+h1 small{display:block;font:500 15px var(--f-body);color:var(--muted);margin-top:4px}
+h2{font:700 22px var(--f-display);margin:22px 0 8px}
+h3{font:700 19px var(--f-display);margin:18px 0 6px}
+.sub{color:var(--muted);font-size:15px}
+.mono{font-family:var(--f-mono);font-size:14px}
+.btn{font:600 16px var(--f-body);border:0;border-radius:8px;padding:11px 16px;background:var(--accent);color:var(--accent-ink);cursor:pointer;min-height:44px}
+.btn.ghost{background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.btn.big{width:100%;font-size:18px;padding:14px}
+.btn.small{min-height:34px;padding:6px 10px;font-size:14px}
+.btn.danger{background:var(--s-rouge);color:#fff}
+.btn:disabled{opacity:.5}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{flex:1;border:0;background:none;padding:12px 4px;font:600 16px var(--f-body);color:var(--muted);cursor:pointer;border-top:3px solid transparent}
+.tabs button[aria-pressed="true"]{color:var(--accent);border-top-color:var(--accent)}
+.weeknav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 6px}
+.weeknav b{font:700 20px var(--f-display);text-align:center}
+.weeknav .btn{min-width:48px}
+.day{margin-top:14px}
+.day-h{font:600 15px var(--f-body);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.day.today .day-h{color:var(--accent)}
+.card{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:8px;cursor:pointer}
+.card:hover{border-color:var(--accent)}
+.day.today .card{border-left:6px solid var(--accent)}
+.client{font:700 21px var(--f-display);line-height:1.15}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:14px 16px;color:var(--muted)}
+.none{color:var(--muted);font-size:15px;padding:2px 0 4px}
+.tot{display:flex;justify-content:space-between;align-items:baseline;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:10px 0}
+.tot b{font:600 26px var(--f-mono)}
+.hline{display:grid;grid-template-columns:1fr auto;gap:2px 12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:6px;width:100%;text-align:left;cursor:pointer}
+.hline .h{font:600 18px var(--f-mono);text-align:right}
+.hline.ok{border-left:6px solid var(--s-vert)}
+.tag{display:inline-block;font:600 12px var(--f-body);padding:2px 8px;border-radius:99px;background:var(--t-vert);color:var(--ink);vertical-align:2px}
+.tag.o{background:var(--t-orange)}.tag.b{background:var(--t-bleu)}
+/* fiche chantier */
+.sheet{position:fixed;inset:0;z-index:40;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet .bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;background:var(--surface);border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top)) 16px 10px}
+.sheet .bar b{flex:1;font:700 20px var(--f-display);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.links a{text-decoration:none}
+.docs{display:grid;gap:8px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:12px}
+.box h3{margin-top:0}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;margin:10px 0}
+.thumbs button{padding:0;border:0;background:var(--sunk);border-radius:6px;aspect-ratio:1;overflow:hidden;cursor:pointer;position:relative}
+.thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+.thumbs .cap{position:absolute;left:0;right:0;bottom:0;font:600 11px var(--f-body);background:rgba(0,0,0,.55);color:#fff;padding:2px 4px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+label.fld{display:grid;gap:4px;font-size:15px;font-weight:600;margin-top:10px}
+label.fld input,label.fld select,label.fld textarea{font-size:17px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-height:44px;width:100%}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* fenêtres */
+.modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.modal>div{background:var(--bg);width:min(560px,100%);max-height:92vh;overflow-y:auto;border-radius:14px 14px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+@media (min-width:700px){.modal{align-items:center}.modal>div{border-radius:14px}}
+.modal h2{margin-top:0}
+.acts{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.acts .btn{flex:1}
+.lightbox{position:fixed;inset:0;z-index:70;background:#000;display:flex;flex-direction:column}
+.lightbox img{flex:1;min-height:0;object-fit:contain;width:100%}
+.lightbox .lb{display:flex;gap:8px;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;color:#fff;font-size:14px}
+.lightbox .lb span{flex:1}
+.toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:15px;max-width:calc(100% - 32px);text-align:center}
+/* gestion */
+.gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:8px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table.plan{border-collapse:collapse;width:100%;min-width:760px}
+table.plan th,table.plan td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:6px;vertical-align:top;text-align:left;font-size:14px}
+table.plan th{font:600 14px var(--f-body);color:var(--muted);background:var(--sunk)}
+table.plan th.today{color:var(--accent)}
+table.plan td.name{font-weight:700;white-space:nowrap;background:var(--sunk)}
+.pchip{display:flex;align-items:center;gap:4px;background:var(--t-bleu);border-radius:6px;padding:3px 4px 3px 8px;margin-bottom:4px;font-size:13px;line-height:1.2}
+.pchip span{flex:1;min-width:0}
+.pchip button{border:0;background:none;cursor:pointer;font-size:16px;padding:0 4px;color:var(--muted)}
+.add{border:1px dashed var(--line);background:none;border-radius:6px;width:100%;padding:4px;cursor:pointer;color:var(--muted)}
+table.h{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
+table.h th,table.h td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+table.h td.n,table.h th.n{text-align:right;font-family:var(--f-mono)}
+table.h tr.sum td{font-weight:700;background:var(--sunk)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{font:500 14px var(--f-body);border:1px solid var(--line);background:var(--surface);padding:6px 12px;border-radius:99px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.who{bottom:calc(64px + env(safe-area-inset-bottom))!important}
+</style>
+</head>
+<body>
+<div class="wrap" id="app" hidden>
+  <header class="top"><h1>Poseurs MGDS<small id="hello"></small></h1></header>
+  <main id="view"></main>
+</div>
+<nav class="tabs" id="tabs" hidden></nav>
+<div class="sheet" id="sheet" hidden></div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="outil/shim.js"></script>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let sb,me,role="lecteur",profils=[],chantiers=new Map(),week,tab,openId=null;
+let tT;function toast(t){const e=$("toast");e.textContent=t;e.hidden=false;clearTimeout(tT);tT=setTimeout(()=>e.hidden=true,3500)}
+
+// ---------- dates (heure locale) ----------
+const JOURS=["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+const MOIS=["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const parse=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+function monday(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-(x.getDay()+6)%7);return x}
+function isoWeek(d){const t=new Date(d.getFullYear(),d.getMonth(),d.getDate());t.setDate(t.getDate()+3-(t.getDay()+6)%7);const w1=new Date(t.getFullYear(),0,4);return 1+Math.round(((t-w1)/864e5-3+(w1.getDay()+6)%7)/7)}
+const dayLabel=s=>{const d=parse(s);return JOURS[(d.getDay()+6)%7]+" "+d.getDate()+" "+MOIS[d.getMonth()]};
+const today=()=>iso(new Date());
+const weekDays=()=>Array.from({length:7},(_,i)=>iso(addDays(week,i)));
+const hfmt=n=>{const h=Math.floor(n+1e-9),m=Math.round((n-h)*60);return h+"h"+(m?String(m).padStart(2,"0"):"")};
+const tmin=t=>{if(!t)return null;const[h,m]=t.split(":").map(Number);return h*60+m};
+
+// ---------- données ----------
+const nameOf=id=>{const p=profils.find(x=>x.id===id);return p?(p.nom||(p.email||"").split("@")[0]):"?"};
+const poseurs=()=>profils.filter(p=>p.role==="poseur").sort((a,b)=>nameOf(a.id).localeCompare(nameOf(b.id)));
+const jobName=id=>{const j=chantiers.get(id);return j?(j.client||id):id};
+const jobShort=id=>jobName(id).split(" - ")[0];
+const addrOf=j=>{const a=(j.adresse||"").trim(),v=(j.ville||"").trim();return a&&v&&a.toLowerCase().includes(v.toLowerCase())?a:[a,v].filter(Boolean).join(", ")};
+async function loadChantiers(){
+  const{data,error}=await sb.from("chantiers").select("id,data");if(error)throw error;
+  chantiers=new Map(data.map(r=>[r.id,r.data||{}]));
+}
+async function q(p){const{data,error}=await p;if(error)throw error;return data}
+const loadPlanning=(a,b)=>q(sb.from("planning").select("*").gte("jour",a).lte("jour",b).order("jour"));
+const loadHeures=(a,b)=>q(sb.from("heures").select("*").gte("jour",a).lte("jour",b).order("jour").order("debut"));
+
+// ---------- navigation ----------
+const TABS={poseur:[["planning","Mon planning"],["heures","Mes heures"]],
+  editeur:[["gplanning","Planning"],["gheures","Heures"],["gphotos","Photos"]],
+  autre:[["gplanning","Planning"],["gphotos","Photos"]]};
+function tabsFor(){return TABS[role==="poseur"?"poseur":role==="editeur"?"editeur":"autre"]}
+function setTab(t){tab=t;try{localStorage.setItem("poseurs.tab",t)}catch(_){}
+  $("tabs").innerHTML=tabsFor().map(([k,l])=>`<button type="button" data-tab="${k}" aria-pressed="${k===t}">${l}</button>`).join("");render()}
+$("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b)setTab(b.dataset.tab)});
+function weekNav(){return`<div class="weeknav"><button class="btn ghost" data-week="-1" aria-label="Semaine précédente">◀</button>
+  <b>Semaine ${isoWeek(week)}<br><span class="sub">${week.getDate()} ${MOIS[week.getMonth()]} – ${addDays(week,6).getDate()} ${MOIS[addDays(week,6).getMonth()]}</span></b>
+  <button class="btn ghost" data-week="1" aria-label="Semaine suivante">▶</button></div>
+  ${iso(week)!==iso(monday(new Date()))?`<div style="text-align:center"><button class="btn ghost small" data-week="0">Revenir à cette semaine</button></div>`:""}`}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-week]");if(!b)return;
+  const n=+b.dataset.week;week=n?addDays(week,7*n):monday(new Date());render()});
+
+async function render(){
+  const v=$("view");
+  try{
+    if(tab==="planning")await vPlanning(v);
+    else if(tab==="heures")await vHeures(v);
+    else if(tab==="gplanning")await vGPlanning(v);
+    else if(tab==="gheures")await vGHeures(v);
+    else if(tab==="gphotos")await vGPhotos(v);
+  }catch(e){console.error(e);
+    v.innerHTML=/planning|heures|photos/.test(e.message||"")&&/exist|schema cache/.test(e.message||"")
+      ?`<div class="empty" style="margin-top:16px">L'espace poseurs n'est pas encore activé dans la base. Claude s'en occupe.</div>`
+      :`<div class="empty" style="margin-top:16px">Les informations ne peuvent pas s'afficher pour le moment. Vérifiez la connexion internet puis rechargez la page.</div>`}
+}
+
+// ---------- poseur : planning ----------
+async function vPlanning(v){
+  const days=weekDays(),pl=await loadPlanning(days[0],days[6]);
+  const t=today();
+  v.innerHTML=weekNav()+days.map((d,i)=>{const items=pl.filter(p=>p.jour===d);
+    if(i===6&&!items.length)return"";
+    return`<section class="day${d===t?" today":""}"><div class="day-h">${d===t?"Aujourd'hui · ":""}${dayLabel(d)}</div>
+      ${items.length?items.map(p=>{const j=chantiers.get(p.chantier)||{};return`<button class="card" data-open="${esc(p.chantier)}">
+        <div class="client">${esc(jobName(p.chantier))}</div><div class="sub">${esc(addrOf(j))||"Adresse à demander à Marine"}</div>${p.note?`<div>${esc(p.note)}</div>`:""}</button>`}).join("")
+      :`<div class="none">Pas de chantier prévu</div>`}</section>`}).join("")
+    +(pl.length?"":`<div class="empty" style="margin-top:16px">Aucun chantier prévu cette semaine pour vous. Marine remplit votre planning ici.</div>`);
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-open]");if(b)openSheet(b.dataset.open)});
+
+// ---------- fiche chantier ----------
+const CATS=[["avant","Photos avant chantier","De préférence une fois les protections posées."],
+  ["fin","Photos fin de chantier","Lors de la réception, chantier propre."],
+  ["conso_sortie","Consommables pris au stock","Photographiez ce que vous emportez (silicone, mousse, vis…)."],
+  ["conso_retour","Consommables remis au stock","En fin de chantier, photographiez ce que vous rapportez."]];
+const CAT_L=Object.fromEntries(CATS.map(c=>[c[0],c[1]]));
+const FICHES=["Préparation","Métré","Réception","Plans d'exé"];
+const FICHE_L={"Préparation":"Fiche de préparation","Métré":"Fiche de métré","Réception":"Fiche de réception","Plans d'exé":"Plans d'exé"};
+async function openSheet(id){
+  openId=id;const s=$("sheet");s.hidden=false;document.body.style.overflow="hidden";
+  s.innerHTML=`<div class="bar"><button class="btn ghost" data-close aria-label="Retour">◀ Retour</button><b>${esc(jobName(id))}</b></div><div class="wrap" id="sheetbody"><p class="sub">Chargement…</p></div>`;
+  history.pushState({sheet:id},"");
+  await renderSheet();
+}
+function closeSheet(){if(!openId)return;openId=null;$("sheet").hidden=true;$("sheet").innerHTML="";document.body.style.overflow="";render()}
+window.addEventListener("popstate",()=>{if(document.querySelector(".lightbox")){document.querySelector(".lightbox").remove();return}if(openId)closeSheet()});
+document.addEventListener("click",e=>{if(e.target.closest("[data-close]"))history.back()});
+
+async function renderSheet(){
+  const id=openId,j=chantiers.get(id)||{},body=$("sheetbody");if(!body)return;
+  const ph=await q(sb.from("photos").select("*").eq("chantier",id).order("pris_le",{ascending:false}));
+  if(openId!==id)return;
+  const urls=await signed(ph.map(p=>p.chemin));
+  const addr=addrOf(j),tel=(j.tel||"").replace(/[^\d+]/g,"");
+  const docs=(j.docs||[]).filter(d=>FICHES.includes(d.type)).sort((a,b)=>FICHES.indexOf(a.type)-FICHES.indexOf(b.type));
+  body.innerHTML=`<div class="client" style="font-size:26px">${esc(jobName(id))}</div>
+   <div class="sub">${esc(addr)||"Adresse non renseignée"}</div>
+   <div class="links">${addr?`<a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}" target="_blank" rel="noopener">Itinéraire</a>`:""}
+     ${tel?`<a class="btn ghost" href="tel:${esc(tel)}">Appeler le client</a>`:""}
+     <button class="btn ghost" data-hadd="${today()}" data-hjob="${esc(id)}">Noter mes heures</button></div>
+   <div class="box"><h3>Fiches du chantier</h3>${docs.length?`<div class="docs">${docs.map(d=>`<button class="btn ghost big" style="text-align:left" data-doc="${esc(d.id)}">📄 ${esc(FICHE_L[d.type]||d.type)}${d.rempli&&d.rempli.reste===0?' <span class="tag">remplie</span>':""}</button>`).join("")}</div>`:`<p class="sub">Les fiches ne sont pas encore disponibles pour ce chantier.</p>`}</div>
+   ${CATS.map(([k,l,hint])=>{const list=ph.filter(p=>p.categorie===k);return`<div class="box"><h3>${l} ${list.length?`<span class="tag b">${list.length}</span>`:""}</h3><div class="sub">${hint}</div>
+     ${list.length?`<div class="thumbs">${list.map(p=>`<button data-photo="${p.id}" aria-label="Voir la photo">${urls[p.chemin]?`<img src="${esc(urls[p.chemin])}" alt="" loading="lazy">`:""}<span class="cap">${esc(fmtTs(p.pris_le))}</span></button>`).join("")}</div>`:""}
+     ${k.startsWith("conso")?`<label class="fld">Ce que vous ${k==="conso_sortie"?"prenez":"rapportez"} (facultatif)<input type="text" id="note-${k}" placeholder="ex. 4 silicones blanc, 2 mousses"></label>`:""}
+     <label class="btn big" style="display:block;text-align:center;margin-top:10px">📷 Prendre une photo<input type="file" accept="image/*" capture="environment" multiple hidden data-up="${k}"></label></div>`}).join("")}`;
+  body._photos=ph;body._urls=urls;
+}
+const fmtTs=t=>{const d=new Date(t);return d.getDate()+" "+MOIS[d.getMonth()]+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")};
+async function signed(paths){
+  if(!paths.length)return{};
+  const{data}=await sb.storage.from("photos").createSignedUrls(paths,3600);
+  return Object.fromEntries((data||[]).filter(x=>x.signedUrl).map(x=>[x.path,x.signedUrl]));
+}
+// ouvrir une fiche PDF dans le lecteur du téléphone
+document.addEventListener("click",async e=>{const b=e.target.closest("[data-doc]");if(!b)return;
+  const w=window.open("","_blank");
+  const{data,error}=await sb.storage.from("documents").createSignedUrl(b.dataset.doc,900);
+  if(error||!data){if(w)w.close();toast("Cette fiche ne peut pas s'ouvrir pour le moment.");return}
+  if(w)w.location.href=data.signedUrl;else location.href=data.signedUrl;
+});
+
+// photos : réduites (1600 px, JPEG) avant l'envoi pour rester dans l'espace gratuit
+async function shrink(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
+    const k=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement("canvas");c.width=Math.round(img.naturalWidth*k);c.height=Math.round(img.naturalHeight*k);
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+    return await new Promise(ok=>c.toBlob(ok,"image/jpeg",.72));
+  }catch(_){return file.type==="image/jpeg"&&file.size<5e6?file:null}
+  finally{URL.revokeObjectURL(url)}
+}
+document.addEventListener("change",async e=>{const inp=e.target.closest("[data-up]");if(!inp||!inp.files.length)return;
+  const cat=inp.dataset.up,id=openId,files=[...inp.files],note=($("note-"+cat)?.value||"").trim()||null;inp.value="";
+  let ok=0;
+  for(const [n,f] of files.entries()){
+    toast(`Envoi de la photo ${n+1} sur ${files.length}…`);
+    const blob=await shrink(f);if(!blob){toast("Cette photo ne peut pas être lue.");continue}
+    const path=`${me}/${id}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const up=await sb.storage.from("photos").upload(path,blob,{contentType:"image/jpeg",upsert:false});
+    if(up.error){toast("Envoi impossible. Vérifiez le réseau et réessayez.");continue}
+    const ins=await sb.from("photos").insert({chantier:id,categorie:cat,chemin:path,note});
+    if(ins.error){await sb.storage.from("photos").remove([path]);toast("Envoi impossible. Réessayez.");continue}
+    ok++;
+  }
+  if(ok){toast(ok>1?ok+" photos enregistrées ✓":"Photo enregistrée ✓");if(openId===id)renderSheet();else render()}
+});
+// agrandir une photo
+document.addEventListener("click",e=>{const b=e.target.closest("[data-photo]");if(!b)return;
+  const holder=b.closest("[data-photos-scope]")||$("sheetbody")||$("view");
+  const p=(holder._photos||[]).find(x=>String(x.id)===b.dataset.photo);if(!p)return;
+  const url=(holder._urls||{})[p.chemin];
+  const canDel=role==="editeur"||(p.poseur===me&&Date.now()-new Date(p.pris_le)<864e5);
+  const lb=document.createElement("div");lb.className="lightbox";
+  lb.innerHTML=`<div class="lb"><span>${esc(CAT_L[p.categorie]||"")} · ${esc(nameOf(p.poseur))} · ${esc(fmtTs(p.pris_le))}${p.note?"<br>"+esc(p.note):""}</span>
+   ${canDel?`<button class="btn danger small" data-phdel>Supprimer</button>`:""}<button class="btn small" data-lbclose>Fermer</button></div><img src="${esc(url||"")}" alt="">`;
+  document.body.appendChild(lb);history.pushState({lb:1},"");
+  lb.querySelector("[data-lbclose]").onclick=()=>history.back();
+  lb.querySelector("[data-phdel]")?.addEventListener("click",async ev=>{
+    const btn=ev.currentTarget;if(btn.dataset.sure!=="1"){btn.dataset.sure="1";btn.textContent="Confirmer la suppression";return}
+    const{error}=await sb.from("photos").delete().eq("id",p.id);
+    if(error){toast("Suppression impossible.");return}
+    await sb.storage.from("photos").remove([p.chemin]);toast("Photo supprimée.");history.back();
+    setTimeout(()=>openId?renderSheet():render(),50);
+  });
+});
+
+// ---------- heures ----------
+async function vHeures(v){
+  const days=weekDays(),hs=(await loadHeures(days[0],days[6])).filter(h=>h.poseur===me);
+  const tot=hs.reduce((s,h)=>s+(+h.heures||0),0),t=today();
+  v.innerHTML=weekNav()+`<div class="tot"><span>Total de la semaine</span><b>${hfmt(tot)}</b></div>`
+   +days.map((d,i)=>{const items=hs.filter(h=>h.jour===d);if(i===6&&!items.length)return"";
+     return`<section class="day${d===t?" today":""}"><div class="day-h">${d===t?"Aujourd'hui · ":""}${dayLabel(d)}</div>
+      ${items.map(lineH).join("")}
+      <button class="btn ghost small" data-hadd="${d}">+ Ajouter des heures</button></section>`}).join("")
+   +`<p class="sub" style="margin-top:18px">Marine reçoit vos heures pour les salaires. Une ligne validée par Marine (✓) ne peut plus être modifiée : demandez-lui en cas d'erreur.</p>`;
+  v._heures=hs;
+}
+function lineH(h){return`<button class="hline${h.valide_le?" ok":""}" data-hedit="${h.id}">
+  <span><b>${esc(h.chantier?jobShort(h.chantier):"Dépôt / autre")}</b><br><span class="sub">${h.debut?h.debut.slice(0,5)+" – "+(h.fin||"").slice(0,5):""}${h.pause_min?" · pause "+h.pause_min+" min":""}${h.note?" · "+esc(h.note):""}</span></span>
+  <span class="h">${hfmt(+h.heures)}${h.valide_le?"<br><span class=\"tag\">validé ✓</span>":""}</span></button>`}
+document.addEventListener("click",e=>{
+  const a=e.target.closest("[data-hadd]");if(a){formHeures({jour:a.dataset.hadd,chantier:a.dataset.hjob||null});return}
+  const b=e.target.closest("[data-hedit]");if(b){const all=$("view")._heures||[];const h=all.find(x=>String(x.id)===b.dataset.hedit);if(h)formHeures(h)}
+});
+async function formHeures(h){
+  const mine=role!=="editeur"||!h.id;
+  if(h.valide_le&&role!=="editeur"){toast("Ligne validée par Marine : demandez-lui pour la corriger.");return}
+  const pl=role==="poseur"?await loadPlanning(h.jour,h.jour):[];
+  let last={};try{last=JSON.parse(localStorage.getItem("poseurs.dernier")||"{}")}catch(_){}
+  const dft={debut:h.debut?h.debut.slice(0,5):last.debut||"08:00",fin:h.fin?h.fin.slice(0,5):last.fin||"17:00",pause:h.id?h.pause_min:(last.pause??60)};
+  const planned=pl.map(p=>p.chantier),job=h.chantier!==undefined&&h.chantier!==null?h.chantier:(h.id?"":planned[0]||"");
+  const ids=[...new Set([...planned,...[...chantiers.keys()].sort((a,b)=>jobName(a).localeCompare(jobName(b)))])];
+  const m=modal(`<h2>${h.id?"Modifier":"Ajouter"} des heures</h2>
+   ${role==="editeur"&&h.id?`<div class="sub">${esc(nameOf(h.poseur))}</div>`:""}
+   <label class="fld">Jour<input type="date" name="jour" value="${esc(h.jour)}" required></label>
+   <label class="fld">Chantier<select name="chantier"><option value="">Dépôt / autre</option>${ids.map(i=>`<option value="${esc(i)}" ${i===job?"selected":""}>${esc(jobName(i))}${planned.includes(i)?" (prévu)":""}</option>`).join("")}</select></label>
+   <div class="row2"><label class="fld">Arrivée<input type="time" name="debut" value="${dft.debut}" step="300"></label><label class="fld">Départ<input type="time" name="fin" value="${dft.fin}" step="300"></label></div>
+   <label class="fld">Pause<select name="pause">${[0,15,30,45,60,75,90,120].map(n=>`<option value="${n}" ${n==dft.pause?"selected":""}>${n?n+" min":"aucune"}</option>`).join("")}</select></label>
+   <label class="fld">Remarque (facultatif)<input type="text" name="note" value="${esc(h.note||"")}" placeholder="ex. trajet, dépôt, intempéries"></label>
+   <div class="tot"><span>Heures travaillées</span><b id="hcalc">–</b></div>
+   <div class="acts">${h.id&&(mine||role==="editeur")?`<button class="btn danger" data-del>Supprimer</button>`:""}<button class="btn ghost" data-x>Annuler</button><button class="btn" data-ok>Enregistrer</button></div>`);
+  const f=k=>m.querySelector(`[name=${k}]`);
+  const calc=()=>{const a=tmin(f("debut").value),b=tmin(f("fin").value);if(a==null||b==null)return null;let d=b-a;if(d<0)d+=1440;d-=+f("pause").value;return d>0?Math.round(d/60*100)/100:null};
+  const upd=()=>{const n=calc();m.querySelector("#hcalc").textContent=n==null?"–":hfmt(n)};
+  m.addEventListener("input",upd);m.addEventListener("change",upd);upd();
+  m.querySelector("[data-x]").onclick=()=>m.close();
+  m.querySelector("[data-del]")?.addEventListener("click",async ev=>{const btn=ev.currentTarget;
+    if(btn.dataset.sure!=="1"){btn.dataset.sure="1";btn.textContent="Confirmer";return}
+    const{error}=await sb.from("heures").delete().eq("id",h.id);if(error){toast("Suppression impossible.");return}
+    m.close();toast("Ligne supprimée.");render()});
+  m.querySelector("[data-ok]").onclick=async ev=>{
+    const n=calc();if(!f("jour").value){toast("Indiquez le jour.");return}
+    if(n==null||n>16){toast("Vérifiez l'heure d'arrivée, de départ et la pause.");return}
+    const row={jour:f("jour").value,chantier:f("chantier").value||null,debut:f("debut").value,fin:f("fin").value,pause_min:+f("pause").value,heures:n,note:f("note").value.trim()||null};
+    ev.currentTarget.disabled=true;
+    const r=h.id?await sb.from("heures").update(row).eq("id",h.id):await sb.from("heures").insert(row);
+    ev.currentTarget.disabled=false;
+    if(r.error){toast(/valid/.test(r.error.message)?"Ligne déjà validée par Marine.":"Enregistrement impossible. Vérifiez le réseau et réessayez.");return}
+    try{localStorage.setItem("poseurs.dernier",JSON.stringify({debut:row.debut,fin:row.fin,pause:row.pause_min}))}catch(_){}
+    m.close();toast("Heures enregistrées ✓ ("+hfmt(n)+")");if(openId){if(tab==="heures")render()}else render();
+  };
+}
+function modal(html){
+  const w=document.createElement("div");w.className="modal";w.innerHTML=`<div role="dialog" aria-modal="true">${html}</div>`;
+  document.body.appendChild(w);const box=w.firstElementChild;
+  box.close=()=>w.remove();w.addEventListener("click",e=>{if(e.target===w)w.remove()});
+  return box;
+}
+
+// ---------- gestion : planning ----------
+async function vGPlanning(v){
+  const days=weekDays(),pl=await loadPlanning(days[0],days[6]),ps=poseurs(),t=today(),ed=role==="editeur";
+  const showSun=pl.some(p=>p.jour===days[6]);const cols=showSun?days:days.slice(0,6);
+  v.innerHTML=weekNav()+(ps.length?`<div class="gridwrap"><table class="plan"><thead><tr><th>Poseur</th>${cols.map(d=>`<th class="${d===t?"today":""}">${esc(dayLabel(d))}</th>`).join("")}</tr></thead><tbody>
+   ${ps.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${pl.filter(x=>x.poseur===p.id&&x.jour===d).map(x=>`<div class="pchip"><span><button style="all:unset;cursor:pointer" data-open="${esc(x.chantier)}">${esc(jobShort(x.chantier))}</button>${x.note?`<br><span class="sub">${esc(x.note)}</span>`:""}</span>${ed?`<button data-pdel="${x.id}" aria-label="Retirer">×</button>`:""}</div>`).join("")}
+     ${ed?`<button class="add" data-padd="${p.id}|${d}" aria-label="Ajouter un chantier">+</button>`:""}</td>`).join("")}</tr>`).join("")}
+   </tbody></table></div>${ed?`<p class="sub">Touchez « + » pour placer un poseur sur un chantier. Chaque poseur voit sur son téléphone les chantiers où vous l'avez placé, avec les fiches.</p>`:""}`
+   :`<div class="empty" style="margin-top:16px">Aucun poseur n'a encore d'accès. Donnez à Claude le prénom de chaque poseur : il crée leurs accès et vous transmet leurs identifiants.</div>`);
+}
+document.addEventListener("click",async e=>{
+  const d=e.target.closest("[data-pdel]");if(d){
+    const{error}=await sb.from("planning").delete().eq("id",d.dataset.pdel);if(error){toast("Modification impossible.");return}render();return}
+  const a=e.target.closest("[data-padd]");if(!a)return;
+  const[pid,day]=a.dataset.padd.split("|");
+  const ids=[...chantiers.keys()].filter(i=>!(chantiers.get(i).steps||{}).recep||i===openId).sort((x,y)=>jobName(x).localeCompare(jobName(y)));
+  const m=modal(`<h2>${esc(nameOf(pid))} · ${esc(dayLabel(day))}</h2>
+   <label class="fld">Chantier<select name="c"><option value="">Choisir…</option>${ids.map(i=>`<option value="${esc(i)}">${esc(jobName(i))}</option>`).join("")}</select></label>
+   <label class="fld">Consigne (facultatif)<input type="text" name="note" placeholder="ex. RDV 8h, prendre l'échafaudage"></label>
+   <label class="fld" style="display:flex;gap:10px;align-items:center;font-weight:500"><input type="checkbox" name="suite" style="width:22px;height:22px;min-height:0"> Jusqu'à la fin de la semaine (jusqu'au vendredi)</label>
+   <div class="acts"><button class="btn ghost" data-x>Annuler</button><button class="btn" data-ok>Placer</button></div>`);
+  m.querySelector("[data-x]").onclick=()=>m.close();
+  m.querySelector("[data-ok]").onclick=async()=>{
+    const c=m.querySelector("[name=c]").value;if(!c){toast("Choisissez le chantier.");return}
+    const note=m.querySelector("[name=note]").value.trim()||null;
+    let ds=[day];if(m.querySelector("[name=suite]").checked){const d0=parse(day);for(let x=addDays(d0,1);(x.getDay()+6)%7<5;x=addDays(x,1))ds.push(iso(x))}
+    const{error}=await sb.from("planning").upsert(ds.map(j=>({jour:j,chantier:c,poseur:pid,note})),{onConflict:"jour,chantier,poseur"});
+    if(error){toast("Enregistrement impossible.");return}
+    m.close();toast("Planning enregistré ✓");render();
+  };
+});
+
+// ---------- gestion : heures (Marine) ----------
+let gMode="semaine";
+async function vGHeures(v){
+  const days=weekDays();let a=days[0],b=days[6],titre;
+  if(gMode==="mois"){const d=addDays(week,3);a=iso(new Date(d.getFullYear(),d.getMonth(),1));b=iso(new Date(d.getFullYear(),d.getMonth()+1,0));titre=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"][d.getMonth()]+" "+d.getFullYear()}
+  const hs=await loadHeures(a,b),ps=[...new Set([...poseurs().map(p=>p.id),...hs.map(h=>h.poseur)])];
+  v._heures=hs;v._range=[a,b];
+  const nv=hs.filter(h=>!h.valide_le).length;
+  v.innerHTML=weekNav()+`<div class="chips"><button class="chip" data-gmode="semaine" aria-pressed="${gMode==="semaine"}">Cette semaine</button><button class="chip" data-gmode="mois" aria-pressed="${gMode==="mois"}">Tout le mois${titre?" ("+titre+")":""}</button></div>
+   <div class="links"><button class="btn" data-export>Télécharger pour Excel</button>${nv?`<button class="btn ghost" data-valall>Valider les ${nv} ligne${nv>1?"s":""} affichée${nv>1?"s":""}</button>`:""}</div>
+   ${ps.length?ps.map(pid=>{const L=hs.filter(h=>h.poseur===pid),tot=L.reduce((s,h)=>s+(+h.heures||0),0);
+     return`<h3>${esc(nameOf(pid))} · ${hfmt(tot)}</h3>${L.length?`<div class="gridwrap"><table class="h"><thead><tr><th>Jour</th><th>Chantier</th><th>Arrivée</th><th>Départ</th><th class="n">Pause</th><th class="n">Heures</th><th>Remarque</th><th></th></tr></thead><tbody>
+      ${L.map(h=>`<tr><td>${esc(dayLabel(h.jour))}</td><td>${esc(h.chantier?jobShort(h.chantier):"Dépôt / autre")}</td><td>${(h.debut||"").slice(0,5)}</td><td>${(h.fin||"").slice(0,5)}</td><td class="n">${h.pause_min||0}</td><td class="n">${hfmt(+h.heures)}</td><td>${esc(h.note||"")}</td>
+        <td>${h.valide_le?'<span class="tag">validé ✓</span>':'<span class="tag o">à valider</span>'} <button class="btn ghost small" data-hedit="${h.id}">Modifier</button></td></tr>`).join("")}
+      <tr class="sum"><td colspan="5">Total</td><td class="n">${hfmt(tot)}</td><td colspan="2"></td></tr></tbody></table></div>`:`<p class="none">Aucune heure saisie.</p>`}`}).join("")
+   :`<div class="empty">Aucun poseur n'a encore d'accès.</div>`}`;
+}
+document.addEventListener("click",async e=>{
+  const m=e.target.closest("[data-gmode]");if(m){gMode=m.dataset.gmode;render();return}
+  if(e.target.closest("[data-valall]")){
+    const ids=($("view")._heures||[]).filter(h=>!h.valide_le).map(h=>h.id);
+    const{error}=await sb.from("heures").update({valide_le:new Date().toISOString(),valide_par:me}).in("id",ids);
+    toast(error?"Validation impossible.":"Heures validées ✓");render();return}
+  if(e.target.closest("[data-export]")){
+    const hs=$("view")._heures||[],[a,b]=$("view")._range;
+    const cell=s=>{s=String(s??"");return/[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+    const rows=[["Poseur","Date","Jour","Chantier","Arrivée","Départ","Pause (min)","Heures","Remarque","Validé"]]
+      .concat(hs.slice().sort((x,y)=>nameOf(x.poseur).localeCompare(nameOf(y.poseur))||x.jour.localeCompare(y.jour))
+      .map(h=>[nameOf(h.poseur),h.jour.split("-").reverse().join("/"),JOURS[(parse(h.jour).getDay()+6)%7],h.chantier?jobName(h.chantier):"Dépôt / autre",(h.debut||"").slice(0,5),(h.fin||"").slice(0,5),h.pause_min||0,String(h.heures).replace(".",","),h.note||"",h.valide_le?"oui":"non"]));
+    const blob=new Blob(["﻿"+rows.map(r=>r.map(cell).join(";")).join("\r\n")],{type:"text/csv;charset=utf-8"});
+    const l=document.createElement("a");l.href=URL.createObjectURL(blob);l.download=`heures-poseurs-${a}-au-${b}.csv`;document.body.appendChild(l);l.click();setTimeout(()=>{URL.revokeObjectURL(l.href);l.remove()},1000);
+  }
+});
+
+// ---------- gestion : photos ----------
+let gCat="",gJob="";
+async function vGPhotos(v){
+  let qy=sb.from("photos").select("*").order("pris_le",{ascending:false}).limit(120);
+  if(gCat)qy=qy.eq("categorie",gCat);if(gJob)qy=qy.eq("chantier",gJob);
+  const ph=await q(qy),urls=await signed(ph.map(p=>p.chemin));
+  const ids=[...chantiers.keys()].sort((a,b)=>jobName(a).localeCompare(jobName(b)));
+  v.innerHTML=`<h2>Photos des chantiers</h2>
+   <label class="fld">Chantier<select id="gjob"><option value="">Tous les chantiers</option>${ids.map(i=>`<option value="${esc(i)}" ${i===gJob?"selected":""}>${esc(jobName(i))}</option>`).join("")}</select></label>
+   <div class="chips"><button class="chip" data-gcat="" aria-pressed="${!gCat}">Toutes</button>${CATS.map(([k,l])=>`<button class="chip" data-gcat="${k}" aria-pressed="${gCat===k}">${l.replace("Photos ","")}</button>`).join("")}</div>
+   <div data-photos-scope>${ph.length?`<div class="thumbs" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">${ph.map(p=>`<button data-photo="${p.id}">${urls[p.chemin]?`<img src="${esc(urls[p.chemin])}" alt="" loading="lazy">`:""}<span class="cap">${esc(jobShort(p.chantier))} · ${esc(nameOf(p.poseur))} · ${esc(fmtTs(p.pris_le))}</span></button>`).join("")}</div>`:`<div class="empty">Aucune photo pour le moment.</div>`}</div>`;
+  const sc=v.querySelector("[data-photos-scope]");sc._photos=ph;sc._urls=urls;
+  $("gjob").onchange=e=>{gJob=e.target.value;render()};
+}
+document.addEventListener("click",e=>{const c=e.target.closest("[data-gcat]");if(c){gCat=c.dataset.gcat;render()}});
+
+// ---------- démarrage ----------
+(async()=>{
+  await claude.use("user");sb=window.sbClient;
+  const{data:{session}}=await sb.auth.getSession();me=session.user.id;
+  profils=(await sb.from("profils").select("id,email,nom,role")).data||[];
+  role=(profils.find(p=>p.id===me)||{}).role||"lecteur";
+  const p=profils.find(x=>x.id===me)||{};
+  $("hello").textContent="Bonjour "+(p.nom||(p.email||"").split("@")[0]);
+  $("app").hidden=false;$("tabs").hidden=false;week=monday(new Date());
+  try{await loadChantiers()}catch(_){}
+  let saved;try{saved=localStorage.getItem("poseurs.tab")}catch(_){}
+  setTab(tabsFor().some(t=>t[0]===saved)?saved:tabsFor()[0][0]);
+  document.addEventListener("visibilitychange",async()=>{if(document.hidden)return;try{await loadChantiers()}catch(_){}if(openId)renderSheet();else render()});
+})();
+</script>
+</body>
+</html>
