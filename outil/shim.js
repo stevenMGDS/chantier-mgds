@@ -59,7 +59,7 @@ async function start(){
   const {data}=await sb.from("profils").select("id,email,nom,role").eq("id",session.user.id).maybeSingle();
   profil=data||{id:session.user.id,email:session.user.email,role:"lecteur"};
   const w=document.createElement("div");w.className="who";
-  w.innerHTML=`<span>${(profil.nom||profil.email||"").replace(/[<>&]/g,"")}${profil.role==="editeur"?"":" · consultation"}</span><button type="button">Déconnexion</button>`;
+  w.innerHTML=`<span>${(profil.nom||profil.email||"").replace(/[<>&]/g,"")}${profil.role==="lecteur"?" · consultation":""}</span><button type="button">Déconnexion</button>`;
   w.querySelector("button").onclick=async()=>{await sb.auth.signOut();location.reload()};
   document.body.appendChild(w);
   readyRes(true);
@@ -75,12 +75,14 @@ sb.auth.onAuthStateChange((ev,s)=>{if(ev==="PASSWORD_RECOVERY"){session=s;gate("
 
 // ---------- base ----------
 const isObj=v=>v&&typeof v==="object"&&!Array.isArray(v);
+// profil « terrain » (Yannick, Stéphanie) : remplir les fiches et cocher les tâches, rien d'autre (la base vérifie aussi)
+const okTerrain=p=>Object.keys(p).every(k=>k==="docs"||k==="av"||k==="ap"||(k==="steps"&&isObj(p.steps)&&Object.keys(p.steps).every(s=>["metre","prepa","recep"].includes(s))));
 function merge(a,b){const o=isObj(a)?{...a}:{};for(const[k,v]of Object.entries(b))o[k]=isObj(v)&&isObj(o[k])?merge(o[k],v):v;return o}
 function docRef(path){
   const id=path.split("/")[1];
   return{
     async update(patch){
-      if(profil.role!=="editeur")throw err("invalid_argument");
+      if(profil.role!=="editeur"&&!(profil.role==="terrain"&&okTerrain(patch)))throw err("invalid_argument");
       for(let n=0;n<6;n++){
         const {data:row,error:e1}=await sb.from("chantiers").select("data,version").eq("id",id).single();
         if(e1)throw err("unavailable",e1.message);
@@ -125,7 +127,7 @@ const db={
 // ---------- utilisateur ----------
 const user={
   id:async()=>session.user.id,
-  can:async cap=>cap==="data.write"?profil.role==="editeur":true,
+  can:async cap=>cap==="data.write"?profil.role==="editeur":cap==="data.fill"?profil.role==="terrain":true,
   async profiles(ids){
     const {data}=await sb.from("profils").select("id,nom,email").in("id",ids);
     return Object.fromEntries((data||[]).map(p=>[p.id,{name:p.nom||(p.email||"").split("@")[0]}]));

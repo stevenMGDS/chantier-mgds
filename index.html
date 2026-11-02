@@ -247,7 +247,7 @@ async function start(){
   const {data}=await sb.from("profils").select("id,email,nom,role").eq("id",session.user.id).maybeSingle();
   profil=data||{id:session.user.id,email:session.user.email,role:"lecteur"};
   const w=document.createElement("div");w.className="who";
-  w.innerHTML=`<span>${(profil.nom||profil.email||"").replace(/[<>&]/g,"")}${profil.role==="editeur"?"":" · consultation"}</span><button type="button">Déconnexion</button>`;
+  w.innerHTML=`<span>${(profil.nom||profil.email||"").replace(/[<>&]/g,"")}${profil.role==="lecteur"?" · consultation":""}</span><button type="button">Déconnexion</button>`;
   w.querySelector("button").onclick=async()=>{await sb.auth.signOut();location.reload()};
   document.body.appendChild(w);
   readyRes(true);
@@ -263,12 +263,14 @@ sb.auth.onAuthStateChange((ev,s)=>{if(ev==="PASSWORD_RECOVERY"){session=s;gate("
 
 // ---------- base ----------
 const isObj=v=>v&&typeof v==="object"&&!Array.isArray(v);
+// profil « terrain » (Yannick, Stéphanie) : remplir les fiches et cocher les tâches, rien d'autre (la base vérifie aussi)
+const okTerrain=p=>Object.keys(p).every(k=>k==="docs"||k==="av"||k==="ap"||(k==="steps"&&isObj(p.steps)&&Object.keys(p.steps).every(s=>["metre","prepa","recep"].includes(s))));
 function merge(a,b){const o=isObj(a)?{...a}:{};for(const[k,v]of Object.entries(b))o[k]=isObj(v)&&isObj(o[k])?merge(o[k],v):v;return o}
 function docRef(path){
   const id=path.split("/")[1];
   return{
     async update(patch){
-      if(profil.role!=="editeur")throw err("invalid_argument");
+      if(profil.role!=="editeur"&&!(profil.role==="terrain"&&okTerrain(patch)))throw err("invalid_argument");
       for(let n=0;n<6;n++){
         const {data:row,error:e1}=await sb.from("chantiers").select("data,version").eq("id",id).single();
         if(e1)throw err("unavailable",e1.message);
@@ -313,7 +315,7 @@ const db={
 // ---------- utilisateur ----------
 const user={
   id:async()=>session.user.id,
-  can:async cap=>cap==="data.write"?profil.role==="editeur":true,
+  can:async cap=>cap==="data.write"?profil.role==="editeur":cap==="data.fill"?profil.role==="terrain":true,
   async profiles(ids){
     const {data}=await sb.from("profils").select("id,nom,email").in("id",ids);
     return Object.fromEntries((data||[]).map(p=>[p.id,{name:p.nom||(p.email||"").split("@")[0]}]));
@@ -430,7 +432,7 @@ const semInput=(attrs,v)=>{const k=v?isoWeek(v):{y:new Date().getFullYear(),w:""
 const frLong=s=>{if(!s)return"[date]";const d=new Date(s+"T12:00");return d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})};
 const days=s=>Math.round((new Date(today()+"T12:00")-new Date(s+"T12:00"))/864e5);
 
-let db=null,assets=null,user=null,me=null,canWrite=true,downloads=null,vBlob=null,vName="",vDoc=null,vPdf=null,vPages=[],vForm=null;
+let db=null,assets=null,user=null,me=null,canWrite=true,canFill=false,downloads=null,vBlob=null,vName="",vDoc=null,vPdf=null,vPages=[],vForm=null;
 let jobs=new Map(),openId=null,filter="encours",who="Tous",q="",pendingSheet=false;
 
 const sd=(j,k)=>{const v=(j.steps||{})[k];return v&&v.d?v.d:""};
@@ -548,7 +550,7 @@ async function renderSheet(){
     if(i==="livprev")return `<li><span></span><span class="lab">${s.l}<em>semaine de livraison</em>${m}${tag(i)}</span>${semInput(`data-stepwk="livprev" ${ro}`,v&&v.d)}</li>`;
     if(s.man)return `<li><span></span><span class="lab">${s.l}<em>date à saisir</em>${m}${tag(i)}</span><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${v&&v.d||""}" ${ro}></li>`;
     return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" data-step="${i}" aria-label="${lab(j,s)}" ${ro||(lk||fl?"disabled":"")}>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}${m}${note}${tag(i)}<span class="who-by" data-by="${v&&v.by||""}"></span></span><span class="date">${fr(v&&v.d)}</span></li>`}).join("");
-  const tl=k=>(j[k]||[]).map((t,i)=>`<div class="task ${t.f?"done":""}"><input type="checkbox" data-task="${k}" data-i="${i}" ${t.f?"checked":""} ${ro} aria-label="${esc(t.t)}"><span>${esc(t.t)}${t.f?` <span class="mono">${fr(t.f)}</span>`:""}</span>${canWrite?`<button class="x" data-deltask="${k}" data-i="${i}" aria-label="Supprimer">×</button>`:""}</div>`).join("");
+  const tl=k=>(j[k]||[]).map((t,i)=>`<div class="task ${t.f?"done":""}"><input type="checkbox" data-task="${k}" data-i="${i}" ${t.f?"checked":""} ${canWrite||canFill?"":"disabled"} aria-label="${esc(t.t)}"><span>${esc(t.t)}${t.f?` <span class="mono">${fr(t.f)}</span>`:""}</span>${canWrite?`<button class="x" data-deltask="${k}" data-i="${i}" aria-label="Supprimer">×</button>`:""}</div>`).join("");
   const docs=(j.docs||[]).map((d,i)=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.name)}</button>${d.traite?"":`<span class="new">nouveau</span>`}${d.rempli?d.rempli.reste?`<span class="new">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:`<span class="new ok">fiche complète</span>`:""}<br><span class="mono">${fr(d.at)} · ${Math.max(1,Math.round((d.size||0)/1024))} ko</span></span>
     ${canWrite?`<select data-doctype="${i}" aria-label="Type de document">${DOC_TYPES.map(t=>`<option ${t===d.type?"selected":""}>${t}</option>`).join("")}</select>`:""}</li>`).join("");
   const mails=moments(j).map(m=>{const dueStep=sd(j,m[0]);const sent=(j.mails||{})[m[0]];
@@ -608,7 +610,7 @@ async function renderSheet(){
    <ul class="arcs">${facs||`<li class="sub">Facture unique : cochez « Facturé » et « Payé » dans les étapes. Pour facturer en plusieurs fois, ajoutez une ligne par facture.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="fac"><input type="text" id="add-fac" placeholder="Libellé (ex. situation 1 : phase 1 posée)" aria-label="Libellé de la facture"><select id="add-fac-solde" aria-label="Type"><option value="">Partielle</option><option value="1">Solde</option></select><button class="btn">+</button></form>`:""}
    <h3>Documents</h3>
-   ${assets?`<div class="drop" id="drop">Glissez ici devis, ARC, métré, photos… ou <label for="file">choisissez des fichiers</label><input type="file" id="file" multiple hidden accept=".pdf,image/*,.csv,.txt"><div class="sub" style="margin-top:4px">PDF et photos. Pour un Word ou un Excel, enregistrez-le d'abord en PDF.</div></div>`:`<p class="sub">Vous ne pouvez pas déposer de fichier sur cette page. Demandez à Steven de vous donner l'accès « Modifier ».</p>`}
+   ${canWrite&&assets?`<div class="drop" id="drop">Glissez ici devis, ARC, métré, photos… ou <label for="file">choisissez des fichiers</label><input type="file" id="file" multiple hidden accept=".pdf,image/*,.csv,.txt"><div class="sub" style="margin-top:4px">PDF et photos. Pour un Word ou un Excel, enregistrez-le d'abord en PDF.</div></div>`:`<p class="sub">Vous ne pouvez pas déposer de fichier sur cette page. Demandez à Steven de vous donner l'accès « Modifier ».</p>`}
    <ul class="docs">${docs||`<li style="grid-template-columns:1fr"><span class="sub">Aucun document pour l'instant.</span></li>`}</ul>
    <h3>Tâches de Yannick</h3>
    <div class="tasks"><section><h4>Avant chantier</h4>${tl("av")}${canWrite?`<form class="add" data-add="av"><input type="text" id="add-av" placeholder="Ajouter une tâche"><button class="btn">+</button></form>`:""}</section>
@@ -646,7 +648,7 @@ function guessType(n){n=n.toLowerCase();
   if(/r[eé]cep|pv/.test(n))return"Réception";if(/fact/.test(n))return"Facture";if(/command|bdc/.test(n))return"Commande";if(/\.(jpe?g|png|heic|webp)$/.test(n))return"Photo";return"Autre"}
 function ctype(f){if(f.type&&!/;/.test(f.type)&&f.type!=="application/vnd.ms-excel")return f.type;const e=f.name.split(".").pop().toLowerCase();return{pdf:"application/pdf",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",csv:"text/csv",txt:"text/plain"}[e]||f.type}
 async function upload(files){
-  if(!assets||!openId)return;const id=openId;
+  if(!canWrite||!assets||!openId)return;const id=openId;
   for(const f of files){
     toast("Envoi de « "+f.name+" »…");
     try{
@@ -795,7 +797,7 @@ async function viewDoc(d){
       await page.render({canvasContext:c.getContext("2d"),viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
       vPages.push({page,box,c,css:w/v0.width,vp});
     }
-    if(canWrite&&assets&&d.type in FORM_TYPES&&!$("viewer").hidden){const fs=(await pdf.getFieldObjects())||{};if(Object.keys(fs).length){$("vedit").hidden=false;if(d.rempli)showFill(d.rempli.reste)}}
+    if((canWrite||canFill)&&assets&&d.type in FORM_TYPES&&!$("viewer").hidden){const fs=(await pdf.getFieldObjects())||{};if(Object.keys(fs).length){$("vedit").hidden=false;if(d.rempli)showFill(d.rempli.reste)}}
   }catch(_){pg.innerHTML='<p class="sub">Ce document ne peut pas s\'afficher ici.'+(downloads?' Utilisez « Télécharger ».':'')+'</p>';if(vBlob)$("vdl").hidden=!downloads}
 }
 
@@ -882,8 +884,8 @@ async function saveFill(){
   db=await claude.use("db");
   if(!db){$("sum").textContent="Connectez-vous à claude.ai pour voir les chantiers.";$("list").innerHTML=`<div class="empty">Les chantiers s'affichent quand vous ouvrez cette page connecté à votre compte claude.ai.</div>`;return}
   user=await claude.use("user");
-  if(user){me=await user.id();const c=await user.can("data.write");if(c===false)canWrite=false}
-  assets=canWrite?await claude.use("assets"):null;
+  if(user){me=await user.id();const c=await user.can("data.write");if(c===false)canWrite=false;if(!canWrite){try{canFill=(await user.can("data.fill"))===true}catch(_){}}}
+  assets=canWrite||canFill?await claude.use("assets"):null;
   downloads=await claude.use("downloads");
   $("newBtn").hidden=!canWrite;
   db.collection("chantiers").onSnapshot(snap=>{
