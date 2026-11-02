@@ -142,7 +142,16 @@ textarea{min-height:64px;resize:vertical}
 .viewer canvas,.viewer img{max-width:100%;height:auto;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15)}
 .docs select{width:auto;font-size:13px;padding:3px 6px}
 .dtype{font:600 12px var(--f-body);text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:4px;background:var(--t-bleu)}
-.new{font:600 11px var(--f-body);color:var(--s-orange);margin-left:6px;text-transform:uppercase}
+.new{font:600 11px var(--f-body);color:var(--s-orange);margin-left:6px;text-transform:uppercase}.new.ok{color:var(--s-vert)}
+.viewer .pg{position:relative;max-width:100%}.viewer .pg canvas{display:block}
+.viewer .fld{position:absolute;box-sizing:border-box;margin:0;border:1px solid var(--accent);border-radius:2px;background:rgba(220,232,244,.85);color:#111;padding:0 2px;font-family:var(--f-body);resize:none}
+.viewer .fldro{position:absolute;color:#111;font-family:Helvetica,Arial,sans-serif;line-height:1.15;padding:1px 2px;pointer-events:none;white-space:pre-wrap}
+.viewer .fld.opt{background:rgba(220,232,244,.35);border-style:dashed}
+.viewer .fld.need{background:rgba(255,236,150,.9);border-color:var(--s-orange)}
+.viewer input.fld[type=checkbox]{appearance:none;-webkit-appearance:none;cursor:pointer;padding:0}
+.viewer input.fld[type=checkbox]:checked{background:var(--accent);box-shadow:inset 0 0 0 2px #fff}
+.viewer .fld:focus{outline:2px solid var(--accent);outline-offset:1px}
+#vfill{font:600 13px var(--f-body);color:var(--s-orange)}#vfill.ok{color:var(--s-vert)}
 .mails{display:flex;flex-direction:column;gap:6px}
 .mail{border:1px solid var(--line);border-radius:6px}
 .mail summary{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 10px;cursor:pointer;list-style:none;align-items:center}
@@ -173,7 +182,7 @@ textarea{min-height:64px;resize:vertical}
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="sheet" id="sheet" hidden aria-label="Fiche chantier"></aside>
-<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span style="display:flex;gap:8px"><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div></div>
+<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="vfill" role="status"></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div></div>
 <div class="toast" id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
@@ -356,14 +365,17 @@ const STEPS=[
  {k:"cmd",l:"Commande saisie",ph:"Commande"},{k:"cmdok",l:"Commande validée",ph:"Commande"},{k:"arc",l:"ARC validé",ph:"Commande"},
  {k:"livprev",l:"Livraison prévue (ARC)",man:1,ph:"Livraison"},{k:"support",l:"Réception de support",only:"neuf",ph:"Livraison"},
  {k:"conso",l:"Consommables validés",ph:"Livraison"},{k:"livre",l:"Matériel livré",ph:"Livraison"},
- {k:"poseprop",l:"Pose proposée",man:1,ph:"Pose"},{k:"posevalid",l:"Pose validée client",man:1,ph:"Pose"},{k:"pose",l:"Posé",ph:"Pose"},
+ {k:"prepa",l:"Préparation chantier",ph:"Pose"},{k:"poseprop",l:"Pose proposée",man:1,ph:"Pose"},{k:"posevalid",l:"Pose validée client",man:1,ph:"Pose"},{k:"pose",l:"Posé",ph:"Pose"},
  {k:"recep",l:"Réceptionné",ph:"Réception"},{k:"reserves",l:"Avec réserves",opt:1,ph:"Réception"},{k:"levees",l:"Réserves levées",ph:"Réception"},
  {k:"facture",l:"Facturé",ph:"Facturation"},{k:"paye",l:"Payé",ph:"Facturation"}];
 const SK=Object.fromEntries(STEPS.map(s=>[s.k,s]));
 const LIEUX={depot:"au dépôt MGDS",chantier:"sur le chantier",mixte:"dépôt et chantier"};
 const lab=(j,s)=>s.k==="livre"&&LIEUX[j.livraison]?`Matériel livré ${LIEUX[j.livraison]}`:s.l;
-const NEXT={signe:"Saisir le devis signé",acompte:"Encaisser l'acompte",rdv:"Fixer le RDV métré (Marine)",metre:"Réaliser le métré (Yannick)",plans:"Réaliser les plans d'exé (Steven)",plansok:"Faire valider les plans par le MOE",cmd:"Saisir la commande (commercial)",cmdok:"Valider la commande (commercial)",arc:"Contrôler l'ARC (Yannick)",livprev:"Noter la semaine de livraison de l'ARC (Yannick)",conso:"Valider les consommables (Yannick)",livre:"Réceptionner le matériel",support:"Faire la réception de support",poseprop:"Proposer 2 dates de pose au client (Marine)",posevalid:"Noter la date choisie par le client (Marine)",pose:"Poser le chantier",recep:"Faire la réception avec le client",levees:"Lever les réserves",facture:"Facturer",paye:"Encaisser le solde"};
+const NEXT={signe:"Saisir le devis signé",acompte:"Encaisser l'acompte",rdv:"Fixer le RDV métré (Marine)",metre:"Réaliser le métré (Yannick)",plans:"Réaliser les plans d'exé (Steven)",plansok:"Faire valider les plans par le MOE",cmd:"Saisir la commande (commercial)",cmdok:"Valider la commande (commercial)",arc:"Contrôler l'ARC (Yannick)",livprev:"Noter la semaine de livraison de l'ARC (Yannick)",conso:"Valider les consommables (Yannick)",livre:"Réceptionner le matériel",support:"Faire la réception de support",poseprop:"Proposer 2 dates de pose au client (Marine)",posevalid:"Noter la date choisie par le client (Marine)",prepa:"Remplir la fiche de préparation (découverte chantier)",pose:"Poser le chantier",recep:"Faire la réception avec le client",levees:"Lever les réserves",facture:"Facturer",paye:"Encaisser le solde"};
 const NEED_PLANS=["cmd","cmdok","arc"];
+// étapes validées par une fiche remplie dans l'appli (toutes les cases obligatoires faites)
+const FORM_STEPS={metre:"Métré",prepa:"Préparation",recep:"Réception"};
+const formDone=(j,k)=>(j.docs||[]).some(d=>d.type===FORM_STEPS[k]&&d.rempli&&d.rempli.reste===0);
 // ARC : un par commande fournisseur ; les étapes arc / livprev / livre en découlent
 const ARC_STEPS=["arc","livprev","livre"];
 const LIEU_ARC={depot:"Dépôt MGDS",chantier:"Chantier"};
@@ -418,13 +430,13 @@ const semInput=(attrs,v)=>{const k=v?isoWeek(v):{y:new Date().getFullYear(),w:""
 const frLong=s=>{if(!s)return"[date]";const d=new Date(s+"T12:00");return d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})};
 const days=s=>Math.round((new Date(today()+"T12:00")-new Date(s+"T12:00"))/864e5);
 
-let db=null,assets=null,user=null,me=null,canWrite=true,downloads=null,vBlob=null,vName="";
+let db=null,assets=null,user=null,me=null,canWrite=true,downloads=null,vBlob=null,vName="",vDoc=null,vPdf=null,vPages=[],vForm=null;
 let jobs=new Map(),openId=null,filter="encours",who="Tous",q="",pendingSheet=false;
 
 const sd=(j,k)=>{const v=(j.steps||{})[k];return v&&v.d?v.d:""};
 function stepsOf(j){return STEPS.filter(s=>!s.only||(s.only==="reno"&&j.type!=="neuf")||(s.only==="neuf"&&j.type==="neuf")||(s.only==="plans"&&j.plans))}
 function nDone(j){return stepsOf(j).filter(s=>sd(j,s.k)).length}
-function curStep(j){const ss=stepsOf(j);for(let n=0;n<ss.length;n++){const s=ss[n];if(s.opt)continue;if(s.k==="levees"&&!sd(j,"reserves"))continue;if(s.man&&ss.slice(n+1).some(x=>sd(j,x.k)))continue;if(!sd(j,s.k))return s.k}return null}
+function curStep(j){const ss=stepsOf(j);for(let n=0;n<ss.length;n++){const s=ss[n];if(s.opt)continue;if(s.k==="levees"&&!sd(j,"reserves"))continue;if((s.man||s.k==="prepa")&&ss.slice(n+1).some(x=>sd(j,x.k)))continue;if(!sd(j,s.k))return s.k}return null}
 function locked(j,k){return !!(j.plans&&NEED_PLANS.includes(k)&&!sd(j,"plansok"))}
 const LATE=[
  [j=>sd(j,"signe")&&!sd(j,"acompte")&&days(sd(j,"signe"))>14,"acompte",j=>"Acompte attendu depuis "+days(sd(j,"signe"))+" j"],
@@ -529,14 +541,15 @@ async function renderSheet(){
     if(autoP)return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" aria-label="${lab(j,s)}" disabled>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}<em>${i==="pose"?nPosed(j)+"/"+phasesOf(j).length+" poses faites · se coche avec les poses":i==="facture"?"se coche avec la facture de solde":facsOf(j).filter(f=>f.paye&&f.paye.d).length+"/"+facsOf(j).length+" payées · se coche avec les factures"}</em>${tag(i)}</span><span class="date">${fr(v&&v.d)}</span></li>`;
     const auto=hasArcs(j)&&ARC_STEPS.includes(i);
     if(auto)return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" aria-label="${lab(j,s)}" disabled>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}<em>${i==="arc"?arcCount(j,a=>a.ok&&a.ok.d)+" ARC validés":i==="livprev"?arcCount(j,a=>a.prev)+" semaines notées":arcCount(j,a=>a.livre&&a.livre.d)+" livraisons reçues"} · se coche avec les ARC</em>${tag(i)}</span><span class="date">${i==="livprev"?sem(v&&v.d):fr(v&&v.d)}</span></li>`;
-    const note=lk?`<em>après validation des plans par le MOE</em>`:s.opt?`<em>si besoin</em>`:"";
+    const fl=FORM_STEPS[i]&&!(v&&v.d)&&!formDone(j,i);
+    const note=lk?`<em>après validation des plans par le MOE</em>`:fl?`<em>se coche quand la fiche « ${FORM_STEPS[i]} » est remplie en entier dans l'appli</em>`:s.opt?`<em>si besoin</em>`:"";
     if(i==="poseprop")return `<li><span></span><span class="lab">${s.l}<em>2 dates à proposer au client</em>${m}${tag(i)}</span><span class="pdates"><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${v&&v.d||""}" aria-label="Date proposée 1" ${ro}><span class="sub">ou</span><input type="date" min="2000-01-01" max="2099-12-31" data-field="pose2" value="${j.pose2||""}" aria-label="Date proposée 2" ${ro}></span></li>`;
     if(i==="posevalid"){const pd=poseDates(j).sort(),ok=v&&v.d;return `<li><span></span><span class="lab">${s.l}<em>date retenue par le client</em>${m}${tag(i)}${pd.length&&canWrite?`<span class="pchoice">${pd.map(d=>`<button class="btn ${ok===d?"":"ghost"}" data-posechoice="${d}">${ok===d?"✓ ":""}${fr(d)} · ${sem(d)}</button>`).join("")}</span>`:""}</span><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${ok||""}" aria-label="Date de pose validée" ${ro}></li>`}
     if(i==="livprev")return `<li><span></span><span class="lab">${s.l}<em>semaine de livraison</em>${m}${tag(i)}</span>${semInput(`data-stepwk="livprev" ${ro}`,v&&v.d)}</li>`;
     if(s.man)return `<li><span></span><span class="lab">${s.l}<em>date à saisir</em>${m}${tag(i)}</span><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${v&&v.d||""}" ${ro}></li>`;
-    return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" data-step="${i}" aria-label="${lab(j,s)}" ${ro||(lk?"disabled":"")}>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}${m}${note}${tag(i)}<span class="who-by" data-by="${v&&v.by||""}"></span></span><span class="date">${fr(v&&v.d)}</span></li>`}).join("");
+    return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" data-step="${i}" aria-label="${lab(j,s)}" ${ro||(lk||fl?"disabled":"")}>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}${m}${note}${tag(i)}<span class="who-by" data-by="${v&&v.by||""}"></span></span><span class="date">${fr(v&&v.d)}</span></li>`}).join("");
   const tl=k=>(j[k]||[]).map((t,i)=>`<div class="task ${t.f?"done":""}"><input type="checkbox" data-task="${k}" data-i="${i}" ${t.f?"checked":""} ${ro} aria-label="${esc(t.t)}"><span>${esc(t.t)}${t.f?` <span class="mono">${fr(t.f)}</span>`:""}</span>${canWrite?`<button class="x" data-deltask="${k}" data-i="${i}" aria-label="Supprimer">×</button>`:""}</div>`).join("");
-  const docs=(j.docs||[]).map((d,i)=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.name)}</button>${d.traite?"":`<span class="new">nouveau</span>`}<br><span class="mono">${fr(d.at)} · ${Math.max(1,Math.round((d.size||0)/1024))} ko</span></span>
+  const docs=(j.docs||[]).map((d,i)=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.name)}</button>${d.traite?"":`<span class="new">nouveau</span>`}${d.rempli?d.rempli.reste?`<span class="new">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:`<span class="new ok">fiche complète</span>`:""}<br><span class="mono">${fr(d.at)} · ${Math.max(1,Math.round((d.size||0)/1024))} ko</span></span>
     ${canWrite?`<select data-doctype="${i}" aria-label="Type de document">${DOC_TYPES.map(t=>`<option ${t===d.type?"selected":""}>${t}</option>`).join("")}</select>`:""}</li>`).join("");
   const mails=moments(j).map(m=>{const dueStep=sd(j,m[0]);const sent=(j.mails||{})[m[0]];
     const st=sent?`<span class="pill vert">envoyé le ${fr(sent)}</span>`:dueStep?`<span class="pill orange">à envoyer</span>`:`<span class="pill">plus tard</span>`;
@@ -629,7 +642,7 @@ function bindDrop(){
   $("file").addEventListener("change",e=>upload([...e.target.files]));
 }
 function guessType(n){n=n.toLowerCase();
-  if(/devis/.test(n))return"Devis";if(/\bexe\b|ex[eé]cution|plans? d.ex/.test(n))return"Plans d'exé";if(/\barc\b|accus|confirmation/.test(n))return"ARC";if(/m[eé]tr/.test(n))return"Métré";if(/pr[eé]pa/.test(n))return"Préparation";
+  if(/devis/.test(n))return"Devis";if(/\bexe\b|ex[eé]cution|plans? d.ex/.test(n))return"Plans d'exé";if(/\barc\b|accus|confirmation/.test(n))return"ARC";if(/m[eé]tr/.test(n))return"Métré";if(/pr[eé]pa|d[eé]couverte/.test(n))return"Préparation";if(/autocontr/.test(n))return"Réception";
   if(/r[eé]cep|pv/.test(n))return"Réception";if(/fact/.test(n))return"Facture";if(/command|bdc/.test(n))return"Commande";if(/\.(jpe?g|png|heic|webp)$/.test(n))return"Photo";return"Autre"}
 function ctype(f){if(f.type&&!/;/.test(f.type)&&f.type!=="application/vnd.ms-excel")return f.type;const e=f.name.split(".").pop().toLowerCase();return{pdf:"application/pdf",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",csv:"text/csv",txt:"text/plain"}[e]||f.type}
 async function upload(files){
@@ -658,7 +671,7 @@ function setFacs(arr){const j=jobs.get(openId),p=facSync(arr);if(!arr.length)p.s
   jobs.set(openId,{...j,...p,steps:{...(j.steps||{}),...p.steps}});renderSheet();render();save(openId,p)}
 // ---------- événements ----------
 document.addEventListener("click",async e=>{
-  const t=e.target.closest("[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],#vclose,#vdl");
+  const t=e.target.closest("[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],#vclose,#vdl,#vedit,#vsave,#vnext");
   if(!t)return;
   if(t.dataset.arc!==undefined){const j=jobs.get(openId),arr=arcsOf(j).map(x=>({...x})),a=arr[+t.dataset.arc],k=t.dataset.arck;a[k]=a[k]&&a[k].d?null:{d:today(),by:me||""};setArcs(arr);return}
   if(t.dataset.ph!==undefined){const arr=phasesOf(jobs.get(openId)).map(x=>({...x})),x=arr[+t.dataset.ph];x.pose=x.pose&&x.pose.d?null:{d:today(),by:me||""};setPhases(arr);return}
@@ -670,7 +683,10 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.who){who=t.dataset.who;render()}
   else if(t.dataset.open){openSheet(t.dataset.open)}
   else if(t.dataset.view!==undefined){viewDoc((jobs.get(openId).docs||[])[+t.dataset.view])}
-  else if(t.id==="vclose"){$("viewer").hidden=true;$("vpages").innerHTML=""}
+  else if(t.id==="vclose"){if(vForm&&vForm.dirty&&!vForm.saving){toast("Fiche non enregistrée : appuyez sur « Enregistrer », ou sur « Fermer » une seconde fois pour abandonner.");vForm.dirty=false;return}$("viewer").hidden=true;$("vpages").innerHTML="";vForm=null}
+  else if(t.id==="vedit"){startFill()}
+  else if(t.id==="vsave"){saveFill()}
+  else if(t.id==="vnext"){const f=vForm&&vForm.fields.find(x=>x.el.classList.contains("need"));if(f){f.el.scrollIntoView({block:"center",behavior:"smooth"});setTimeout(()=>f.el.focus({preventScroll:true}),350)}}
   else if(t.id==="vdl"){try{await downloads.save({filename:vName,data:vBlob})}catch(_){toast("Téléchargement annulé.")}}
   else if(t.id==="close"||t.id==="scrim")closeSheet();
   else if(t.id==="newBtn")openSheet("__new");
@@ -761,7 +777,7 @@ async function withAddress(blob,d){
   }catch(_){return blob}
 }
 async function viewDoc(d){
-  if(!d)return;const pg=$("vpages");$("vname").textContent=d.name;pg.innerHTML='<p class="sub">Ouverture du document…</p>';$("viewer").hidden=false;$("vdl").hidden=true;
+  if(!d)return;const pg=$("vpages");$("vname").textContent=d.name;pg.innerHTML='<p class="sub">Ouverture du document…</p>';$("viewer").hidden=false;$("vdl").hidden=true;pg.style.alignItems="";["vedit","vsave","vnext"].forEach(x=>$(x).hidden=true);$("vfill").textContent="";vDoc=d;vPdf=null;vPages=[];vForm=null;
   try{
     const r=await fetch("/_blob/"+d.id);if(!r.ok)throw 0;vBlob=await r.blob();vName=d.name;$("vdl").hidden=!downloads;
     const isPdf=/pdf/.test(vBlob.type)||/\.pdf$/i.test(d.name);
@@ -769,15 +785,96 @@ async function viewDoc(d){
     if(!window.pdfjsLib)throw 0;
     pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
     vBlob=await withAddress(vBlob,d);
-    const pdf=await pdfjsLib.getDocument({data:await vBlob.arrayBuffer()}).promise;pg.innerHTML="";
+    const pdf=await pdfjsLib.getDocument({data:await vBlob.arrayBuffer()}).promise;pg.innerHTML="";vPdf=pdf;
     const w=Math.min(pg.clientWidth-32,1000);
     for(let n=1;n<=pdf.numPages;n++){
       if($("viewer").hidden)return;
       const page=await pdf.getPage(n),v0=page.getViewport({scale:1}),sc=w/v0.width*(window.devicePixelRatio||1),vp=page.getViewport({scale:sc});
-      const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;c.style.width=w+"px";pg.appendChild(c);
+      const box=document.createElement("div");box.className="pg";box.style.width=w+"px";
+      const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;c.style.width=w+"px";box.appendChild(c);pg.appendChild(box);
       await page.render({canvasContext:c.getContext("2d"),viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
+      vPages.push({page,box,c,css:w/v0.width,vp});
     }
+    if(canWrite&&assets&&d.type in FORM_TYPES&&!$("viewer").hidden){const fs=(await pdf.getFieldObjects())||{};if(Object.keys(fs).length){$("vedit").hidden=false;if(d.rempli)showFill(d.rempli.reste)}}
   }catch(_){pg.innerHTML='<p class="sub">Ce document ne peut pas s\'afficher ici.'+(downloads?' Utilisez « Télécharger ».':'')+'</p>';if(vBlob)$("vdl").hidden=!downloads}
+}
+
+// ---------- fiches remplies dans l'appli ----------
+// Obligatoire : chaque champ texte d'une ligne (sauf remarques et grands cadres d'observations, et champs posés sur une ligne de cases à cocher),
+// et au moins une case cochée par ligne de cases (par groupe pour les options d'habillage de l'annexe).
+const FORM_TYPES={"Métré":"metre","Préparation":"prepa","Réception":"recep"};
+function showFill(n){const e=$("vfill");e.textContent=n?n+" case"+(n>1?"s":"")+" à remplir":"Fiche complète ✓";e.className=n?"":"ok";$("vnext").hidden=!n||!vForm}
+async function startFill(){
+  if(!vPdf||!vPages.length)return;$("vedit").hidden=true;
+  const fields=[];
+  // sur téléphone, les pages passent en grand (900 px) et défilent : les cases restent assez grosses pour le doigt
+  const big=vPages[0].box.clientWidth<800;if(big)$("vpages").style.alignItems="flex-start";
+  for(const [pi,P] of vPages.entries()){
+    if(big){const v0=P.page.getViewport({scale:1}),w=900;P.css=w/v0.width;P.vp=P.page.getViewport({scale:P.css*(window.devicePixelRatio||1)});
+      P.c.width=P.vp.width;P.c.height=P.vp.height;P.c.style.width=w+"px";P.c.style.maxWidth="none";P.box.style.width=w+"px";P.box.style.maxWidth="none";P.box.style.flex="none"}
+    const anns=(await P.page.getAnnotations({intent:"display"})).filter(a=>a.subtype==="Widget"&&a.fieldName&&(a.fieldType==="Tx"||(a.fieldType==="Btn"&&a.checkBox)));
+    const vpc=P.page.getViewport({scale:P.css});
+    await P.page.render({canvasContext:P.c.getContext("2d"),viewport:P.vp,annotationMode:pdfjsLib.AnnotationMode.DISABLE}).promise;
+    for(const a of anns){
+      const [x1,y1,x2,y2]=vpc.convertToViewportRectangle(a.rect),L=Math.min(x1,x2),T=Math.min(y1,y2),W=Math.abs(x2-x1),H=Math.abs(y2-y1);
+      if(/^(client_nom|client_adresse|adresse_chantier)_/.test(a.fieldName)){
+        // nom et adresses : écrits depuis la fiche chantier, affichés tels quels
+        if(a.fieldValue){const t=document.createElement("div");t.className="fldro";t.textContent=a.fieldValue;Object.assign(t.style,{left:L+"px",top:T+"px",width:W+"px",fontSize:8*P.css+"px",fontWeight:/^client_nom/.test(a.fieldName)?"700":"400"});P.box.appendChild(t)}
+        continue}
+      const cb=a.fieldType==="Btn",multi=!cb&&Math.abs(a.rect[3]-a.rect[1])>45;
+      const el=document.createElement(multi?"textarea":"input");el.className="fld";
+      if(cb){el.type="checkbox";el.checked=!!a.fieldValue&&a.fieldValue!=="Off"}else{if(!multi)el.type="text";el.value=a.fieldValue||"";el.style.fontSize=Math.max(9,Math.min(16,H*.68))+"px"}
+      Object.assign(el.style,{left:L+"px",top:T+"px",width:W+"px",height:H+"px"});el.setAttribute("aria-label",a.alternativeText||a.fieldName);
+      P.box.appendChild(el);
+      fields.push({name:a.fieldName,cb,multi,el,pi,cy:(a.rect[1]+a.rect[3])/2,x:Math.min(a.rect[0],a.rect[2])});
+    }
+    P.labels=(await P.page.getTextContent()).items.filter(t=>/:\s*$|:\s/.test(t.str)).map(t=>({x:t.transform[4],y:t.transform[5]}));
+  }
+  const rowKey=f=>f.pi+":"+Math.round(f.cy/5);
+  const near=(f,g)=>f.pi===g.pi&&Math.abs(f.cy-g.cy)<4;
+  const cbs=fields.filter(f=>f.cb);
+  // une ligne de cases se découpe en groupes à chaque libellé « xxx : » (ex. Habillage : … Sens : …) ; options de l'annexe groupées par page
+  let gn=0;
+  cbs.forEach(f=>{const m=/^opt_(\d+)_/.exec(f.name);if(m)f.group="opt"+m[1]});
+  const rest=cbs.filter(f=>!f.group).sort((a,b)=>a.pi-b.pi||b.cy-a.cy||a.x-b.x);
+  rest.forEach((f,k)=>{const g=rest.slice(0,k).reverse().find(o=>near(f,o));
+    const cut=g&&vPages[f.pi].labels.some(t=>Math.abs(t.y-f.cy)<7&&t.x>g.x&&t.x<f.x);
+    f.group=g&&!cut?g.group:"g"+(++gn)});
+  // texte obligatoire, sauf remarques, grands cadres, et petit champ collé juste après une case (« autre : … », nombre de grilles, remarque d'un contrôle)
+  fields.forEach(f=>{if(!f.cb)f.req=!f.multi&&!/^rem_/.test(f.name)&&!cbs.some(g=>!/^opt_/.test(g.name)&&near(f,g)&&g.x<f.x&&f.x-g.x<40)});
+  fields.forEach(f=>{if(!f.cb&&!f.req)f.el.classList.add("opt")});
+  vForm={fields,dirty:false,saving:false};
+  P0:{const upd=()=>{let n=0;const groups={};
+    fields.forEach(f=>{if(f.cb){(groups[f.group]=groups[f.group]||[]).push(f)}else{const need=f.req&&!f.el.value.trim();f.el.classList.toggle("need",need);if(need)n++}});
+    Object.values(groups).forEach(g=>{const need=!g.some(f=>f.el.checked);g.forEach(f=>f.el.classList.toggle("need",need));if(need)n++});
+    vForm.reste=n;vForm.total=fields.filter(f=>f.req).length+Object.keys(groups).length;showFill(n)};
+    fields.forEach(f=>f.el.addEventListener(f.cb?"change":"input",()=>{vForm.dirty=true;upd()}));upd()}
+  $("vsave").hidden=false;toast("Touchez une case pour la remplir. Les cases en jaune sont obligatoires.");
+}
+async function saveFill(){
+  if(!vForm||vForm.saving)return;const id=openId,d0=vDoc;if(!id||!d0)return;
+  vForm.saving=true;$("vsave").disabled=true;toast("Enregistrement de la fiche…");
+  try{
+    const doc=await PDFLib.PDFDocument.load(await vBlob.arrayBuffer());const form=doc.getForm();
+    const font=await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+    for(const f of vForm.fields){try{
+      if(f.cb){const c=form.getCheckBox(f.name);f.el.checked?c.check():c.uncheck()}
+      else form.getTextField(f.name).setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF\n€œŒ’‘“”–—…]/g,""))
+    }catch(_){}}
+    form.updateFieldAppearances(font);
+    const file=new File([await doc.save()],d0.name,{type:"application/pdf"});
+    const r=await assets.upload(file,{type:"application/pdf"});
+    const j=jobs.get(id)||{},docs=(j.docs||[]).map(x=>({...x}));
+    const i=docs.findIndex(x=>x.id===d0.id);
+    const nd={...d0,id:r.id,size:r.sizeBytes,at:today(),by:me||"",traite:false,rempli:{reste:vForm.reste,total:vForm.total,le:today()}};
+    if(i>=0)docs[i]=nd;else docs.push(nd);
+    const patch={docs},k=FORM_TYPES[d0.type];
+    if(k&&vForm.reste===0&&!sd(j,k)&&stepsOf(j).some(s=>s.k===k))patch.steps={[k]:{d:today(),by:me||""}};
+    jobs.set(id,{...j,docs,steps:{...(j.steps||{}),...(patch.steps||{})}});vDoc=nd;vBlob=file;vForm.dirty=false;
+    await save(id,patch);renderSheet();render();
+    toast(vForm.reste?"Fiche enregistrée. Il reste "+vForm.reste+" case"+(vForm.reste>1?"s":"")+" à remplir.":patch.steps?"Fiche complète et enregistrée : l'étape « "+SK[k].l+" » est cochée.":"Fiche complète et enregistrée.");
+  }catch(e){toast("La fiche n'a pas pu être enregistrée. Réessayez.")}
+  finally{if(vForm)vForm.saving=false;$("vsave").disabled=false}
 }
 
 // ---------- démarrage ----------
