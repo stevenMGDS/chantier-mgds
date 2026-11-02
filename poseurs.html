@@ -123,6 +123,20 @@ table.h tr.sum td{font-weight:700;background:var(--sunk)}
 .who{bottom:calc(64px + env(safe-area-inset-bottom))!important}
 /* intégré dans la page d'accueil (poseurs.html?embed=1) : pas d'en-tête ni de badge, fond de la page parente */
 html.embed body{background:transparent}html.embed header.top,html.embed .who{display:none!important}html.embed .wrap{padding-top:0}
+/* remplissage d'une fiche PDF (même logique que l'appli Chantiers) */
+.viewer{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
+.viewer .vbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;border-bottom:1px solid var(--line);background:var(--surface)}
+.viewer .vbar b{font:700 18px var(--f-display);min-width:0;overflow-wrap:anywhere}
+.viewer .pages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px;-webkit-overflow-scrolling:touch}
+.viewer canvas{max-width:100%;height:auto;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.viewer .pg{position:relative;max-width:100%}.viewer .pg canvas{display:block}
+.viewer .fld{position:absolute;box-sizing:border-box;margin:0;border:1px solid var(--accent);border-radius:2px;background:rgba(220,232,244,.85);color:#111;padding:0 2px;font-family:var(--f-body);resize:none}
+.viewer .fldro{position:absolute;color:#111;font-family:Helvetica,Arial,sans-serif;line-height:1.15;padding:1px 2px;pointer-events:none;white-space:pre-wrap}
+.viewer .fld.opt{background:rgba(220,232,244,.35);border-style:dashed}
+.viewer .fld.need{background:rgba(255,236,150,.9);border-color:var(--s-orange)}
+.viewer input.fld[type=checkbox]{appearance:none;-webkit-appearance:none;cursor:pointer;padding:0}
+.viewer input.fld[type=checkbox]:checked{background:var(--accent);box-shadow:inset 0 0 0 2px #fff}
+#vfill{font:600 14px var(--f-body);color:var(--s-orange)}#vfill.ok{color:var(--s-vert)}
 </style>
 </head>
 <body>
@@ -132,10 +146,13 @@ html.embed body{background:transparent}html.embed header.top,html.embed .who{dis
 </div>
 <nav class="tabs" id="tabs" hidden></nav>
 <div class="sheet" id="sheet" hidden></div>
+<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="vfill" role="status"></span><button class="btn ghost small" id="vnext" hidden>Case vide suivante</button><button class="btn small" id="vedit" hidden>Remplir</button><button class="btn small" id="vsave" hidden>Enregistrer</button><button class="btn ghost small" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div></div>
 <div class="toast" id="toast" hidden role="status"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="outil/shim.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script>
 "use strict";
 if(/[?&]embed=1/.test(location.search))document.documentElement.classList.add("embed");
@@ -232,7 +249,7 @@ async function openSheet(id){
   await renderSheet();
 }
 function closeSheet(){if(!openId)return;openId=null;$("sheet").hidden=true;$("sheet").innerHTML="";document.body.style.overflow="";render()}
-window.addEventListener("popstate",()=>{if(document.querySelector(".lightbox")){document.querySelector(".lightbox").remove();return}if(openId)closeSheet()});
+window.addEventListener("popstate",()=>{if(!$("viewer").hidden){closeViewer();return}if(document.querySelector(".lightbox")){document.querySelector(".lightbox").remove();return}if(openId)closeSheet()});
 document.addEventListener("click",e=>{if(e.target.closest("[data-close]"))history.back()});
 
 async function renderSheet(){
@@ -247,11 +264,12 @@ async function renderSheet(){
    <div class="links">${addr?`<a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}" target="_blank" rel="noopener">Itinéraire</a>`:""}
      ${tel?`<a class="btn ghost" href="tel:${esc(tel)}">Appeler le client</a>`:""}
      <button class="btn ghost" data-hadd="${today()}" data-hjob="${esc(id)}">Noter mes heures</button></div>
-   <div class="box"><h3>Fiches du chantier</h3>${docs.length?`<div class="docs">${docs.map(d=>`<button class="btn ghost big" style="text-align:left" data-doc="${esc(d.id)}">📄 ${esc(FICHE_L[d.type]||d.type)}${d.rempli&&d.rempli.reste===0?' <span class="tag">remplie</span>':""}</button>`).join("")}</div>`:`<p class="sub">Les fiches ne sont pas encore disponibles pour ce chantier.</p>`}</div>
+   <div class="box"><h3>Fiches du chantier</h3>${docs.length?`<div class="docs">${docs.map(d=>`<div style="display:flex;gap:8px"><button class="btn ghost big" style="text-align:left;flex:1" data-doc="${esc(d.id)}">📄 ${esc(FICHE_L[d.type]||d.type)}${d.rempli?d.rempli.reste?` <span class="tag o">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:' <span class="tag">remplie</span>':""}</button>${FILL_ON&&FILLABLE[d.type]&&(role==="poseur"||role==="editeur")?`<button class="btn" data-fill="${esc(d.id)}">✏️ Remplir</button>`:""}</div>`).join("")}</div>`:`<p class="sub">Les fiches ne sont pas encore disponibles pour ce chantier.</p>`}</div>
    ${CATS.map(([k,l,hint])=>{const list=ph.filter(p=>p.categorie===k);return`<div class="box"><h3>${l} ${list.length?`<span class="tag b">${list.length}</span>`:""}</h3><div class="sub">${hint}</div>
      ${list.length?`<div class="thumbs">${list.map(p=>`<button data-photo="${p.id}" aria-label="Voir la photo">${urls[p.chemin]?`<img src="${esc(urls[p.chemin])}" alt="" loading="lazy">`:""}<span class="cap">${esc(fmtTs(p.pris_le))}</span></button>`).join("")}</div>`:""}
      ${k.startsWith("conso")?`<label class="fld">Ce que vous ${k==="conso_sortie"?"prenez":"rapportez"} (facultatif)<input type="text" id="note-${k}" placeholder="ex. 4 silicones blanc, 2 mousses"></label>`:""}
-     <label class="btn big" style="display:block;text-align:center;margin-top:10px">📷 Prendre une photo<input type="file" accept="image/*" capture="environment" multiple hidden data-up="${k}"></label></div>`}).join("")}`;
+     <label class="btn big" style="display:block;text-align:center;margin-top:10px">📷 Prendre une photo<input type="file" accept="image/*" capture="environment" hidden data-up="${k}"></label>
+     <label class="btn ghost small" style="display:block;text-align:center;margin-top:8px">ou choisir dans la galerie<input type="file" accept="image/*" multiple hidden data-up="${k}"></label></div>`}).join("")}`;
   body._photos=ph;body._urls=urls;
 }
 const fmtTs=t=>{const d=new Date(t);return d.getDate()+" "+MOIS[d.getMonth()]+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")};
@@ -315,6 +333,140 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-photo]");i
   });
 });
 
+// ---------- remplir une fiche (préparation, réception) ----------
+// même règle que l'appli : cases jaunes obligatoires ; fiche complète = étape cochée
+const FILLABLE={"Préparation":"prepa","Réception":"recep"};
+const FILL_ON=false; // passe à true quand la base autorise les poseurs (outil/poseurs-fiches.sql)
+let vDoc=null,vBlob=null,vPdf=null,vPages=[],vForm=null,vJob=null;
+function clean(s){return (s||"").trim().replace(/[’‘]/g,"'").replace(/œ/g,"oe").replace(/Œ/g,"OE")}
+async function withAddress(blob,j){
+  const vals=[["adresse_chantier",clean(addrOf(j).replace(", "," - ")),0],["client_nom",clean(j.clientNom),1],["client_adresse",clean(j.clientAdresse),0]].filter(v=>v[1]);
+  if(!vals.length||!window.PDFLib)return blob;
+  try{const doc=await PDFLib.PDFDocument.load(await blob.arrayBuffer());const all=doc.getForm().getFields();
+    const fs=vals.flatMap(([n,v,b])=>all.filter(f=>f.getName().startsWith(n+"_")).map(f=>[f,v,b]));if(!fs.length)return blob;
+    const font=await doc.embedFont(PDFLib.StandardFonts.Helvetica),bold=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    fs.forEach(([f,v,b])=>{f.setText(v);f.setFontSize(8);f.updateAppearances(b?bold:font)});
+    return new Blob([await doc.save()],{type:"application/pdf"});
+  }catch(_){return blob}
+}
+function showFill(n){const e=$("vfill");e.textContent=n?n+" case"+(n>1?"s":"")+" à remplir":"Fiche complète ✓";e.className=n?"":"ok";$("vnext").hidden=!n||!vForm}
+function closeViewer(){$("viewer").hidden=true;$("vpages").innerHTML="";vForm=null;vPdf=null;vPages=[]}
+async function openFill(docId){
+  const j=chantiers.get(openId)||{},d=(j.docs||[]).find(x=>x.id===docId);if(!d)return;
+  vDoc=d;vJob=openId;vForm=null;vPages=[];const pg=$("vpages");$("vname").textContent=FICHE_L[d.type]||d.name;
+  pg.innerHTML='<p class="sub">Ouverture de la fiche…</p>';pg.style.alignItems="";$("viewer").hidden=false;["vedit","vsave","vnext"].forEach(x=>$(x).hidden=true);$("vfill").textContent="";
+  history.pushState({viewer:1},"");
+  try{
+    const{data,error}=await sb.storage.from("documents").download(d.id);if(error)throw error;
+    vBlob=await withAddress(data,j);
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const pdf=await pdfjsLib.getDocument({data:await vBlob.arrayBuffer()}).promise;pg.innerHTML="";vPdf=pdf;
+    const w=Math.min(pg.clientWidth-32,1000);
+    for(let n=1;n<=pdf.numPages;n++){
+      if($("viewer").hidden)return;
+      const page=await pdf.getPage(n),v0=page.getViewport({scale:1}),sc=w/v0.width*(window.devicePixelRatio||1),vp=page.getViewport({scale:sc});
+      const box=document.createElement("div");box.className="pg";box.style.width=w+"px";
+      const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;c.style.width=w+"px";box.appendChild(c);pg.appendChild(box);
+      await page.render({canvasContext:c.getContext("2d"),viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
+      vPages.push({page,box,c,css:w/v0.width,vp});
+    }
+    await startFill();
+  }catch(e){console.error(e);pg.innerHTML='<p class="sub">Cette fiche ne peut pas s\'ouvrir pour le moment.</p>'}
+}
+async function startFill(){
+  if(!vPdf||!vPages.length)return;$("vedit").hidden=true;
+  const fields=[];
+  // sur téléphone, les pages passent en grand (900 px) et défilent : les cases restent assez grosses pour le doigt
+  const big=vPages[0].box.clientWidth<800;if(big)$("vpages").style.alignItems="flex-start";
+  for(const [pi,P] of vPages.entries()){
+    if(big){const v0=P.page.getViewport({scale:1}),w=900;P.css=w/v0.width;P.vp=P.page.getViewport({scale:P.css*(window.devicePixelRatio||1)});
+      P.c.width=P.vp.width;P.c.height=P.vp.height;P.c.style.width=w+"px";P.c.style.maxWidth="none";P.box.style.width=w+"px";P.box.style.maxWidth="none";P.box.style.flex="none"}
+    const anns=(await P.page.getAnnotations({intent:"display"})).filter(a=>a.subtype==="Widget"&&a.fieldName&&(a.fieldType==="Tx"||(a.fieldType==="Btn"&&a.checkBox)));
+    const vpc=P.page.getViewport({scale:P.css});
+    await P.page.render({canvasContext:P.c.getContext("2d"),viewport:P.vp,annotationMode:pdfjsLib.AnnotationMode.DISABLE}).promise;
+    for(const a of anns){
+      const [x1,y1,x2,y2]=vpc.convertToViewportRectangle(a.rect),L=Math.min(x1,x2),T=Math.min(y1,y2),W=Math.abs(x2-x1),H=Math.abs(y2-y1);
+      if(/^(client_nom|client_adresse|adresse_chantier)_/.test(a.fieldName)){
+        // nom et adresses : écrits depuis la fiche chantier, affichés tels quels
+        if(a.fieldValue){const t=document.createElement("div");t.className="fldro";t.textContent=a.fieldValue;Object.assign(t.style,{left:L+"px",top:T+"px",width:W+"px",fontSize:8*P.css+"px",fontWeight:/^client_nom/.test(a.fieldName)?"700":"400"});P.box.appendChild(t)}
+        continue}
+      const cb=a.fieldType==="Btn",multi=!cb&&Math.abs(a.rect[3]-a.rect[1])>45;
+      const el=document.createElement(multi?"textarea":"input");el.className="fld";
+      if(cb){el.type="checkbox";el.checked=!!a.fieldValue&&a.fieldValue!=="Off"}else{if(!multi)el.type="text";el.value=a.fieldValue||"";el.style.fontSize=Math.max(9,Math.min(16,H*.68))+"px"}
+      Object.assign(el.style,{left:L+"px",top:T+"px",width:W+"px",height:H+"px"});el.setAttribute("aria-label",a.alternativeText||a.fieldName);
+      P.box.appendChild(el);
+      fields.push({name:a.fieldName,cb,multi,el,pi,cy:(a.rect[1]+a.rect[3])/2,x:Math.min(a.rect[0],a.rect[2])});
+    }
+    P.labels=(await P.page.getTextContent()).items.filter(t=>/:\s*$|:\s/.test(t.str)).map(t=>({x:t.transform[4],y:t.transform[5]}));
+  }
+  const rowKey=f=>f.pi+":"+Math.round(f.cy/5);
+  const near=(f,g)=>f.pi===g.pi&&Math.abs(f.cy-g.cy)<4;
+  const cbs=fields.filter(f=>f.cb);
+  // une ligne de cases se découpe en groupes à chaque libellé « xxx : » (ex. Habillage : … Sens : …) ; options de l'annexe groupées par page
+  let gn=0;
+  cbs.forEach(f=>{const m=/^opt_(\d+)_/.exec(f.name);if(m)f.group="opt"+m[1]});
+  const rest=cbs.filter(f=>!f.group).sort((a,b)=>a.pi-b.pi||b.cy-a.cy||a.x-b.x);
+  rest.forEach((f,k)=>{const g=rest.slice(0,k).reverse().find(o=>near(f,o));
+    const cut=g&&vPages[f.pi].labels.some(t=>Math.abs(t.y-f.cy)<7&&t.x>g.x&&t.x<f.x);
+    f.group=g&&!cut?g.group:"g"+(++gn)});
+  // texte obligatoire, sauf remarques, grands cadres, et petit champ collé juste après une case (« autre : … », nombre de grilles, remarque d'un contrôle)
+  fields.forEach(f=>{if(!f.cb)f.req=!f.multi&&!/^rem_/.test(f.name)&&!cbs.some(g=>!/^opt_/.test(g.name)&&near(f,g)&&g.x<f.x&&f.x-g.x<40)});
+  fields.forEach(f=>{if(!f.cb&&!f.req)f.el.classList.add("opt")});
+  vForm={fields,dirty:false,saving:false};
+  P0:{const upd=()=>{let n=0;const groups={};
+    fields.forEach(f=>{if(f.cb){(groups[f.group]=groups[f.group]||[]).push(f)}else{const need=f.req&&!f.el.value.trim();f.el.classList.toggle("need",need);if(need)n++}});
+    Object.values(groups).forEach(g=>{const need=!g.some(f=>f.el.checked);g.forEach(f=>f.el.classList.toggle("need",need));if(need)n++});
+    vForm.reste=n;vForm.total=fields.filter(f=>f.req).length+Object.keys(groups).length;showFill(n)};
+    fields.forEach(f=>f.el.addEventListener(f.cb?"change":"input",()=>{vForm.dirty=true;upd()}));upd()}
+  $("vsave").hidden=false;toast("Touchez une case pour la remplir. Les cases en jaune sont obligatoires.");
+}
+
+// enregistre la fiche remplie : nouveau PDF dans le stockage, puis remplacement du document dans le chantier (relu juste avant, sans écraser le reste)
+async function saveFill(){
+  if(!vForm||vForm.saving)return;const id=vJob,d0=vDoc;if(!id||!d0)return;
+  vForm.saving=true;$("vsave").disabled=true;toast("Enregistrement de la fiche…");
+  try{
+    const doc=await PDFLib.PDFDocument.load(await vBlob.arrayBuffer());const form=doc.getForm();
+    const font=await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+    for(const f of vForm.fields){try{
+      if(f.cb){const c=form.getCheckBox(f.name);f.el.checked?c.check():c.uncheck()}
+      else form.getTextField(f.name).setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF\n€œŒ’‘“”–—…]/g,""))
+    }catch(_){}}
+    form.updateFieldAppearances(font);
+    const bytes=await doc.save();
+    const safe=d0.name.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\w.-]+/g,"_").slice(-80);
+    const path=`poseurs/${me}/${Date.now().toString(36)}-${safe}`;
+    const up=await sb.storage.from("documents").upload(path,new Blob([bytes],{type:"application/pdf"}),{contentType:"application/pdf",upsert:false});
+    if(up.error)throw up.error;
+    const k=FILLABLE[d0.type],rempli={reste:vForm.reste,total:vForm.total,le:today()};
+    let done=false,cocher=false;
+    for(let n=0;n<6&&!done;n++){
+      const{data:row,error:e1}=await sb.from("chantiers").select("data,version").eq("id",id).single();if(e1)throw e1;
+      const data=row.data||{},docs=(data.docs||[]).map(x=>({...x}));
+      const i=docs.findIndex(x=>x.id===d0.id);if(i<0)throw new Error("fiche introuvable");
+      docs[i]={...docs[i],id:path,size:bytes.length,at:today(),by:me,traite:false,rempli};
+      const steps={...(data.steps||{})};cocher=!!(k&&vForm.reste===0&&!(steps[k]&&steps[k].d));
+      if(cocher)steps[k]={d:today(),by:me};
+      const{data:upd,error:e2}=await sb.from("chantiers").update({data:{...data,docs,steps}}).eq("id",id).eq("version",row.version).select("id");
+      if(e2)throw e2;done=!!(upd&&upd.length);
+      if(done){chantiers.set(id,{...data,docs,steps});vDoc=docs[i]}
+    }
+    if(!done)throw new Error("conflit");
+    vBlob=new Blob([bytes],{type:"application/pdf"});vForm.dirty=false;
+    toast(vForm.reste?`Fiche enregistrée. Il reste ${vForm.reste} case${vForm.reste>1?"s":""} à remplir.`:cocher?"Fiche complète et enregistrée ✓ L'étape est cochée dans l'appli.":"Fiche complète et enregistrée ✓");
+    if(openId===id)renderSheet();
+  }catch(e){console.error(e);toast("La fiche n'a pas pu être enregistrée. Vérifiez le réseau et réessayez.")}
+  finally{if(vForm)vForm.saving=false;$("vsave").disabled=false}
+}
+document.addEventListener("click",e=>{
+  const f=e.target.closest("[data-fill]");if(f){openFill(f.dataset.fill);return}
+  const t=e.target.closest("#vclose,#vsave,#vnext,#vedit");if(!t)return;
+  if(t.id==="vclose"){if(vForm&&vForm.dirty&&t.dataset.sure!=="1"){t.dataset.sure="1";t.textContent="Fermer sans enregistrer ?";setTimeout(()=>{t.dataset.sure="";t.textContent="Fermer"},4000);return}t.dataset.sure="";t.textContent="Fermer";history.back()}
+  else if(t.id==="vsave")saveFill();
+  else if(t.id==="vedit")startFill();
+  else if(t.id==="vnext"){const x=vForm&&vForm.fields.find(y=>y.el.classList.contains("need"));if(x){x.el.scrollIntoView({block:"center",behavior:"smooth"});setTimeout(()=>x.el.focus({preventScroll:true}),350)}}
+});
+
 // ---------- heures ----------
 async function vHeures(v){
   const days=weekDays(),hs=(await loadHeures(days[0],days[6])).filter(h=>h.poseur===me);
@@ -346,13 +498,15 @@ async function formHeures(h){
    ${role==="editeur"&&h.id?`<div class="sub">${esc(nameOf(h.poseur))}</div>`:""}
    <label class="fld">Jour<input type="date" name="jour" value="${esc(h.jour)}" required></label>
    <label class="fld">Chantier<select name="chantier"><option value="">Dépôt / autre</option>${ids.map(i=>`<option value="${esc(i)}" ${i===job?"selected":""}>${esc(jobName(i))}${planned.includes(i)?" (prévu)":""}</option>`).join("")}</select></label>
-   <div class="row2"><label class="fld">Arrivée<input type="time" name="debut" value="${dft.debut}" step="300"></label><label class="fld">Départ<input type="time" name="fin" value="${dft.fin}" step="300"></label></div>
+   <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Arrivée</div>${hmSel("debut",dft.debut)}
+   <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Départ</div>${hmSel("fin",dft.fin)}
    <label class="fld">Pause<select name="pause">${[0,15,30,45,60,75,90,120].map(n=>`<option value="${n}" ${n==dft.pause?"selected":""}>${n?n+" min":"aucune"}</option>`).join("")}</select></label>
    <label class="fld">Remarque (facultatif)<input type="text" name="note" value="${esc(h.note||"")}" placeholder="ex. trajet, dépôt, intempéries"></label>
    <div class="tot"><span>Heures travaillées</span><b id="hcalc">–</b></div>
    <div class="acts">${h.id&&(mine||role==="editeur")?`<button class="btn danger" data-del>Supprimer</button>`:""}<button class="btn ghost" data-x>Annuler</button><button class="btn" data-ok>Enregistrer</button></div>`);
   const f=k=>m.querySelector(`[name=${k}]`);
-  const calc=()=>{const a=tmin(f("debut").value),b=tmin(f("fin").value);if(a==null||b==null)return null;let d=b-a;if(d<0)d+=1440;d-=+f("pause").value;return d>0?Math.round(d/60*100)/100:null};
+  const hm=k=>f(k+"_h").value+":"+f(k+"_m").value;
+  const calc=()=>{const a=tmin(hm("debut")),b=tmin(hm("fin"));if(a==null||b==null)return null;let d=b-a;if(d<0)d+=1440;d-=+f("pause").value;return d>0?Math.round(d/60*100)/100:null};
   const upd=()=>{const n=calc();m.querySelector("#hcalc").textContent=n==null?"–":hfmt(n)};
   m.addEventListener("input",upd);m.addEventListener("change",upd);upd();
   m.querySelector("[data-x]").onclick=()=>m.close();
@@ -363,7 +517,7 @@ async function formHeures(h){
   m.querySelector("[data-ok]").onclick=async ev=>{
     const n=calc();if(!f("jour").value){toast("Indiquez le jour.");return}
     if(n==null||n>16){toast("Vérifiez l'heure d'arrivée, de départ et la pause.");return}
-    const row={jour:f("jour").value,chantier:f("chantier").value||null,debut:f("debut").value,fin:f("fin").value,pause_min:+f("pause").value,heures:n,note:f("note").value.trim()||null};
+    const row={jour:f("jour").value,chantier:f("chantier").value||null,debut:hm("debut"),fin:hm("fin"),pause_min:+f("pause").value,heures:n,note:f("note").value.trim()||null};
     ev.currentTarget.disabled=true;
     const r=h.id?await sb.from("heures").update(row).eq("id",h.id):await sb.from("heures").insert(row);
     ev.currentTarget.disabled=false;
@@ -372,6 +526,11 @@ async function formHeures(h){
     m.close();toast("Heures enregistrées ✓ ("+hfmt(n)+")");if(openId){if(tab==="heures")render()}else render();
   };
 }
+// heures et minutes en listes déroulantes (pas de 15 min)
+function hmSel(name,v){const[h0,m0]=(v||"08:00").split(":").map(Number),m=Math.round(m0/15)*15%60;
+  const pad=n=>String(n).padStart(2,"0"),st='style="font-size:20px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-height:48px;flex:1"';
+  return`<div style="display:flex;gap:8px;align-items:center;margin-top:4px"><select name="${name}_h" aria-label="Heure" ${st}>${Array.from({length:24},(_,i)=>`<option value="${pad(i)}" ${i===h0?"selected":""}>${i} h</option>`).join("")}</select>
+   <select name="${name}_m" aria-label="Minutes" ${st}>${[0,15,30,45].map(x=>`<option value="${pad(x)}" ${x===m?"selected":""}>${pad(x)} min</option>`).join("")}</select></div>`}
 function modal(html){
   const w=document.createElement("div");w.className="modal";w.innerHTML=`<div role="dialog" aria-modal="true">${html}</div>`;
   document.body.appendChild(w);const box=w.firstElementChild;
