@@ -57,3 +57,32 @@ create policy "docs écrits par éditeurs" on storage.objects for insert to auth
 
 -- temps réel : l'appli se met à jour seule quand quelqu'un modifie
 alter publication supabase_realtime add table public.chantiers;
+
+-- ===== 02/11/2026 : profil « terrain » (Yannick, Stéphanie) =====
+-- Ils consultent tout, remplissent les fiches (métré, préparation, réception) et cochent les tâches avant / après chantier. Rien d'autre.
+alter table public.profils drop constraint if exists profils_role_check;
+alter table public.profils add constraint profils_role_check check (role in ('editeur','terrain','lecteur'));
+
+create or replace function public.est_terrain() returns boolean
+language sql stable security definer set search_path = public as
+$$ select exists (select 1 from profils where id = auth.uid() and role = 'terrain') $$;
+
+create or replace function public.garde_terrain() returns trigger
+language plpgsql security definer set search_path = public as
+$$ begin
+  if auth.uid() is null or public.est_editeur() then return new; end if;
+  if (new.data - array['docs','av','ap','steps']) is distinct from (old.data - array['docs','av','ap','steps'])
+    then raise exception 'modification non autorisée'; end if;
+  if (coalesce(new.data->'steps','{}'::jsonb) - array['metre','prepa','recep']) is distinct from (coalesce(old.data->'steps','{}'::jsonb) - array['metre','prepa','recep'])
+    then raise exception 'étape non autorisée'; end if;
+  if jsonb_array_length(coalesce(new.data->'docs','[]'::jsonb)) < jsonb_array_length(coalesce(old.data->'docs','[]'::jsonb))
+    then raise exception 'suppression de document non autorisée'; end if;
+  return new;
+end $$;
+drop trigger if exists garde_terrain on public.chantiers;
+create trigger garde_terrain before update on public.chantiers for each row execute function public.garde_terrain();
+
+drop policy if exists "chantiers complétés par le terrain" on public.chantiers;
+create policy "chantiers complétés par le terrain" on public.chantiers for update to authenticated using (public.est_terrain()) with check (public.est_terrain());
+drop policy if exists "fiches déposées par le terrain" on storage.objects;
+create policy "fiches déposées par le terrain" on storage.objects for insert to authenticated with check (bucket_id = 'documents' and public.est_terrain());
