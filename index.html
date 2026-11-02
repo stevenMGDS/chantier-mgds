@@ -164,6 +164,15 @@ textarea{min-height:64px;resize:vertical}
 .ctl li.alerte{background:var(--t-rouge)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;z-index:30;font-size:15px}
 .who-by{font-size:12px;color:var(--muted);margin-left:6px}
+.tabs{display:flex;gap:4px;margin:0 0 14px;border-bottom:1px solid var(--line)}
+.tabs button{font:600 15px var(--f-body);padding:10px 16px;border:0;background:none;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.planframe{width:100%;height:calc(100vh - 150px);min-height:520px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.terr{display:grid;gap:10px}.terr h4{margin:6px 0 2px;font-size:14px}
+.terr table{border-collapse:collapse;font-size:14px;width:100%}.terr td,.terr th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
+.thumbs a{display:block;aspect-ratio:1;border-radius:6px;overflow:hidden;background:var(--sunk);border:1px solid var(--line)}
+.thumbs img{width:100%;height:100%;object-fit:cover;display:block}
 @media (prefers-reduced-motion:no-preference){.row,.stat,.box{transition:border-color .15s,background .15s}}
 </style>
 
@@ -172,6 +181,10 @@ textarea{min-height:64px;resize:vertical}
     <h1>Chantiers MGDS<small id="sum">Chargement des chantiers…</small></h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="newBtn" hidden>Nouveau chantier</button></div>
   </header>
+  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button></nav>
+  <div id="tab-planning" hidden></div>
+  <div id="tab-stock" hidden><div class="empty">Le suivi du stock arrive bientôt : on le prépare ensemble (entrées, sorties par chantier d'après les photos des poseurs, alertes de réassort).</div></div>
+  <div id="tab-chantiers">
   <div class="stats" id="stats"></div>
   <div class="tools">
     <div id="chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
@@ -179,6 +192,7 @@ textarea{min-height:64px;resize:vertical}
     <div class="legend"><span><i style="background:var(--s-vert)"></i>fait</span><span><i style="background:var(--s-orange)"></i>en retard</span><span><i style="background:var(--s-rouge)"></i>bloqué</span><span><i style="background:var(--sunk);border:2px solid var(--ink)"></i>étape en cours</span><span><i style="background:var(--sunk);border:1px solid var(--line)"></i>à venir</span></div>
   </div>
   <div class="list" id="list"><div class="empty">Chargement…</div></div>
+  </div>
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="sheet" id="sheet" hidden aria-label="Fiche chantier"></aside>
@@ -627,13 +641,51 @@ async function renderSheet(){
    <h3>Documents</h3>
    ${canWrite&&assets?`<div class="drop" id="drop">Glissez ici devis, ARC, métré, photos… ou <label for="file">choisissez des fichiers</label><input type="file" id="file" multiple hidden accept=".pdf,image/*,.csv,.txt"><div class="sub" style="margin-top:4px">PDF et photos. Pour un Word ou un Excel, enregistrez-le d'abord en PDF.</div></div>`:`<p class="sub">Vous ne pouvez pas déposer de fichier sur cette page. Demandez à Steven de vous donner l'accès « Modifier ».</p>`}
    <ul class="docs">${docs||`<li style="grid-template-columns:1fr"><span class="sub">Aucun document pour l'instant.</span></li>`}</ul>
+   ${window.sbClient?`<h3>Terrain (poseurs)<span class="sub" style="text-transform:none;letter-spacing:0">planning, heures et photos</span></h3><div class="terr" id="terrain"><span class="sub">Chargement…</span></div>`:""}
    <h3>Tâches de Yannick</h3>
    <div class="tasks"><section><h4>Avant chantier</h4>${tl("av")}${canWrite?`<form class="add" data-add="av"><input type="text" id="add-av" placeholder="Ajouter une tâche"><button class="btn">+</button></form>`:""}</section>
    <section><h4>Après livraison</h4>${tl("ap")}${canWrite?`<form class="add" data-add="ap"><input type="text" id="add-ap" placeholder="Ajouter une tâche"><button class="btn">+</button></form>`:""}</section></div>
    <h3>Emails au client</h3><div class="mails">${mails}</div>`;
   bindDrop();
+  if(window.sbClient)loadTerrain(j.id);
   const ids=[...document.querySelectorAll("[data-by]")].map(e=>e.dataset.by).filter(Boolean);
   if(user&&ids.length){const ps=await user.profiles(ids);document.querySelectorAll("[data-by]").forEach(e=>{const p=ps[e.dataset.by];if(p&&p.name)e.textContent="par "+p.name})}
+}
+// ---- onglets (version en ligne seulement) ----
+function showTab(t){
+  if(!["chantiers","planning","stock"].includes(t))t="chantiers";
+  document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
+  for(const k of ["chantiers","planning","stock"])$("tab-"+k).hidden=k!==t;
+  if(t==="planning"&&!$("tab-planning").firstChild)$("tab-planning").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`;
+  try{history.replaceState(null,"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
+}
+if(window.sbClient){$("tabs").hidden=false;$("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b)showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
+// ---- terrain : ce que les poseurs ont noté pour ce chantier ----
+const CAT={avant:"Avant chantier",fin:"Fin de chantier",conso_sortie:"Consommables sortis",conso_retour:"Consommables remis",autre:"Autres"};
+async function loadTerrain(id){
+  const sb=window.sbClient,box=()=>$("terrain");
+  try{
+    const [pl,hr,ph]=await Promise.all([
+      sb.from("planning").select("jour,poseur,note").eq("chantier",id).order("jour"),
+      sb.from("heures").select("poseur,jour,heures,valide_le").eq("chantier",id).order("jour"),
+      sb.from("photos").select("categorie,chemin,note,pris_le,poseur").eq("chantier",id).order("pris_le")]);
+    if(openId!==id||!box())return;
+    const P=pl.data||[],H=hr.data||[],F=ph.data||[];
+    const pids=[...new Set([...P,...H,...F].map(x=>x.poseur))];
+    const noms=pids.length?Object.fromEntries(((await sb.from("profils").select("id,nom,email").in("id",pids)).data||[]).map(p=>[p.id,p.nom||(p.email||"").split("@")[0]])):{};
+    const nm=i=>esc(noms[i]||"poseur");
+    let h="";
+    h+=`<div><h4>Planning</h4>${P.length?P.map(x=>`<div>${fr(x.jour)} · ${nm(x.poseur)}${x.note?" · "+esc(x.note):""}</div>`).join(""):`<span class="sub">Aucun jour planifié.</span>`}</div>`;
+    if(H.length){const per={};H.forEach(x=>{per[x.poseur]=(per[x.poseur]||0)+ +x.heures});const tot=H.reduce((a,x)=>a+ +x.heures,0),nv=H.filter(x=>!x.valide_le).length;
+      h+=`<div><h4>Heures passées : ${tot.toFixed(1).replace(".",",")} h${nv?` <span class="sub">(${nv} ligne${nv>1?"s":""} pas encore validée${nv>1?"s":""})</span>`:""}</h4><table>${Object.entries(per).map(([k,v])=>`<tr><td>${nm(k)}</td><td>${v.toFixed(1).replace(".",",")} h</td></tr>`).join("")}</table></div>`}
+    else if(!hr.error)h+=`<div><h4>Heures</h4><span class="sub">Aucune heure notée.</span></div>`;
+    if(F.length){const urls=(await sb.storage.from("photos").createSignedUrls(F.map(x=>x.chemin),3600)).data||[];const u=Object.fromEntries(urls.map(x=>[x.path,x.signedUrl]));
+      for(const c of Object.keys(CAT)){const L=F.filter(x=>x.categorie===c);if(!L.length)continue;
+        h+=`<div><h4>${CAT[c]} (${L.length})</h4><div class="thumbs">${L.map(x=>`<a href="${esc(u[x.chemin]||"#")}" target="_blank" rel="noopener" title="${esc((x.note||"")+" · "+nm(x.poseur))}"><img loading="lazy" src="${esc(u[x.chemin]||"")}" alt="${esc(CAT[c])}"></a>`).join("")}</div></div>`}}
+    else h+=`<div><h4>Photos</h4><span class="sub">Aucune photo pour l'instant.</span></div>`;
+    h+=`<div class="sub">Les fiches remplies par les poseurs apparaissent dans Documents ci-dessus.</div>`;
+    if(openId===id&&box())box().innerHTML=h;
+  }catch(e){if(box())box().innerHTML=`<span class="sub">Impossible de charger les infos des poseurs pour le moment.</span>`}
 }
 function renderNew(){
   $("sheet").innerHTML=`<div class="head"><h2>Nouveau chantier</h2><button class="btn ghost" id="close">Fermer</button></div>
