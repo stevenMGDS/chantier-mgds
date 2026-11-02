@@ -449,6 +449,12 @@ const LATE=[
  [j=>sd(j,"reserves")&&!sd(j,"levees")&&days(sd(j,"reserves"))>30,"levees",j=>"Réserves ouvertes depuis "+days(sd(j,"reserves"))+" j"],
  [j=>facsOf(j).some(f=>f.fac&&f.fac.d&&!(f.paye&&f.paye.d)&&days(f.fac.d)>30),"paye",j=>{const f=facsOf(j).find(f=>f.fac&&f.fac.d&&!(f.paye&&f.paye.d)&&days(f.fac.d)>30);return"Facture « "+(f.t||"partielle")+" » impayée depuis "+days(f.fac.d)+" j"}],
  [j=>!hasFacs(j)&&sd(j,"facture")&&!sd(j,"paye")&&days(sd(j,"facture"))>30,"paye",j=>"Facture impayée depuis "+days(sd(j,"facture"))+" j"]];
+// Logistique à commander à l'avance (Marine) : alerte quand la date de besoin approche et que ce n'est pas commandé
+const LOGI={machine:["Location machine / nacelle",14],echaf:["Échafaudage",14],voirie:["Demande de voirie (mairie)",21],transport:["Transport dépôt → chantier",7]};
+const logiOf=j=>j.logi||[];
+const logiPour=(j,x)=>x.pour||poseRef(j)||"";
+function logiDue(j){return logiOf(j).filter(x=>!(x.cmd&&x.cmd.d)&&logiPour(j,x)&&-days(logiPour(j,x))<=(LOGI[x.type]||["",14])[1])}
+function setLogi(arr){const j=jobs.get(openId);jobs.set(openId,{...j,logi:arr});renderSheet();render();save(openId,{logi:arr})}
 function lateIdx(j){const r=LATE.find(x=>x[0](j));return r?r[1]:null}
 function late(j){const r=LATE.find(x=>x[0](j));return r?r[2](j):""}
 // partiel : une partie posée, ou des factures partielles émises / payées sans le solde
@@ -468,15 +474,16 @@ const ORDER=Object.fromEntries(STEPS.map((s,i)=>[s.k,i]));
 function render(){
   const all=[...jobs.entries()].map(([id,j])=>({id,...j}));
   const live=all.filter(j=>!done(j));
-  const cnt={encours:live.length,bloque:live.filter(j=>j.bloque).length,retard:live.filter(j=>late(j)).length,mails:live.filter(j=>mailsDue(j)).length,termines:all.length-live.length};
+  const cnt={encours:live.length,bloque:live.filter(j=>j.bloque).length,retard:live.filter(j=>late(j)).length,mails:live.filter(j=>mailsDue(j)).length,logi:live.filter(j=>logiDue(j).length).length,termines:all.length-live.length};
   $("sum").textContent=jobs.size?`${cnt.encours} chantier${cnt.encours>1?"s":""} en cours · mis à jour en direct`:"Aucun chantier pour l'instant";
-  const S=[["encours","En cours",""],["bloque","Bloqués","r"],["retard","En retard","o"],["mails","Emails client à envoyer","bl"],["termines","Terminés",""]];
+  const S=[["encours","En cours",""],["bloque","Bloqués","r"],["retard","En retard","o"],["logi","Location / voirie / transport à commander","o"],["mails","Emails client à envoyer","bl"],["termines","Terminés",""]];
   $("stats").innerHTML=S.map(([k,l,c])=>`<button class="stat ${c}" data-filter="${k}" aria-pressed="${filter===k}"><b>${cnt[k]}</b><span>${l}</span></button>`).join("");
   $("chips").innerHTML=["Tous","Stéphanie","Steven","Yannick"].map(x=>`<button class="chip" data-who="${x}" aria-pressed="${who===x}">${x}</button>`).join("");
   let vis=all.filter(j=>filter==="termines"?done(j):!done(j));
   if(filter==="bloque")vis=vis.filter(j=>j.bloque);
   if(filter==="retard")vis=vis.filter(j=>late(j));
   if(filter==="mails")vis=vis.filter(j=>mailsDue(j));
+  if(filter==="logi")vis=vis.filter(j=>logiDue(j).length);
   if(who!=="Tous")vis=vis.filter(j=>j.commercial===who||j.suivi===who);
   if(q)vis=vis.filter(j=>(j.client+" "+j.id+" "+(j.ville||"")).toLowerCase().includes(q));
   vis.sort((a,b)=>(!!b.bloque-!!a.bloque)||(!!late(b)-!!late(a))||(ORDER[curStep(a)]??99)-(ORDER[curStep(b)]??99)||String(a.client).localeCompare(b.client));
@@ -496,7 +503,7 @@ function nextOf(j,c){
 function row(j){
   const c=curStep(j),ss=stepsOf(j),lt=late(j),md=mailsDue(j),nd=newDocs(j);
   const bar=ss.map(st=>`<i class="${stateOf(j,st.k)} ${st.k===c?"cur":""}" title="${esc(lab(j,st))}${sd(j,st.k)?" : "+(st.k==="livprev"?sem(sd(j,st.k)):fr(sd(j,st.k))):""}"></i>`).join("");
-  const flags=[j.bloque?`<span class="flag r">Bloqué : ${esc(j.bloque)}</span>`:"",lt?`<span class="flag o">${esc(lt)}</span>`:"",md?`<span class="flag b">${md} email${md>1?"s":""} client</span>`:"",nd?`<span class="flag b">${nd} document${nd>1?"s":""} à traiter par Claude</span>`:"",partial(j)?`<span class="flag o">Pose partielle ${nPosed(j)}/${phasesOf(j).length}</span>`:"",phasesOf(j).some(x=>x.motif==="manque"&&!(x.pose&&x.pose.d))?`<span class="flag r">Matériel manquant</span>`:"",sd(j,"pose")||partial(j)?"":poseOk(j)?`<span class="flag g">Pose validée le ${fr(poseOk(j))}</span>`:poseDates(j).length?`<span class="flag b">Pose proposée : ${poseDates(j).sort().map(fr).join(" ou ")}</span>`:""].join("");
+  const flags=[j.bloque?`<span class="flag r">Bloqué : ${esc(j.bloque)}</span>`:"",lt?`<span class="flag o">${esc(lt)}</span>`:"",...logiDue(j).map(x=>{const n=-days(logiPour(j,x));return `<span class="flag ${n<0?"r":"o"}">À commander : ${esc(LOGI[x.type]?LOGI[x.type][0]:x.type)}${x.t?" ("+esc(x.t)+")":""} · ${n<0?"date dépassée":n===0?"aujourd'hui":"besoin dans "+n+" j"}</span>`}),md?`<span class="flag b">${md} email${md>1?"s":""} client</span>`:"",nd?`<span class="flag b">${nd} document${nd>1?"s":""} à traiter par Claude</span>`:"",partial(j)?`<span class="flag o">Pose partielle ${nPosed(j)}/${phasesOf(j).length}</span>`:"",phasesOf(j).some(x=>x.motif==="manque"&&!(x.pose&&x.pose.d))?`<span class="flag r">Matériel manquant</span>`:"",sd(j,"pose")||partial(j)?"":poseOk(j)?`<span class="flag g">Pose validée le ${fr(poseOk(j))}</span>`:poseDates(j).length?`<span class="flag b">Pose proposée : ${poseDates(j).sort().map(fr).join(" ou ")}</span>`:""].join("");
   const typ=j.type==="neuf"?"Neuf":"Rénovation";
   return `<button class="row ${j.bloque?"blocked":lt||anyPart(j)?"late":""}" data-open="${esc(j.id)}">
     <div><div class="client">${esc(j.client)}</div><div class="mono">${esc(j.id)}${j.ville?" · "+esc(j.ville):""}</div><div class="sub">${typ}${j.plans?" · plans d'exé":""}${hasArcs(j)?" · "+arcsOf(j).length+" ARC":""}${LIEUX[j.livraison]?" · livraison "+LIEUX[j.livraison]:""} · ${esc(j.commercial||"?")} / suivi ${esc(j.suivi||"à désigner")}</div></div>
@@ -579,6 +586,11 @@ async function renderSheet(){
     return `<li class="arc ${pa?"ok":""}"><div class="arch"><b>${esc(f.t||"Facture "+(i+1))}</b><span class="sub">${f.solde?"solde":"partielle"}</span>${canWrite?`<button class="x" data-delfac="${i}" aria-label="Retirer cette facture">×</button>`:""}</div>
      <div class="arcf"><span class="arck"><button class="box" role="checkbox" aria-checked="${!!fa}" data-fac="${i}" data-fack="fac" aria-label="${esc(f.t)} facturée" ${ro}>${fa?tick:""}</button>Facturée<span class="mono">${fr(fa)}</span></span>
       <span class="arck"><button class="box" role="checkbox" aria-checked="${!!pa}" data-fac="${i}" data-fack="paye" aria-label="${esc(f.t)} payée" ${ro}>${pa?tick:""}</button>Payée<span class="mono">${fr(pa)}</span></span></div></li>`}).join("");
+  const logi=logiOf(j).map((x,i)=>{const ok=x.cmd&&x.cmd.d,po=logiPour(j,x),L=LOGI[x.type]||[x.type,14],due=!ok&&po&&-days(po)<=L[1];
+    return `<li class="arc ${ok?"ok":due?"part":""}"><div class="arch"><b>${esc(L[0])}</b><span class="sub">à commander ${L[1]} j avant</span>${canWrite?`<button class="x" data-dellogi="${i}" aria-label="Retirer">×</button>`:""}</div>
+     <div class="arcf"><label>Détail<input type="text" data-logifield="t" data-i="${i}" value="${esc(x.t)}" placeholder="ex. nacelle 12 m, 2 jours" ${ro}></label>
+      <label>Nécessaire le<input type="date" min="2000-01-01" max="2099-12-31" data-logifield="pour" data-i="${i}" value="${x.pour||""}" ${ro}>${!x.pour&&poseRef(j)?`<span class="sub">date de pose : ${fr(poseRef(j))}</span>`:""}</label>
+      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-logi="${i}" aria-label="${esc(L[0])} commandé" ${ro}>${ok?tick:""}</button>Commandé<span class="mono">${fr(ok)}</span></span></div></li>`}).join("");
   const ctl=(j.controles||[]).map(c=>`<li class="${c.niveau==="alerte"?"alerte":""}">${esc(c.texte)}</li>`).join("");
   $("sheet").innerHTML=`<div class="head"><div><h2>${esc(j.client)}</h2><div class="mono">${esc(j.id)}</div></div><button class="btn ghost" id="close">Fermer</button></div>
    <div class="fields">
@@ -603,6 +615,9 @@ async function renderSheet(){
    ${lkArc?`<p class="sub">Les ARC se valident après la validation des plans par le MOE.</p>`:""}
    <ul class="arcs">${arcs||`<li class="sub">Aucun ARC pour l'instant. Ajoutez une ligne par fournisseur, ou déposez l'ARC dans Documents : Claude le lira.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="arc"><input type="text" id="add-arc-four" placeholder="Fournisseur" aria-label="Fournisseur"><input type="text" id="add-arc-ref" placeholder="N° d'ARC" aria-label="N° d'ARC"><input type="text" id="add-arc" placeholder="Contenu (ex. 2 portes de garage)" aria-label="Contenu"><button class="btn">+</button></form>`:""}
+   <h3>Location, voirie, transport<span class="sub" style="text-transform:none;letter-spacing:0">alerte avant la date si ce n'est pas commandé</span></h3>
+   <ul class="arcs">${logi||`<li class="sub">Rien à commander pour l'instant. Ajoutez une ligne pour une location de machine, un échafaudage, une demande de voirie ou un transport : l'appli vous alertera à temps.</li>`}</ul>
+   ${canWrite?`<form class="add arcadd" data-add="logi"><select id="add-logi-type" aria-label="Type">${Object.entries(LOGI).map(([v,[t]])=>`<option value="${v}">${t}</option>`).join("")}</select><input type="text" id="add-logi" placeholder="Détail (facultatif)" aria-label="Détail"><button class="btn">+</button></form>`:""}
    <h3>Poses en plusieurs fois<span class="sub" style="text-transform:none;letter-spacing:0">phases prévues ou matériel manquant</span></h3>
    <ul class="arcs">${phases||`<li class="sub">Pose en une fois. Si le chantier se pose en plusieurs phases, ou s'il manque du matériel, ajoutez une ligne par pose : « Posé » se cochera quand tout sera posé.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="ph"><input type="text" id="add-ph" placeholder="Ce qui est posé (ex. phase 1 : RDC, ou reste : porte d'entrée)" aria-label="Contenu de la pose"><select id="add-ph-motif" aria-label="Motif">${Object.entries(MOTIFS).map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select><button class="btn">+</button></form>`:""}
@@ -673,10 +688,12 @@ function setFacs(arr){const j=jobs.get(openId),p=facSync(arr);if(!arr.length)p.s
   jobs.set(openId,{...j,...p,steps:{...(j.steps||{}),...p.steps}});renderSheet();render();save(openId,p)}
 // ---------- événements ----------
 document.addEventListener("click",async e=>{
-  const t=e.target.closest("[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],#vclose,#vdl,#vedit,#vsave,#vnext");
+  const t=e.target.closest("[data-logi],[data-dellogi],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],#vclose,#vdl,#vedit,#vsave,#vnext");
   if(!t)return;
   if(t.dataset.arc!==undefined){const j=jobs.get(openId),arr=arcsOf(j).map(x=>({...x})),a=arr[+t.dataset.arc],k=t.dataset.arck;a[k]=a[k]&&a[k].d?null:{d:today(),by:me||""};setArcs(arr);return}
   if(t.dataset.ph!==undefined){const arr=phasesOf(jobs.get(openId)).map(x=>({...x})),x=arr[+t.dataset.ph];x.pose=x.pose&&x.pose.d?null:{d:today(),by:me||""};setPhases(arr);return}
+  if(t.dataset.logi!==undefined){const arr=logiOf(jobs.get(openId)).map(x=>({...x})),x=arr[+t.dataset.logi];x.cmd=x.cmd&&x.cmd.d?null:{d:today(),by:me||""};setLogi(arr);return}
+  if(t.dataset.dellogi!==undefined){const arr=[...logiOf(jobs.get(openId))];arr.splice(+t.dataset.dellogi,1);setLogi(arr);return}
   if(t.dataset.delph!==undefined){const arr=[...phasesOf(jobs.get(openId))];arr.splice(+t.dataset.delph,1);setPhases(arr);return}
   if(t.dataset.fac!==undefined){const arr=facsOf(jobs.get(openId)).map(x=>({...x})),f=arr[+t.dataset.fac],k=t.dataset.fack;f[k]=f[k]&&f[k].d?null:{d:today(),by:me||""};setFacs(arr);return}
   if(t.dataset.delfac!==undefined){const arr=[...facsOf(jobs.get(openId))];arr.splice(+t.dataset.delfac,1);setFacs(arr);return}
@@ -727,6 +744,7 @@ document.addEventListener("change",e=>{
   else if(t.dataset.flag){const k=t.dataset.flag,v=t.checked;jobs.set(openId,{...j,[k]:v});renderSheet();render();save(openId,{[k]:v})}
   else if(t.dataset.field){const k=t.dataset.field,v=t.value.trim();if((j[k]||"")===v)return;jobs.set(openId,{...j,[k]:v});render();if(k==="type"||k==="livraison"||k==="pose2")renderSheet();save(openId,{[k]:v})}
   else if(t.dataset.task){const k=t.dataset.task,arr=(j[k]||[]).map(x=>({...x}));arr[+t.dataset.i].f=t.checked?today():"";jobs.set(openId,{...j,[k]:arr});renderSheet();render();save(openId,{[k]:arr})}
+  else if(t.dataset.logifield){const arr=logiOf(j).map(x=>({...x}));arr[+t.dataset.i][t.dataset.logifield]=t.value.trim();setLogi(arr)}
   else if(t.dataset.phfield){const arr=phasesOf(j).map(x=>({...x}));arr[+t.dataset.i][t.dataset.phfield]=t.value;setPhases(arr)}
   else if(t.dataset.wk){const box=t.closest(".sem"),w=+box.querySelector('[data-wk="w"]').value,y=+box.querySelector('[data-wk="y"]').value;
     const d=w>=1&&w<=53&&y>=2000?weekFri(y,w):"";if(!d&&box.querySelector('[data-wk="w"]').value)return;
@@ -749,6 +767,7 @@ document.addEventListener("submit",async e=>{
   const k=e.target.dataset.add;if(!k)return;
   if(k==="arc"){const four=$("add-arc-four").value.trim(),ref=$("add-arc-ref").value.trim(),objet=$("add-arc").value.trim();if(!four&&!ref){toast("Indiquez au moins le fournisseur.");return}
     setArcs([...arcsOf(jobs.get(openId)),{four,ref,objet,lieu:"",prev:"",ok:null,livre:null}]);return}
+  if(k==="logi"){setLogi([...logiOf(jobs.get(openId)),{type:$("add-logi-type").value,t:$("add-logi").value.trim(),pour:"",cmd:null}]);return}
   if(k==="ph"){const t=$("add-ph").value.trim();if(!t){toast("Indiquez ce qui est posé.");return}
     const arr=[...phasesOf(jobs.get(openId))];
     setPhases([...arr,{t,motif:$("add-ph-motif").value,prev:"",pose:null}]);return}
