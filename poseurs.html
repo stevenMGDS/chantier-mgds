@@ -121,6 +121,8 @@ table.h tr.sum td{font-weight:700;background:var(--sunk)}
 .chip{font:500 14px var(--f-body);border:1px solid var(--line);background:var(--surface);padding:6px 12px;border-radius:99px;cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .who{bottom:calc(64px + env(safe-area-inset-bottom))!important}
+/* intégré dans la page d'accueil (poseurs.html?embed=1) : pas d'en-tête ni de badge, fond de la page parente */
+html.embed body{background:transparent}html.embed header.top,html.embed .who{display:none!important}html.embed .wrap{padding-top:0}
 </style>
 </head>
 <body>
@@ -136,6 +138,7 @@ table.h tr.sum td{font-weight:700;background:var(--sunk)}
 <script src="outil/shim.js"></script>
 <script>
 "use strict";
+if(/[?&]embed=1/.test(location.search))document.documentElement.classList.add("embed");
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let sb,me,role="lecteur",profils=[],chantiers=new Map(),week,tab,openId=null;
@@ -174,6 +177,8 @@ const TABS={poseur:[["planning","Mon planning"],["heures","Mes heures"]],
   editeur:[["gplanning","Planning"],["gheures","Heures"],["gphotos","Photos"]],
   autre:[["gplanning","Planning"],["gphotos","Photos"]]};
 function tabsFor(){return TABS[role==="poseur"?"poseur":role==="editeur"?"editeur":"autre"]}
+// ancre #planning / #heures / #photos : ouvre directement l'onglet correspondant au rôle
+function fromHash(){const h=location.hash.slice(1),ks=tabsFor().map(t=>t[0]);return ks.find(k=>k===h)||ks.find(k=>k==="g"+h)||null}
 function setTab(t){tab=t;try{localStorage.setItem("poseurs.tab",t)}catch(_){}
   $("tabs").innerHTML=tabsFor().map(([k,l])=>`<button type="button" data-tab="${k}" aria-pressed="${k===t}">${l}</button>`).join("");render()}
 $("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b)setTab(b.dataset.tab)});
@@ -467,7 +472,8 @@ document.addEventListener("click",e=>{const c=e.target.closest("[data-gcat]");if
   $("app").hidden=false;$("tabs").hidden=false;week=monday(new Date());
   try{await loadChantiers()}catch(_){}
   let saved;try{saved=localStorage.getItem("poseurs.tab")}catch(_){}
-  setTab(tabsFor().some(t=>t[0]===saved)?saved:tabsFor()[0][0]);
+  setTab(fromHash()||(tabsFor().some(t=>t[0]===saved)?saved:tabsFor()[0][0]));
+  window.addEventListener("hashchange",()=>{const t=fromHash();if(t&&t!==tab){if(openId)closeSheet();setTab(t)}});
   document.addEventListener("visibilitychange",async()=>{if(document.hidden)return;try{await loadChantiers()}catch(_){}if(openId)renderSheet();else render()});
 })();
 </script>
