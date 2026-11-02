@@ -264,11 +264,12 @@ async function renderSheet(){
    <div class="links">${addr?`<a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}" target="_blank" rel="noopener">Itinéraire</a>`:""}
      ${tel?`<a class="btn ghost" href="tel:${esc(tel)}">Appeler le client</a>`:""}
      <button class="btn ghost" data-hadd="${today()}" data-hjob="${esc(id)}">Noter mes heures</button></div>
-   <div class="box"><h3>Fiches du chantier</h3>${docs.length?`<div class="docs">${docs.map(d=>`<div style="display:flex;gap:8px"><button class="btn ghost big" style="text-align:left;flex:1" data-doc="${esc(d.id)}">📄 ${esc(FICHE_L[d.type]||d.type)}${d.rempli?d.rempli.reste?` <span class="tag o">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:' <span class="tag">remplie</span>':""}</button>${FILLABLE[d.type]&&(role==="poseur"||role==="editeur")?`<button class="btn" data-fill="${esc(d.id)}">✏️ Remplir</button>`:""}</div>`).join("")}</div>`:`<p class="sub">Les fiches ne sont pas encore disponibles pour ce chantier.</p>`}</div>
+   <div class="box"><h3>Fiches du chantier</h3>${docs.length?`<div class="docs">${docs.map(d=>`<div style="display:flex;gap:8px"><button class="btn ghost big" style="text-align:left;flex:1" data-doc="${esc(d.id)}">📄 ${esc(FICHE_L[d.type]||d.type)}${d.rempli?d.rempli.reste?` <span class="tag o">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:' <span class="tag">remplie</span>':""}</button>${FILL_ON&&FILLABLE[d.type]&&(role==="poseur"||role==="editeur")?`<button class="btn" data-fill="${esc(d.id)}">✏️ Remplir</button>`:""}</div>`).join("")}</div>`:`<p class="sub">Les fiches ne sont pas encore disponibles pour ce chantier.</p>`}</div>
    ${CATS.map(([k,l,hint])=>{const list=ph.filter(p=>p.categorie===k);return`<div class="box"><h3>${l} ${list.length?`<span class="tag b">${list.length}</span>`:""}</h3><div class="sub">${hint}</div>
      ${list.length?`<div class="thumbs">${list.map(p=>`<button data-photo="${p.id}" aria-label="Voir la photo">${urls[p.chemin]?`<img src="${esc(urls[p.chemin])}" alt="" loading="lazy">`:""}<span class="cap">${esc(fmtTs(p.pris_le))}</span></button>`).join("")}</div>`:""}
      ${k.startsWith("conso")?`<label class="fld">Ce que vous ${k==="conso_sortie"?"prenez":"rapportez"} (facultatif)<input type="text" id="note-${k}" placeholder="ex. 4 silicones blanc, 2 mousses"></label>`:""}
-     <label class="btn big" style="display:block;text-align:center;margin-top:10px">📷 Prendre une photo<input type="file" accept="image/*" capture="environment" multiple hidden data-up="${k}"></label></div>`}).join("")}`;
+     <label class="btn big" style="display:block;text-align:center;margin-top:10px">📷 Prendre une photo<input type="file" accept="image/*" capture="environment" hidden data-up="${k}"></label>
+     <label class="btn ghost small" style="display:block;text-align:center;margin-top:8px">ou choisir dans la galerie<input type="file" accept="image/*" multiple hidden data-up="${k}"></label></div>`}).join("")}`;
   body._photos=ph;body._urls=urls;
 }
 const fmtTs=t=>{const d=new Date(t);return d.getDate()+" "+MOIS[d.getMonth()]+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")};
@@ -335,6 +336,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-photo]");i
 // ---------- remplir une fiche (préparation, réception) ----------
 // même règle que l'appli : cases jaunes obligatoires ; fiche complète = étape cochée
 const FILLABLE={"Préparation":"prepa","Réception":"recep"};
+const FILL_ON=false; // passe à true quand la base autorise les poseurs (outil/poseurs-fiches.sql)
 let vDoc=null,vBlob=null,vPdf=null,vPages=[],vForm=null,vJob=null;
 function clean(s){return (s||"").trim().replace(/[’‘]/g,"'").replace(/œ/g,"oe").replace(/Œ/g,"OE")}
 async function withAddress(blob,j){
@@ -496,13 +498,15 @@ async function formHeures(h){
    ${role==="editeur"&&h.id?`<div class="sub">${esc(nameOf(h.poseur))}</div>`:""}
    <label class="fld">Jour<input type="date" name="jour" value="${esc(h.jour)}" required></label>
    <label class="fld">Chantier<select name="chantier"><option value="">Dépôt / autre</option>${ids.map(i=>`<option value="${esc(i)}" ${i===job?"selected":""}>${esc(jobName(i))}${planned.includes(i)?" (prévu)":""}</option>`).join("")}</select></label>
-   <div class="row2"><label class="fld">Arrivée<input type="time" name="debut" value="${dft.debut}" step="300"></label><label class="fld">Départ<input type="time" name="fin" value="${dft.fin}" step="300"></label></div>
+   <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Arrivée</div>${hmSel("debut",dft.debut)}
+   <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Départ</div>${hmSel("fin",dft.fin)}
    <label class="fld">Pause<select name="pause">${[0,15,30,45,60,75,90,120].map(n=>`<option value="${n}" ${n==dft.pause?"selected":""}>${n?n+" min":"aucune"}</option>`).join("")}</select></label>
    <label class="fld">Remarque (facultatif)<input type="text" name="note" value="${esc(h.note||"")}" placeholder="ex. trajet, dépôt, intempéries"></label>
    <div class="tot"><span>Heures travaillées</span><b id="hcalc">–</b></div>
    <div class="acts">${h.id&&(mine||role==="editeur")?`<button class="btn danger" data-del>Supprimer</button>`:""}<button class="btn ghost" data-x>Annuler</button><button class="btn" data-ok>Enregistrer</button></div>`);
   const f=k=>m.querySelector(`[name=${k}]`);
-  const calc=()=>{const a=tmin(f("debut").value),b=tmin(f("fin").value);if(a==null||b==null)return null;let d=b-a;if(d<0)d+=1440;d-=+f("pause").value;return d>0?Math.round(d/60*100)/100:null};
+  const hm=k=>f(k+"_h").value+":"+f(k+"_m").value;
+  const calc=()=>{const a=tmin(hm("debut")),b=tmin(hm("fin"));if(a==null||b==null)return null;let d=b-a;if(d<0)d+=1440;d-=+f("pause").value;return d>0?Math.round(d/60*100)/100:null};
   const upd=()=>{const n=calc();m.querySelector("#hcalc").textContent=n==null?"–":hfmt(n)};
   m.addEventListener("input",upd);m.addEventListener("change",upd);upd();
   m.querySelector("[data-x]").onclick=()=>m.close();
@@ -513,7 +517,7 @@ async function formHeures(h){
   m.querySelector("[data-ok]").onclick=async ev=>{
     const n=calc();if(!f("jour").value){toast("Indiquez le jour.");return}
     if(n==null||n>16){toast("Vérifiez l'heure d'arrivée, de départ et la pause.");return}
-    const row={jour:f("jour").value,chantier:f("chantier").value||null,debut:f("debut").value,fin:f("fin").value,pause_min:+f("pause").value,heures:n,note:f("note").value.trim()||null};
+    const row={jour:f("jour").value,chantier:f("chantier").value||null,debut:hm("debut"),fin:hm("fin"),pause_min:+f("pause").value,heures:n,note:f("note").value.trim()||null};
     ev.currentTarget.disabled=true;
     const r=h.id?await sb.from("heures").update(row).eq("id",h.id):await sb.from("heures").insert(row);
     ev.currentTarget.disabled=false;
@@ -522,6 +526,11 @@ async function formHeures(h){
     m.close();toast("Heures enregistrées ✓ ("+hfmt(n)+")");if(openId){if(tab==="heures")render()}else render();
   };
 }
+// heures et minutes en listes déroulantes (pas de 15 min)
+function hmSel(name,v){const[h0,m0]=(v||"08:00").split(":").map(Number),m=Math.round(m0/15)*15%60;
+  const pad=n=>String(n).padStart(2,"0"),st='style="font-size:20px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-height:48px;flex:1"';
+  return`<div style="display:flex;gap:8px;align-items:center;margin-top:4px"><select name="${name}_h" aria-label="Heure" ${st}>${Array.from({length:24},(_,i)=>`<option value="${pad(i)}" ${i===h0?"selected":""}>${i} h</option>`).join("")}</select>
+   <select name="${name}_m" aria-label="Minutes" ${st}>${[0,15,30,45].map(x=>`<option value="${pad(x)}" ${x===m?"selected":""}>${pad(x)} min</option>`).join("")}</select></div>`}
 function modal(html){
   const w=document.createElement("div");w.className="modal";w.innerHTML=`<div role="dialog" aria-modal="true">${html}</div>`;
   document.body.appendChild(w);const box=w.firstElementChild;
