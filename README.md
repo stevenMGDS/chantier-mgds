@@ -5,3 +5,5 @@ Accès sur invitation uniquement ; les données sont dans une base Supabase prot
 
 - `index.html` : l'appli (fabriquée par `outil/build.sh`)
 - `outil/schema.sql` : structure de la base et droits (éditeurs / terrain / lecteurs)
+- `poseurs.html` : espace poseurs (planning, fiches, heures, photos chantier et consommables) ; vue Planning / Heures / Photos pour Marine
+- `outil/poseurs.sql` : tables planning, heures, photos et rôle « poseur »
