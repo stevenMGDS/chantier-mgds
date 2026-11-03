@@ -171,6 +171,7 @@ textarea{min-height:64px;resize:vertical}
 .cpanel .cin{font:16px var(--f-body);min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);flex:1;min-width:120px;box-sizing:border-box}
 .cpanel .qty{display:flex;align-items:center;gap:6px}.cpanel .qty .cin{width:80px;flex:none;min-width:0;text-align:center}.cpanel .qty .btn{min-width:44px;min-height:44px;font-size:20px;padding:4px}.cpanel .qty .small{font-size:14px}
 .cpanel .clab{font-size:14px;color:var(--muted)}
+.cpanel .vis{display:flex;flex-direction:column;gap:8px}.cpanel .vlist{display:flex;flex-direction:column;gap:6px}.cpanel .vrow{display:flex;gap:6px;align-items:center}.cpanel .vrow select.cin{min-width:0}.cpanel .vrow .vq{width:70px;flex:none;min-width:0;text-align:center}.cpanel .vrow .btn{min-width:44px;min-height:44px}
 .cam{position:fixed;inset:0;z-index:60;background:#000;display:flex;flex-direction:column}
 .cam video{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
 .cam .camb{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
@@ -1021,9 +1022,35 @@ function consoSummary(){
     const val=r=>R.fs.filter(x=>x.r===r&&!x.f.cb).map(x=>x.f.el.value.trim()).filter(Boolean).join(" ");
     const pick=(r,lab)=>R.fs.filter(x=>x.r===r&&x.f.cb).sort((x,y)=>y.f.cy-x.f.cy||x.f.x-y.f.x).map((x,k)=>x.f.el.checked?lab[k+1]:"").filter(Boolean);
     const colTxt=(R.cell.col||"").split("☐").map(cleanDots),colPick=pick("col",colTxt).filter(c=>!/^autre/i.test(c));
-    const c=[val("col")||colPick.join(", ")||(colTxt.length===1?colTxt[0]:"")].filter(Boolean).join(""),q=val("qty"),o=pick("art",segs).join(", ");
-    if(q||c||o)out.push({a,q,c,o})}));
+    const isCol=/silicone|mastic/i.test(a),c=isCol?[val("col")||colPick.join(", ")||(colTxt.length===1?colTxt[0]:"")].filter(Boolean).join(""):"",q=val("qty"),o=pick("art",segs).join(", ");
+    const d=/^vis\b/i.test(a)?["rem","need","col"].map(val).find(v=>v.split(" · ").some(x=>VIS_RE.test(x)))||"":"";
+    if(q||c||o||d)out.push({a,q,c,o,d})}));
   return out;
+}
+// vis : type + longueur + quantité, écrits dans la case Remarque de la ligne (ex. « SFS blanche 92 mm : 50 · Vis béton 80 mm : 20 »)
+const VIS={"SFS blanche":[72,92,112,132,152,182,212],"SFS noire":[72,92,112,132,152,182,212],"Vis béton":[60,80,100,120,150],"Vis bois":[30,40,50,60,70,80,100,120],"Vis acier tête ronde":[13,16,19,25,32,38,50],"Vis acier tête fraisée":[13,16,19,25,32,38,50]};
+const VIS_RE=new RegExp("^("+Object.keys(VIS).join("|")+") (\\d+) mm(?: : (\\d+))?$");
+function visBlock(remEl,qtyIn,mk){
+  const box=mk("div","vis"),lines=[];let note=[];
+  (remEl.el.value||"").split(" · ").map(x=>x.trim()).filter(Boolean).forEach(x=>{const m=VIS_RE.exec(x);if(m)lines.push({t:m[1],l:m[2],q:m[3]||""});else note.push(x)});
+  const noteIn=mk("input","cin");noteIn.type="text";noteIn.placeholder="Remarque (facultatif)";noteIn.value=note.join(" · ");
+  const write=()=>{const parts=lines.filter(v=>v.t).map(v=>v.t+" "+v.l+" mm"+(v.q?" : "+v.q:""));if(noteIn.value.trim())parts.push(noteIn.value.trim());
+    remEl.el.value=parts.join(" · ");remEl.el.dispatchEvent(new Event("input"));
+    const tot=lines.reduce((a,v)=>a+(parseInt(v.q)||0),0);if(qtyIn&&tot){qtyIn.value=String(tot);qtyIn.dispatchEvent(new Event("input"))}};
+  const list=mk("div","vlist");
+  const draw=()=>{list.innerHTML="";lines.forEach((v,k)=>{
+    const row=mk("div","vrow"),ty=mk("select","cin"),le=mk("select","cin"),q=mk("input","cin"),x=mk("button","btn ghost","×");
+    ty.innerHTML=Object.keys(VIS).map(t=>`<option ${t===v.t?"selected":""}>${t}</option>`).join("");ty.setAttribute("aria-label","Type de vis");
+    const fillLen=()=>{const ls=VIS[v.t]||[];if(!ls.includes(+v.l))v.l=String(ls[0]);le.innerHTML=ls.map(n=>`<option value="${n}" ${String(n)===v.l?"selected":""}>${n} mm</option>`).join("")};fillLen();le.setAttribute("aria-label","Longueur");
+    q.type="text";q.inputMode="numeric";q.placeholder="Qté";q.value=v.q;q.className="cin vq";q.setAttribute("aria-label","Quantité");
+    x.type="button";x.setAttribute("aria-label","Retirer cette vis");
+    ty.onchange=()=>{v.t=ty.value;fillLen();write()};le.onchange=()=>{v.l=le.value;write()};q.oninput=()=>{v.q=q.value.replace(/\D/g,"");write()};
+    x.onclick=()=>{lines.splice(k,1);draw();write()};
+    row.append(ty,le,q,x);list.appendChild(row)})};
+  const add=mk("button","btn ghost","+ Ajouter une vis");add.type="button";
+  add.onclick=()=>{lines.push({t:"SFS blanche",l:"92",q:""});draw();write()};
+  noteIn.oninput=write;
+  draw();box.append(list,add,noteIn);return box;
 }
 const cleanDots=s=>(s||"").replace(/\.{2,}|…/g,"").replace(/\s+/g," ").trim();
 function openConso(){
@@ -1040,16 +1067,21 @@ function openConso(){
     const artF=R.fs.find(x=>x.r==="art"&&!x.f.cb);
     if(segs[0])top.appendChild(mk("b",null,segs[0]));else if(artF)top.appendChild(bindText(artF.f,"Article à ajouter"));else top.appendChild(mk("b",null,"Autre article"));
     card.appendChild(top);
-    if(segs[0]&&artF)card.appendChild(bindText(artF.f,/coloris/i.test(segs[0])?"Précisez le coloris":"Précisez"));
-    const colTxt=(R.cell.col||"").split("☐"),info=[cleanDots(colTxt[0])&&"Coloris : "+cleanDots(colTxt[0]),cleanDots(R.cell.need)&&"Besoin calculé : "+cleanDots(R.cell.need),!R.fs.some(x=>x.r==="rem")&&cleanDots(R.cell.rem)].filter(Boolean).join(" · ");
+    // coloris seulement pour le silicone et les mastics (demande de Steven) ; listes déroulantes pour les vis
+    const title=segs[0]||"",isCol=/silicone|mastic/i.test(title),isVis=/^vis\b/i.test(title);
+    if(segs[0]&&artF&&(isCol||!/coloris/i.test(title)))card.appendChild(bindText(artF.f,/coloris/i.test(title)?"Précisez le coloris":"Précisez"));
+    const colTxt=(R.cell.col||"").split("☐"),info=[isCol&&cleanDots(colTxt[0])&&"Coloris : "+cleanDots(colTxt[0]),cleanDots(R.cell.need)&&"Besoin calculé : "+cleanDots(R.cell.need),!R.fs.some(x=>x.r==="rem")&&cleanDots(R.cell.rem)].filter(Boolean).join(" · ");
     if(info)card.appendChild(mk("div","cinfo",info));
     // options à cocher (dimensions de compribande, coloris du silicone…)
     const chips=mk("div","chips");
-    [["art",segs],["col",colTxt.map(cleanDots)]].forEach(([r,lab])=>{R.fs.filter(x=>x.r===r&&x.f.cb).sort((a,b)=>b.f.cy-a.f.cy||a.f.x-b.f.x).forEach((x,k)=>chips.appendChild(bindChip(x.f,lab[k+1]||"option "+(k+1))))});
+    [["art",segs],...(isCol?[["col",colTxt.map(cleanDots)]]:[])].forEach(([r,lab])=>{R.fs.filter(x=>x.r===r&&x.f.cb).sort((a,b)=>b.f.cy-a.f.cy||a.f.x-b.f.x).forEach((x,k)=>chips.appendChild(bindChip(x.f,lab[k+1]||"option "+(k+1))))});
     if(chips.children.length)card.appendChild(chips);
     const line=mk("div","cline");
-    R.fs.filter(x=>x.r==="col"&&!x.f.cb).forEach(x=>line.appendChild(bindText(x.f,colTxt.length>1?"Précisez le coloris":"Coloris")));
-    R.fs.filter(x=>x.r==="qty").forEach(x=>{const g=mk("div","qty"),i=bindText(x.f,"Quantité",true);
+    if(isCol)R.fs.filter(x=>x.r==="col"&&!x.f.cb).forEach(x=>line.appendChild(bindText(x.f,colTxt.length>1?"Précisez le coloris":"Coloris")));
+    let qtyIn=null;
+    // case qui reçoit le détail des vis : Remarque, sinon Besoin calculé, sinon Coloris (vides sur cette ligne)
+    const visF=isVis?(R.fs.find(x=>x.r==="rem"&&!x.f.cb)||R.fs.find(x=>x.r==="need"&&!x.f.cb)||R.fs.find(x=>x.r==="col"&&!x.f.cb)):null;
+    R.fs.filter(x=>x.r==="qty").forEach(x=>{const g=mk("div","qty"),i=bindText(x.f,"Quantité",true);qtyIn=qtyIn||i;
       const step=d=>{const n=parseFloat((i.value||"0").replace(",","."))||0,v=Math.max(0,n+d);i.value=String(v).replace(".",",");i.dispatchEvent(new Event("input"))};
       const m=mk("button","btn ghost","−"),p=mk("button","btn ghost","+");m.type=p.type="button";m.setAttribute("aria-label","Moins");p.setAttribute("aria-label","Plus");m.onclick=()=>step(-1);p.onclick=()=>step(1);
       g.append(mk("span","clab","Quantité"),m,i,p);
@@ -1057,10 +1089,12 @@ function openConso(){
       if(need){const u=mk("button","btn ghost small","= "+need[1]);u.type="button";u.title="Reprendre le besoin calculé";u.onclick=()=>{i.value=need[1];i.dispatchEvent(new Event("input"))};g.appendChild(u)}
       line.appendChild(g)});
     R.fs.filter(x=>x.r==="chg"&&x.f.cb).forEach(x=>line.appendChild(bindChip(x.f,"✓ Chargé")));
-    R.fs.filter(x=>x.r==="need"&&!x.f.cb).forEach(x=>line.appendChild(bindText(x.f,"Besoin")));
+    R.fs.filter(x=>x.r==="need"&&!x.f.cb&&x!==visF).forEach(x=>line.appendChild(bindText(x.f,"Besoin")));
     R.fs.filter(x=>x.r==="other"&&!x.f.cb).forEach(x=>line.appendChild(bindText(x.f,"…")));
     if(line.children.length)card.appendChild(line);
-    R.fs.filter(x=>x.r==="rem"&&!x.f.cb).forEach(x=>card.appendChild(bindText(x.f,"Remarque (facultatif)")));
+    const remF=R.fs.find(x=>x.r==="rem"&&!x.f.cb);
+    if(visF)card.appendChild(visBlock(visF.f,qtyIn,mk));
+    if(remF&&remF!==visF)card.appendChild(bindText(remF.f,"Remarque (facultatif)"));
     list.appendChild(card);
   }));
   $("cpanel").hidden=false;list.scrollTop=0;
@@ -1218,7 +1252,7 @@ async function prepRows(data){
     const page=await pdf.getPage(n),items=(await page.getTextContent()).items;
     const art=items.find(t=>/^Article$/.test(t.str.trim()));if(!art)continue;
     const hy=art.transform[5],hdr=items.filter(t=>Math.abs(t.transform[5]-hy)<4).map(t=>({x:t.transform[4],s:t.str.trim()})).sort((a,b)=>a.x-b.x);
-    const q=hdr.find(h=>/^Qt/.test(h.s));if(!q)continue;const qn=hdr[hdr.indexOf(q)+1];
+    const q=hdr.find(h=>/^Qt/.test(h.s));if(!q)continue;const qn=hdr[hdr.indexOf(q)+1],rh=hdr.find(h=>/^Remarque/.test(h.s));
     const tx=(await page.getAnnotations()).filter(a=>a.subtype==="Widget"&&a.fieldType==="Tx"&&a.rect[3]<hy);
     const cut=items.filter(t=>t.transform[5]<hy&&(t.str.match(/[A-ZÀ-Ü]/g)||[]).length>=8&&!/[a-zà-ÿ0-9]/.test(t.str)).map(t=>t.transform[5]).sort((a,b)=>b-a)[0]||0;
     // une ligne = une cellule « quantité »
@@ -1227,7 +1261,8 @@ async function prepRows(data){
       const label=items.filter(t=>t.transform[5]>y0-1&&t.transform[5]<y1+1&&t.transform[4]<q.x-4&&t.str.trim()).map(t=>t.str).join(" ").replace(/\.{2,}|☐/g,"").replace(/\s+/g," ").trim();
       const inArt=tx.filter(b=>b.rect[0]<q.x-4&&b.rect[1]<y1&&b.rect[3]>y0);
       const col=inArt.find(b=>b.rect[2]-b.rect[0]<80),free=inArt.find(b=>b.rect[2]-b.rect[0]>=80);
-      out.push({label,qty:a.fieldName,col:label&&col?col.fieldName:null,art:free?free.fieldName:null})});
+      const rem=rh&&tx.find(b=>b.rect[0]>=rh.x-8&&b.rect[1]<y1&&b.rect[3]>y0);
+      out.push({label,qty:a.fieldName,col:label&&col?col.fieldName:null,art:free?free.fieldName:null,rem:rem?rem.fieldName:null})});
   }
   return out;
 }
@@ -1252,15 +1287,15 @@ async function doJoin(id){
     const put=(name,v)=>{if(!name||!v)return;try{const tf=form.getTextField(name),cur=(tf.getText()||"").trim();
       if(!cur||cur===auto[name]){const t=clean(v).replace(/[^\x20-\x7E\xA0-\xFF€]/g,"");tf.setText(t);next[name]=t;nCons++}}catch(_){}};
     const used=new Set(),find=re=>rows.find(r=>!used.has(r)&&re.test(r.label));
-    const MAP=[[/silicone/i,/silicone/i],[/compribande/i,/compribande/i],[/mousse\s*pu/i,/^mousse pu/i],[/habillage|t[ôo]le|corni[èe]re/i,/habillages/i],[/patte/i,/pattes de fixation/i],[/vis|cheville/i,/^vis b[ée]ton/i]];
+    const MAP=[[/silicone/i,/silicone/i],[/compribande/i,/compribande/i],[/mousse\s*pu/i,/^mousse pu/i],[/habillage|t[ôo]le|corni[èe]re/i,/habillages/i],[/^vis|cheville/i,/^vis b[ée]ton/i],[/patte/i,/pattes de fixation/i]];
     const merged=new Map();
     sum.forEach(x=>{const m=MAP.find(([a])=>a.test(x.a));const k=m?m[1].source:"libre:"+x.a;
-      const o=merged.get(k)||{re:m&&m[1],a:x.a,q:[],c:[]};if(x.q)o.q.push(x.q+(x.o?" ("+x.o+")":"")+(m&&merged.has(k)||/silicone/i.test(x.a)?" "+x.a.replace(/silicone\s*/i,"").replace(/ext[ée]rieur/i,"ext.").replace(/int[ée]rieur/i,"int."):""));if(x.c)o.c.push(x.c.replace(/\s*\(.*?\)/g,""));merged.set(k,o)});
+      const o=merged.get(k)||{re:m&&m[1],a:x.a,q:[],c:[],d:[]};if(x.d)o.d.push(x.d);if(x.q)o.q.push(x.q+(x.o?" ("+x.o+")":"")+(m&&merged.has(k)||/silicone/i.test(x.a)?" "+x.a.replace(/silicone\s*/i,"").replace(/ext[ée]rieur/i,"ext.").replace(/int[ée]rieur/i,"int."):""));if(x.c)o.c.push(x.c.replace(/\s*\(.*?\)/g,""));merged.set(k,o)});
     for(const o of merged.values()){
       let r=o.re&&find(o.re);
       if(!r){r=rows.find(x=>!used.has(x)&&x.art&&!x.label);if(r)put(r.art,o.a)}
       if(!r)continue;used.add(r);
-      put(r.qty,o.q.join(" + "));put(r.col,[...new Set(o.c)].join(" / "));
+      put(r.qty,o.q.join(" + "));put(r.col,[...new Set(o.c)].join(" / "));put(r.rem,o.d.join(" · "));
     }
     form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
     auto={...auto,...next};
