@@ -1231,7 +1231,7 @@ function setupHab(fields){
       P.box.appendChild(div);vHab.rows.push({pi,y:t.y,x0,x1,rep:rep?rep.s:"",el:div,hidden:hidden.map(f=>f.name),text:""});
     });
   });
-  if(!vHab.pages.length){vHab=null;return}
+  if(!vHab.pages.length&&!vHab.rows.length){vHab=null;return}
   // consommables : une ligne par type d'habillage (longueur + couleur), sur la ligne « Habillages » et la ligne vide en dessous
   vHab.col={};vHab.cons=null;
   cTables.forEach(T=>T.rows.forEach((R,k)=>{if(vHab.cons||R.head||!/^Habillage/i.test(R.cell.art||""))return;
@@ -1265,6 +1265,42 @@ function metreRowInfo(r){
       const f=fs.find(f=>!f.cb&&Math.abs(f.cy-(ty(ct)+2.5))<6&&f.x>=tx(ct)-2&&f.x<tx(ct)+ct.width+5);col=(f&&f.el.value.trim())||s2}
     return{pose,sens,cde,col};
   }catch(_){return{}}
+}
+// tout ce que l'équipe doit savoir pour poser, menuiserie par menuiserie (repris pour la fiche découverte)
+function metrePoseData(){
+  if(!vHab||!vHab.rows.length)return null;
+  const ty=t=>t.transform[5],tx=t=>t.transform[4],same=(a,b)=>{const k=habNorm(a),n=habNorm(b);return k&&n&&(k===n||n.startsWith(k)||k.startsWith(n))};
+  const fval=f=>f?(f.el.value||"").trim():"";
+  const after=(its,fs,re,y)=>{const t=its.find(t=>re.test(t.str.trim())&&Math.abs(ty(t)-y)<4);if(!t)return"";
+    const f=fs.find(f=>!f.cb&&Math.abs(f.cy-(ty(t)+2.5))<6&&f.x>=tx(t)-2&&f.x<tx(t)+t.width+5);
+    return fval(f)||t.str.replace(/^[^:]*:\s*/,"").replace(/\.{2,}|…/g,"").replace(/\s*mm\s*$/,"").trim()};
+  const optLab=(f,its)=>{const m=/^optx_\d+_(\w+)$/.exec(f.name);if(m){const o=OPT_NEW.find(o=>o[0]===m[1]);return o?o[1]:""}
+    const t=its.find(t=>Math.abs(ty(t)+2.5-f.cy)<6&&tx(t)>f.x+5&&tx(t)<f.x+22&&t.str.trim()&&t.str.trim()!=="☐");return t?t.str.trim():""};
+  const rows=vHab.rows.map(r=>{
+    const P=vPages[r.pi],its=P.items,fs=vForm.fields.filter(f=>f.pi===r.pi),info=metreRowInfo(r);
+    const des=its.filter(t=>tx(t)>=95&&tx(t)<240&&ty(t)>r.y+12&&ty(t)<r.y+36&&t.str.trim()).sort((a,b)=>ty(b)-ty(a)||tx(a)-tx(b)).map(t=>t.str.trim()).join(" ").replace(/\s*·\s*/g," · ").replace(/ · $/,"");
+    const hd=re=>its.find(t=>re.test(t.str.trim())),cell=h=>h?fval(fs.find(f=>!f.cb&&Math.abs(f.x-(tx(h)-4))<9&&f.cy>r.y+12&&f.cy<r.y+44)):"";
+    const tl=cell(hd(/^Tableau L/)),th=cell(hd(/^Tableau H/)),hl=cell(hd(/^Hors tout L/)),hh=cell(hd(/^Hors tout H/));
+    const iso=after(its,fs,/^Isolation\s*:/,r.y),vit=after(its,fs,/^Vitrage\s*:/,r.y-11),all=after(its,fs,/^All[èe]ge\s*:/,r.y-11);
+    const pg=vHab.pages.find(pg=>pg.reps.some(x=>same(x.name,r.rep))),rp=pg&&pg.reps.find(x=>same(x.name,r.rep)),v=r.v||{},ml={};
+    if(rp){const L=rp.L/1000,H=rp.H/1000,add=(k,m)=>{if(k)ml[k]=(ml[k]||0)+m};add(v.me,2*H);add(v.mi,2*H);add(v.the,L);add(v.thi,L);add(v.tbe,L);add(v.tbi,L)}
+    let opts=[],sol="",rem="",colhab="";
+    if(pg){const af=vForm.fields.filter(f=>f.pi===pg.pi),ai=vPages[pg.pi].items;
+      opts=af.filter(f=>f.cb&&f.el.checked&&/^opt(x)?_/.test(f.name)&&!/_soln?$/.test(f.name)&&!f.habHidden).map(f=>optLab(f,ai)).filter(Boolean);
+      const so=af.find(f=>/^optx_\d+_sol$/.test(f.name));if(so&&so.el.checked)sol=fval(af.find(f=>/^optx_\d+_solh$/.test(f.name)))||"oui";
+      rem=fval(af.find(f=>/^rem_/.test(f.name)));colhab=fval(af.find(f=>/^col_/.test(f.name)))}
+    return{rep:r.rep,des,cde:info.cde||"",tab:tl||th?tl+" × "+th:"",ht:hl||hh?hl+" × "+hh:"",pose:info.pose||[],sens:info.sens||[],col:info.col||"",iso,vit,all,v,ml,opts,sol,rem,colhab};
+  });
+  // éléments sans cote (accessoires du devis)
+  const extras=[];
+  vPages.forEach((P,pi)=>{const its=P.items||[],t0=its.find(t=>/^[ÉE]L[ÉE]MENTS SANS COTE/.test(t.str.trim()));if(!t0)return;
+    const hq=its.find(t=>/^Qt[ée]$/.test(t.str.trim())&&ty(t)<ty(t0)),hc=its.find(t=>/^Cote mesur/.test(t.str.trim())&&ty(t)<ty(t0)),hr=its.find(t=>/^Remarque$/.test(t.str.trim())&&hq&&Math.abs(ty(t)-ty(hq))<3);if(!hq)return;
+    const end=its.filter(t=>ty(t)<ty(hq)-4&&tx(t)<38&&isCaps(t.str.trim())).map(ty).sort((a,b)=>b-a)[0]||0,fs=vForm.fields.filter(f=>f.pi===pi);
+    its.filter(t=>Math.abs(tx(t)-tx(hq))<8&&ty(t)<ty(hq)-4&&ty(t)>end&&/^\d/.test(t.str.trim())).forEach(q=>{const y=ty(q);
+      const des=its.filter(t=>tx(t)<tx(hq)-6&&ty(t)<=y+2&&ty(t)>y-16&&t.str.trim()).sort((a,b)=>ty(b)-ty(a)||tx(a)-tx(b)).map(t=>t.str.trim()).join(" ");
+      const near=h=>h?fval(fs.find(f=>!f.cb&&Math.abs(f.x-(tx(h)-4))<10&&Math.abs(f.cy-(y+2.5))<10)):"";
+      extras.push({des,q:q.str.trim(),cote:near(hc),rem:near(hr)})})});
+  return{rows,extras};
 }
 function habFmt(v){return[["Mont.","me","mi"],["Haut","the","thi"],["Bas","tbe","tbi"]].map(([l,e,i])=>v[e]||v[i]?l+" "+(v[e]||"—")+"/"+(v[i]||"—"):"").filter(Boolean).join(" · ")}
 function habUpdate(first){
@@ -1315,32 +1351,41 @@ function habSave(doc,form,font){
 // ---------- fiche découverte (préparation) : « Attention à » complété ----------
 // type de mur (placo, brique plâtrière, autre) et travaux de peinture prévus par le client ; ajoutés au PDF à l'enregistrement
 let vPrepX=null;
-function prepXLayout(items,w0){
-    const at=re=>{const t=items.find(t=>re.test(t.str.trim()));return t&&{x:t.transform[4],y:t.transform[5],e:t.transform[4]+t.width}};
+function prepXLayout(items,w0,font){
+    const at=re=>{const t=items.find(t=>re.test(t.str.trim()));return t&&{x:t.transform[4],y:t.transform[5],e:t.transform[4]+t.width,s:Math.abs(t.transform[0])||8}};
     const a1=at(/^d[ée]pose de menuiseries anciennes/),a2=at(/^ma[çc]onnerie ou GO/);if(!a1||!a2)return null;
-    const texts=[],boxes=[],inputs=[],fs=7,tw=t=>t.length*fs*.5;
+    const fs=Math.min(9,Math.max(7,a1.s)),texts=[],boxes=[],inputs=[],tw=t=>font?font.widthOfTextAtSize(t,fs):t.length*fs*.5;
     const row=(y,x,parts)=>parts.forEach(pt=>{
       if(pt.t){texts.push({x,y,t:pt.t});x+=tw(pt.t)+4}
-      if(pt.cb){boxes.push({name:pt.cb,lab:pt.lab,x,y:y-1});x+=11;texts.push({x,y,t:pt.lab});x+=tw(pt.lab)+5}
-      if(pt.tx){inputs.push({name:pt.tx,x,y:y-2,w:Math.max(20,w0-36-x)})}});
-    row(a1.y,a1.e+12,[{t:"Mur :"},{cb:"prepx_mur_placo",lab:"placo"},{cb:"prepx_mur_brique",lab:"brique plâtrière"},{cb:"prepx_mur_autre",lab:"autre"},{tx:"prepx_mur_txt"}]);
-    row(a2.y,a2.e+12,[{t:"Peinture client prévue :"},{cb:"prepx_peint_oui",lab:"oui"},{cb:"prepx_peint_non",lab:"non"}]);
-    return {texts,boxes,inputs,fs};
+      if(pt.cb){boxes.push({name:pt.cb,lab:pt.lab,x,y:y-1,s:fs});x+=fs+3;texts.push({x,y,t:pt.lab});x+=tw(pt.lab)+fs*1.2}
+      if(pt.tx){inputs.push({name:pt.tx,x,y:y-2,w:Math.max(24,w0-36-x)})}});
+    // le type de mur « autre » se précise au bout de la ligne « Autre : » (plus de place sur la ligne du mur)
+    const a3=at(/^Autre\s*:/);
+    row(a1.y,a1.e+fs*1.6,[{t:"Mur :"},{cb:"prepx2_mur_placo",lab:"placo"},{cb:"prepx2_mur_brique",lab:"brique plâtrière"},{cb:"prepx2_mur_autre",lab:"autre"}].concat(a3?[]:[{tx:"prepx2_mur_txt"}]));
+    if(a3)row(a3.y,Math.max(a3.e+fs,w0-36-tw("mur autre :")-70),[{t:"mur autre :"},{tx:"prepx2_mur_txt"}]);
+    row(a2.y,a2.e+fs*1.6,[{t:"Peinture client :"},{cb:"prepx2_peint_oui",lab:"oui"},{cb:"prepx2_peint_non",lab:"non"}]);
+    return {texts,boxes,inputs,fs,rows:[a1,a2],w0};
 }
 // à l'ouverture : les questions sont ajoutées au PDF (visibles aussi en simple lecture)
 async function injectPrepX(blob,d){
   if(d.type!=="Préparation"||!window.PDFLib||!window.pdfjsLib)return blob;
   try{
     const data=new Uint8Array(await blob.arrayBuffer()),pdf=await pdfjsLib.getDocument({data:data.slice()}).promise;
-    if(Object.keys((await pdf.getFieldObjects())||{}).some(n=>/^prepx_/.test(n)))return blob;
+    const names=Object.keys((await pdf.getFieldObjects())||{});if(names.some(n=>/^prepx2_/.test(n)))return blob;
+    const old=names.filter(n=>/^prepx_/.test(n));
     for(let n=1;n<=pdf.numPages;n++){
       const page=await pdf.getPage(n),items=(await page.getTextContent()).items;
       if(!items.some(t=>/^ATTENTION [ÀA]/.test(t.str.trim())))continue;
-      const L=prepXLayout(items,page.getViewport({scale:1}).width);if(!L)return blob;
-      const doc=await PDFLib.PDFDocument.load(data),form=doc.getForm(),font=await doc.embedFont(PDFLib.StandardFonts.Helvetica),pg=doc.getPage(n-1),white=PDFLib.rgb(1,1,1),grey=PDFLib.rgb(.35,.35,.35);
-      L.texts.forEach(t=>pg.drawText(t.t,{x:t.x,y:t.y,size:L.fs,font,color:PDFLib.rgb(.1,.1,.1)}));
-      L.boxes.forEach(b=>{const cb=form.createCheckBox(b.name);cb.addToPage(pg,{x:b.x,y:b.y,width:8,height:8,borderWidth:.7,borderColor:grey,backgroundColor:white})});
-      L.inputs.forEach(i=>{const tf=form.createTextField(i.name);tf.addToPage(pg,{x:i.x,y:i.y,width:i.w,height:10,borderWidth:0,font});tf.setFontSize(7)});
+      const doc=await PDFLib.PDFDocument.load(data),form=doc.getForm(),font=await doc.embedFont(PDFLib.StandardFonts.Helvetica),pg=doc.getPage(n-1),white=PDFLib.rgb(1,1,1),grey=PDFLib.rgb(.2,.2,.2);
+      const L=prepXLayout(items.filter(t=>t.transform[4]<36||!old.length||!/^(Mur|Peinture|placo|brique|autre|oui|non)/.test(t.str.trim())),page.getViewport({scale:1}).width,font);if(!L)return blob;
+      // première version (plus petite) : retirée, réponses gardées
+      const keep={};
+      if(old.length){old.forEach(nm=>{try{const f=form.getField(nm);keep[nm.replace("prepx_","prepx2_")]=f instanceof PDFLib.PDFCheckBox?f.isChecked():f.getText()||"";form.removeField(f)}catch(_){}});
+        L.rows.forEach(a=>pg.drawRectangle({x:a.e+3,y:a.y-3,width:L.w0-36-a.e,height:12,color:white}));
+        doc.getPages().forEach(p2=>{const an=p2.node.Annots();if(!an)return;for(let k=an.size()-1;k>=0;k--){const x=an.get(k);if(x instanceof PDFLib.PDFRef&&!doc.context.lookup(x))an.remove(k)}})}
+      L.texts.forEach(t=>pg.drawText(t.t,{x:t.x,y:t.y,size:L.fs,font,color:PDFLib.rgb(0,0,0)}));
+      L.boxes.forEach(b=>{const cb=form.createCheckBox(b.name);cb.addToPage(pg,{x:b.x,y:b.y-.5,width:b.s,height:b.s,borderWidth:.6,borderColor:grey,backgroundColor:white});if(keep[b.name])cb.check()});
+      L.inputs.forEach(i=>{const tf=form.createTextField(i.name);tf.addToPage(pg,{x:i.x,y:i.y,width:i.w,height:L.fs+3,borderWidth:0,font});tf.setFontSize(L.fs);if(keep[i.name])tf.setText(keep[i.name])});
       form.updateFieldAppearances(font);
       return new Blob([await doc.save()],{type:"application/pdf"});
     }
@@ -1349,8 +1394,8 @@ async function injectPrepX(blob,d){
 }
 // mur et peinture : une réponse obligatoire par question ; « autre » demande de préciser
 function prepXRules(fields){
-  const xs=fields.filter(f=>/^prepx_/.test(f.name));if(!xs.length)return;
-  const au=xs.find(f=>f.name==="prepx_mur_autre"),tx=xs.find(f=>f.name==="prepx_mur_txt");
+  const xs=fields.filter(f=>/^prepx2?_/.test(f.name));if(!xs.length)return;
+  const au=xs.find(f=>/^prepx2?_mur_autre$/.test(f.name)),tx=xs.find(f=>/^prepx2?_mur_txt$/.test(f.name));
   const tReq=()=>{if(tx){tx.req=!!(au&&au.el.checked);tx.free=!tx.req;tx.el.classList.toggle("opt",!tx.req)}};
   xs.forEach(f=>{if(!f.cb)return;const k=f.name.split("_")[1];f.free=false;f.group="prepx_"+k;
     f.el.addEventListener("change",()=>{if(f.el.checked)xs.filter(g=>g.cb&&g!==f&&g.name.split("_")[1]===k).forEach(g=>{g.el.checked=false});tReq();if(vForm){vForm.dirty=true;vForm.upd()}})});
@@ -1361,7 +1406,7 @@ function setupPrepX(fields){
   vPrepX=null;
   vPages.forEach((P,pi)=>{
     if(vPrepX||!(P.items||[]).some(t=>/^ATTENTION [ÀA]/.test(t.str.trim())))return;
-    if(fields.some(f=>/^prepx_/.test(f.name))){prepXRules(fields);vPrepX={done:true};return}
+    if(fields.some(f=>/^prepx2?_/.test(f.name))){prepXRules(fields);vPrepX={done:true};return}
     const L=prepXLayout(P.items,P.w0);if(!L)return;const {texts,boxes,inputs,fs}=L,tw=t=>t.length*fs*.5;
     texts.forEach(t=>{const d=document.createElement("div");d.className="optlab";habPlace(d,P,t.x,t.y-1.5,tw(t.t)+6,fs*1.4);d.style.fontSize=cqw(fs,P.w0);d.textContent=t.t;P.box.appendChild(d)});
     boxes.forEach(b=>{const hit=document.createElement("label");hit.className="hit";Object.assign(hit.style,{left:pct(b.x+4,P.w0),top:pct(P.h0-b.y-4,P.h0),width:cqw(14,P.w0),height:cqw(14,P.w0)});
@@ -1545,7 +1590,7 @@ async function saveFill(){
     const nd={...d0,id:r.id,size:r.sizeBytes,at:today(),by:me||"",traite:false,rempli:{reste:vForm.reste,total:vForm.total,le:today()}};
     if(inked.size)nd.encre=[...inked].sort((a,b)=>a-b);
     if(d0.type==="Métré"&&cTables.length)nd.conso=consoSummary();
-    if(d0.type==="Métré"&&vHab&&vHab.rows.length)nd.hab=vHab.rows.map(r=>({r:r.rep,t:r.text,v:r.v||{},...metreRowInfo(r)}));
+    if(d0.type==="Métré"&&vHab&&vHab.rows.length){nd.hab=vHab.rows.map(r=>({r:r.rep,t:r.text,v:r.v||{},...metreRowInfo(r)}));try{nd.pose=metrePoseData()}catch(_){}}
     if(vForm.photoPages&&vForm.photoPages.length){nd.photos=[...new Set([...(d0.photos||[]),...vForm.photoPages])].sort((a,b)=>a-b);vForm.photoPages=[]}
     const newInk=vPages.some(P=>P.strokes&&P.strokes.length);
     vPages.forEach(P=>{if(P.strokes){P.done.push(...P.strokes);P.strokes=[]}});vDraw.stack=[];
@@ -1648,6 +1693,66 @@ async function prepRepRows(data){
   }
   return out;
 }
+// zone du tableau « Ce qu'on pose » sur la fiche découverte (peut continuer sur la page suivante)
+async function prepPoseRegions(data){
+  const pdf=await pdfjsLib.getDocument({data}).promise,regs=[];let st=null;
+  const title=u=>u.transform[4]<38&&isCaps(u.str.trim());
+  for(let n=1;n<=pdf.numPages;n++){
+    const page=await pdf.getPage(n),its=(await page.getTextContent()).items.filter(t=>t.str.trim()),vp=page.getViewport({scale:1});
+    if(!st){const t=its.find(t=>/^CE QU.ON POSE/.test(t.str.trim()));if(!t)continue;const y=t.transform[5];
+      const sub=its.find(u=>Math.abs(u.transform[5]-y)<3&&u.transform[4]>t.transform[4]+t.width);
+      st={pi:n-1,sub:sub?{x:sub.transform[4],y,w:sub.width}:null,w:vp.width};
+      const end=its.filter(u=>u.transform[5]<y-4&&title(u)).sort((a,b)=>b.transform[5]-a.transform[5])[0];
+      regs.push({pi:n-1,top:y-6,bottom:end?end.transform[5]+14:48,w:vp.width});if(end)break;continue}
+    const end=its.filter(title).sort((a,b)=>b.transform[5]-a.transform[5])[0];
+    regs.push({pi:n-1,top:vp.height-30,bottom:end?end.transform[5]+14:48,w:vp.width});if(end||n-1-st.pi>=3)break;
+  }
+  return st?{regs,sub:st.sub}:null;
+}
+// dessine le tableau : Repère | Ce qu'on pose | Pose | Points importants ; pages « suite » ajoutées si besoin (renvoie leurs numéros)
+async function drawPoseTable(doc,R,data){
+  const F=await doc.embedFont(PDFLib.StandardFonts.Helvetica),B=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+  const ink=PDFLib.rgb(.1,.1,.1),blu=PDFLib.rgb(0,.24,.57),red=PDFLib.rgb(.72,.1,.1),hdr=PDFLib.rgb(.91,.93,.96),line=PDFLib.rgb(.72,.76,.82),white=PDFLib.rgb(1,1,1),grey=PDFLib.rgb(.4,.43,.48);
+  const S=x=>String(x||"").replace(/[’‘]/g,"'").replace(/[^\x20-\x7E\xA0-\xFF—–…€]/g,"").replace(/\s+/g," ").trim();
+  const FS=7.5,LH=9.3,X=[36,106,298,368,559];
+  const wrap=(t,w,f)=>{const out=[];let cur="";S(t).split(" ").forEach(wd=>{const n=cur?cur+" "+wd:wd;if(cur&&f.widthOfTextAtSize(n,FS)>w){out.push(cur);cur=wd}else cur=n});if(cur)out.push(cur);return out};
+  const ml=m=>Object.entries(m||{}).sort().map(([k,v])=>k+" "+v.toFixed(1).replace(".",",")+" ml").join(" · ");
+  const side=(v,l,a,b,c)=>v[a]||v[b]||v[c]?l+"Mont. "+(v[a]||"-")+" · Haut "+(v[b]||"-")+" · Bas "+(v[c]||"-"):"";
+  const real=x=>x&&!/^[-–0.\s]*$/.test(x);
+  const blocks=data.rows.map(r=>{const v=r.v||{};return[
+    [{t:r.rep||"sans repère",f:B}],
+    [{t:r.des},r.cde&&{t:"Commande : "+r.cde,f:B,c:blu},(r.tab||r.ht)&&{t:[r.tab&&"Tableau "+r.tab,r.ht&&"H.T. "+r.ht].filter(Boolean).join(" · "),c:grey},r.col&&{t:"Coloris : "+r.col}],
+    [{t:(r.pose||[]).join(" + ")||"à préciser",f:B,c:blu},(r.sens||[]).length&&{t:"Sens : "+r.sens.join(" ")},real(r.iso)&&{t:"Isolation "+r.iso+" mm"}],
+    [side(v,"Habillage ext. : ","me","the","tbe")&&{t:side(v,"Habillage ext. : ","me","the","tbe")},side(v,"Habillage int. : ","mi","thi","tbi")&&{t:side(v,"Habillage int. : ","mi","thi","tbi")},
+     ml(r.ml)&&{t:"Longueurs : "+ml(r.ml),f:B,c:blu},r.colhab&&{t:"Coloris habillage : "+r.colhab},
+     r.sol&&{t:r.sol==="oui"?"ATTENTION : modification du sol intérieur":"ATTENTION : sol intérieur rehaussé de "+r.sol+" mm",f:B,c:red},
+     (r.opts||[]).length&&{t:r.opts.join(" · ")},real(r.vit)&&{t:"Vitrage : "+r.vit},real(r.all)&&{t:"Allège : "+r.all+" mm"},r.rem&&real(r.rem)&&{t:"Remarque : "+r.rem}]
+  ].map(c=>c.filter(Boolean))});
+  (data.extras||[]).forEach(e=>blocks.push([[{t:"Accessoire",f:B}],[{t:e.des}],[{t:"Qté "+e.q,f:B,c:blu}],[real(e.cote)&&{t:"Cote mesurée : "+e.cote},real(e.rem)&&{t:"Remarque : "+e.rem}].filter(Boolean)]));
+  const lay=b=>b.map((c,i)=>c.flatMap(it=>wrap(it.t,X[i+1]-X[i]-6,it.f||F).map(l=>({l,f:it.f||F,c:it.c||ink}))));
+  const regs=R.regs.map(g=>({...g})),ins=[];let ri=0,y=0;
+  const pageOf=g=>doc.getPage(g.pi);
+  const head=g=>{const pg=pageOf(g);pg.drawRectangle({x:X[0],y:y-13,width:X[4]-X[0],height:13,color:hdr,borderColor:line,borderWidth:.5});
+    ["Repère","Ce qu'on pose (repris du métré)","Pose","Points importants"].forEach((t,i)=>pg.drawText(t,{x:X[i]+3,y:y-9.5,size:FS,font:B,color:ink}));y-=13};
+  const start=g=>{const pg=pageOf(g);pg.drawRectangle({x:30,y:g.bottom,width:g.w-60,height:g.top-g.bottom,color:white});y=g.top-4;head(g)};
+  if(R.sub){const pg=pageOf(regs[0]);pg.drawRectangle({x:R.sub.x-1,y:R.sub.y-3,width:Math.max(R.sub.w,260)+4,height:12,color:white});
+    pg.drawText("repris du métré : ce que l'équipe pose, rien à remplir",{x:R.sub.x,y:R.sub.y,size:8,font:F,color:grey})}
+  start(regs[0]);
+  for(const b of blocks){const L=lay(b),h=Math.max(1,...L.map(c=>c.length))*LH+5;
+    while(y-h<regs[ri].bottom){
+      if(ri+1<regs.length){ri++;start(regs[ri]);continue}
+      // plus de place : page « suite » ajoutée après la dernière page du tableau
+      const at=regs[ri].pi+1,W=regs[0].w,pg=doc.insertPage(at,[W,841.89]);ins.push(at);
+      pg.drawText("CE QU'ON POSE (suite)",{x:36,y:800,size:11,font:B,color:blu});
+      regs.push({pi:at,top:790,bottom:48,w:W});ri++;y=790;head(regs[ri]);
+    }
+    const pg=pageOf(regs[ri]);
+    L.forEach((c,i)=>c.forEach((it,k)=>pg.drawText(it.l,{x:X[i]+3,y:y-9-k*LH,size:FS,font:it.f,color:it.c})));
+    X.forEach(x=>pg.drawLine({start:{x,y},end:{x,y:y-h},thickness:.5,color:line}));
+    pg.drawLine({start:{x:X[0],y:y-h},end:{x:X[4],y:y-h},thickness:.5,color:line});y-=h;
+  }
+  return ins;
+}
 let joinChain=Promise.resolve();
 function joinPrepa(id){joinChain=joinChain.then(()=>doJoin(id)).catch(()=>toast("Les croquis et photos n'ont pas pu être joints à la fiche de préparation. Ils restent dans les documents."));return joinChain}
 async function doJoin(id){
@@ -1655,8 +1760,8 @@ async function doJoin(id){
   const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name));
   const prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
   const photos=docs.filter(x=>x.type==="Photo"&&x.metre&&!x.inMetre&&!x.album),pages=[...new Set([...((metre&&metre.encre)||[]),...((metre&&metre.photos)||[])])].sort((a,b)=>a-b);
-  const sum=(metre&&metre.conso)||[],habs=(metre&&metre.hab)||[];
-  if(!photos.length&&!pages.length&&!sum.length&&!habs.length)return;
+  const sum=(metre&&metre.conso)||[],habs=(metre&&metre.hab)||[],poseData=metre&&metre.pose;
+  if(!photos.length&&!pages.length&&!sum.length&&!habs.length&&!poseData)return;
   if(!prep){toast("Pas de fiche de préparation dans ce chantier : le métré reste dans les documents.");return}
   toast("Mise à jour de la fiche de préparation…");
   const bytes=new Uint8Array(await (await fetch("/_blob/"+prep.id)).arrayBuffer());
@@ -1683,43 +1788,21 @@ async function doJoin(id){
     form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
     auto={...auto,...next};
   }catch(_){}}
-  // habillages du métré écrits devant chaque repère (bas de la case « Point particulier »)
-  if(habs.length&&window.pdfjsLib){try{
+  // tableau « Ce qu'on pose » redessiné à partir du métré : ce que l'équipe pose, sans rien à remplir
+  let poseIns=prep.poseIns||[];
+  if(poseData&&poseData.rows&&poseData.rows.length&&window.pdfjsLib){try{
     pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    const rows=await prepRepRows(bytes.slice()),form=doc.getForm(),hf=await doc.embedFont(PDFLib.StandardFonts.Helvetica),await0=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
-    // deux lignes : extérieur / intérieur
-    const two=h=>{const v=h.v;if(!v||!Object.keys(v).length)return h.t?"Habillage : "+h.t:"";
-      return [["Hab. ext. : ","me","the","tbe"],["Hab. int. : ","mi","thi","tbi"]].filter(([,a,b,c])=>v[a]||v[b]||v[c]).map(([l,a,b,c])=>l+"Mont. "+(v[a]||"-")+" · Haut "+(v[b]||"-")+" · Bas "+(v[c]||"-")).join("\n")};
-    const byName=new Map(habs.map(h=>[habNorm(h.r),h])),blue=f=>{try{f.acroField.setDefaultAppearance("0 0.24 0.57 rg /Helv 8 Tf")}catch(_){}};
-    // en-tête « Pièce » remplacé par « Commande » (cote de commande, sens, coloris repris du métré)
-    (rows.hdr||[]).filter(h=>!h.done).forEach(h=>{const pg=doc.getPage(h.pi);pg.drawRectangle({x:h.x-1,y:h.y-2,width:40,height:10,color:PDFLib.rgb(.91,.93,.96)});pg.drawText("Commande",{x:h.x,y:h.y,size:7.5,font:await0,color:PDFLib.rgb(.1,.1,.1)})});
-    const cbs=form.getFields().filter(f=>f instanceof PDFLib.PDFCheckBox),txs=form.getFields().filter(f=>f instanceof PDFLib.PDFTextField);
-    const at=(list,x,c)=>list.find(f=>f.acroField.getWidgets().some(w=>{const R=w.getRectangle();return Math.abs(R.x-x)<4&&Math.abs(R.y+R.height/2-c)<6}));
-    rows.forEach((r,i)=>{const k=habNorm(r.name);let e=byName.get(k);
-      if(!e)e=habs.find(h=>{const n=habNorm(h.r);return k&&n&&(n.startsWith(k)||k.startsWith(n))});
-      if(!e&&rows.length===habs.length)e=habs[i];
-      let t=e?two(e):null;
-      if(e){
-        // type de pose : cases cochées d'après le métré, verrouillées
-        const pose=e.pose||[],rc=at(cbs,r.renoX,r.c),dc=r.depX!=null&&at(cbs,r.depX,r.c);
-        if(pose.length){if(rc){/^R[ée]no/i.test(pose.join())?rc.check():rc.uncheck();rc.enableReadOnly()}if(dc){/D[ée]pose/i.test(pose.join())?dc.check():dc.uncheck();dc.enableReadOnly()}}
-        // colonne « Commande » : cote de commande, sens, coloris (+ neuf applique)
-        if(r.pc0!=null&&r.pc1!=null){const lines=[e.cde,(e.sens||[]).join(" "),e.col,/neuf/i.test(pose.join())?"Neuf applique":""].filter(Boolean).map(x=>clean(x).replace(/[^\x20-\x7E\xA0-\xFF€]/g,""));
-          let pf=txs.find(f=>f.acroField.getWidgets().some(w=>{const R=w.getRectangle();return R.x>=r.pc0-3&&R.x<r.pc1&&R.y<r.c&&R.y+R.height>r.c-12}));
-          if(!pf&&lines.length){pf=form.createTextField("cdep_"+r.pi+"_"+Math.round(r.c));pf.addToPage(doc.getPage(r.pi),{x:r.pc0,y:r.c-17.4,width:r.pc1-r.pc0,height:23.5,borderWidth:0,font:hf})}
-          if(pf){const wm=Math.max(1,...lines.map(l=>hf.widthOfTextAtSize(l,1))),R=pf.acroField.getWidgets()[0].getRectangle();
-            pf.enableMultiline();blue(pf);pf.setFontSize(+Math.max(4,Math.min(7.5,(R.width-4)/wm,(R.height-3)/(Math.max(1,lines.length)*1.2))).toFixed(2));pf.setText(lines.join("\n"));pf.enableReadOnly()}}
-      }
-      if(!t)return;
-      const txt=t?clean(t).replace(/—/g,"-").replace(/[^\x20-\x7E\xA0-\xFF€\n]/g,""):"",name="habp_"+r.pi+"_"+Math.round(r.c),H=13.5;
-      let tf;try{tf=form.getTextField(name)}catch(_){if(!txt)return;
-        form.getFields().forEach(f=>f.acroField.getWidgets().forEach(w=>{const R=w.getRectangle(),ny=r.c-17.2+H,top=R.y+R.height;
-          if(R.x>=r.x0-3&&R.x<r.x1&&R.y<ny&&top>ny&&top-ny>6)w.setRectangle({x:R.x,y:ny,width:R.width,height:top-ny})}));
-        tf=form.createTextField(name);tf.enableMultiline();tf.addToPage(doc.getPage(r.pi),{x:r.x0,y:r.c-17.4,width:r.x1-r.x0,height:H,borderWidth:0,font:hf})}
-      blue(tf);const ls=(txt||" ").split("\n"),wmax=Math.max(...ls.map(l=>hf.widthOfTextAtSize(l||" ",1)));
-      const sz=Math.max(4,Math.min(7,(r.x1-r.x0-4)/Math.max(1,wmax),(H-3)/(ls.length*1.2)));tf.enableMultiline();tf.setFontSize(+sz.toFixed(2));tf.setText(txt);tf.enableReadOnly()});
-    form.updateFieldAppearances(hf);
-  }catch(_){}}
+    [...poseIns].sort((x,y)=>y-x).forEach(k=>{if(k<doc.getPageCount())doc.removePage(k)});poseIns=[];
+    const R=await prepPoseRegions(await doc.save());
+    if(R){const form=doc.getForm();
+      const refs=doc.getPages().map(pg=>{const an=pg.node.Annots();return an?an.asArray().map(x=>String(x)):[]});
+      form.getFields().forEach(f=>{const ws=f.acroField.getWidgets();
+        if(ws.length&&ws.every(w=>{const ref=doc.context.getObjectRef(w.dict),pi=ref?refs.findIndex(l=>l.includes(String(ref))):-1,r=w.getRectangle();
+          return R.regs.some(g=>g.pi===pi&&r.y>=g.bottom-3&&r.y+r.height<=g.top+3)}))try{form.removeField(f)}catch(_){}});
+      doc.getPages().forEach(pg=>{const an=pg.node.Annots();if(!an)return;for(let k=an.size()-1;k>=0;k--){const x=an.get(k);if(x instanceof PDFLib.PDFRef&&!doc.context.lookup(x))an.remove(k)}});
+      poseIns=await drawPoseTable(doc,R,poseData);
+    }
+  }catch(e){console.log("pose",e)}}
   for(let k=0;k<(prep.annexe||0)&&doc.getPageCount()>1;k++)doc.removePage(doc.getPageCount()-1);
   const font=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold),imgs=[];
   if(pages.length&&window.pdfjsLib){
@@ -1742,7 +1825,7 @@ async function doJoin(id){
     pg.drawImage(e,{x:36+(mw-e.width*k)/2,y:36+(mh-e.height*k)/2,width:e.width*k,height:e.height*k});added++}catch(_){}}
   const file=new File([await doc.save()],prep.name,{type:"application/pdf"}),r=await assets.upload(file,{type:"application/pdf"});
   const j2=jobs.get(id)||{},d2=(j2.docs||[]).map(x=>({...x})),i=d2.findIndex(x=>x.id===prep.id);if(i<0)return;
-  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
+  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto,poseIns};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
   if(openId===id)renderSheet();
   toast("Fiche de préparation mise à jour"+(nCons?" : consommables repris du métré":"")+(added?(nCons?",":" :")+" "+added+" page"+(added>1?"s":"")+" de croquis et photos":"")+".");
 }
