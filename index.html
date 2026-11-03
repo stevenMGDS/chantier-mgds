@@ -1154,7 +1154,7 @@ function openConso(){
 const HAB_OPTS=["","C20x20","C30x30","C40x40","C50x50","C60x60","P30","P40","P50","P60","P80","P100"];
 const HAB_POS={me:"Montant ext.",mi:"Montant int.",the:"Haut ext.",thi:"Haut int.",tbe:"Bas ext.",tbi:"Bas int."};
 let vHab=null;
-const OPT_DEL=[0,1,2,3,4,8,9],OPT_NEW=[["rej","Création de rejingot"],["del","Délignage des cochonnets"]];
+const OPT_DEL=[0,1,2,3,4,8,9],OPT_NEW=[["rej","Création de rejingot",36],["del","Délignage des cochonnets",186],["sol","Modification du sol intérieur",336,{x:498,w:42,pre:["hauteur :",463],post:["mm",543]}]];
 const OPT_COVERS=[0,1,2,3,4].map(k=>[34+k*150,77]).concat([[484,61],[634,61]]);
 const habNorm=s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9/()]+/g,"");
 function habPlace(el,P,x,y,w,h){Object.assign(el.style,{left:pct(x,P.w0),top:pct(P.h0-y-h,P.h0),width:pct(w,P.w0),height:pct(h,P.h0)})}
@@ -1186,14 +1186,17 @@ function setupHab(fields){
       fields.forEach(f=>{const m=/^opt_\d+_(\d+)$/.exec(f.name);if(!m||f.pi!==pi)return;f.free=true;
         if(OPT_DEL.includes(+m[1])){f.el.closest("label").style.visibility="hidden";f.habHidden=true}});
       fields.forEach(f=>{if(f.pi===pi&&/^optx_/.test(f.name))f.free=true});
-      if(!fields.some(f=>f.name==="optx_"+pi+"_rej")){
-        OPT_COVERS.forEach(([x,y])=>{const d=document.createElement("div");d.className="habwhite";habPlace(d,P,x,y,140,16);P.box.appendChild(d)});
-        OPT_NEW.forEach(([id,lab],k)=>{const x=36+k*150,y=80;
+      {if(!fields.some(f=>f.name==="optx_"+pi+"_rej"))OPT_COVERS.forEach(([x,y])=>{const d=document.createElement("div");d.className="habwhite";habPlace(d,P,x,y,140,16);P.box.appendChild(d)});
+        OPT_NEW.forEach(([id,lab,x,tx])=>{const y=80;if(fields.some(f=>f.name==="optx_"+pi+"_"+id))return;
           const hit=document.createElement("label");hit.className="hit";Object.assign(hit.style,{left:pct(x+5,P.w0),top:pct(P.h0-y-5,P.h0),width:cqw(16,P.w0),height:cqw(16,P.w0)});
           const el=document.createElement("input");el.type="checkbox";el.className="fld";Object.assign(el.style,{width:cqw(10,P.w0),height:cqw(10,P.w0)});el.setAttribute("aria-label",lab);
           el.addEventListener("change",()=>{if(vForm)vForm.dirty=true});hit.appendChild(el);
           const t=document.createElement("div");t.className="optlab";habPlace(t,P,x+14,y-1,132,11);t.style.fontSize=cqw(7.5,P.w0);t.textContent=lab;
-          P.box.append(t,hit);fields.push({name:"optx_"+pi+"_"+id,cb:true,multi:false,el,pi,cy:y+5,x,top:y+10,free:true,newOpt:{lab,x,y}})});
+          P.box.append(t,hit);fields.push({name:"optx_"+pi+"_"+id,cb:true,multi:false,el,pi,cy:y+5,x,top:y+10,free:true,newOpt:{lab,x,y}});
+          if(tx){[tx.pre,tx.post].forEach(([s2,x2])=>{const d=document.createElement("div");d.className="optlab";habPlace(d,P,x2,y-1,40,11);d.style.fontSize=cqw(7.5,P.w0);d.textContent=s2;P.box.appendChild(d)});
+            const ti=document.createElement("input");ti.type="text";ti.inputMode="numeric";ti.className="fld opt";habPlace(ti,P,tx.x,y-2,tx.w,12);ti.style.fontSize=`max(12px, ${cqw(7.5,P.w0)})`;
+            ti.setAttribute("aria-label","Hauteur du sol en mm");ti.addEventListener("input",()=>{if(vForm)vForm.dirty=true});P.box.appendChild(ti);
+            fields.push({name:"optx_"+pi+"_"+id+"h",cb:false,multi:false,el:ti,pi,cy:y+4,x:tx.x,top:y+10,free:true,req:false,newTx:{x:tx.x,y:y-2,w:tx.w,labs:[tx.pre,tx.post]}})}});
       }
       vHab.opts.push(pi);
       return;
@@ -1261,12 +1264,15 @@ function habSave(doc,form,font){
     if(s.el.value||has)field(name,s.pi,s.x,s.y,s.w,s.h,7).setText(s.el.value?HAB_POS[s.k]+" : "+s.el.value:"")});
   vHab.rows.forEach(r=>{r.hidden.forEach(rm);
     const tf=field("habres_"+r.pi+"_"+Math.round(r.y),r.pi,r.x0,r.y-3,r.x1-r.x0,11,5.5);tf.setText(clean(r.text||"voir croquis en annexe"));tf.enableReadOnly()});
-  vHab.opts.forEach(pi=>{const pg=doc.getPage(pi),fresh=vForm.fields.filter(f=>f.pi===pi&&f.newOpt);if(!fresh.length)return;
-    vForm.fields.filter(f=>{const m=/^opt_\d+_(\d+)$/.exec(f.name);return f.pi===pi&&m&&OPT_DEL.includes(+m[1])}).forEach(f=>rm(f.name));
-    OPT_COVERS.forEach(([x,y])=>pg.drawRectangle({x,y,width:140,height:16,color:white}));
+  vHab.opts.forEach(pi=>{const pg=doc.getPage(pi),fresh=vForm.fields.filter(f=>f.pi===pi&&f.newOpt&&!f.saved);if(!fresh.length)return;
+    if(fresh.some(f=>/_rej$/.test(f.name))){vForm.fields.filter(f=>{const m=/^opt_\d+_(\d+)$/.exec(f.name);return f.pi===pi&&m&&OPT_DEL.includes(+m[1])}).forEach(f=>rm(f.name));
+      OPT_COVERS.forEach(([x,y])=>pg.drawRectangle({x,y,width:140,height:16,color:white}))}
+    vForm.fields.filter(f=>f.pi===pi&&f.newTx&&!f.saved).forEach(f=>{const t=f.newTx;f.saved=true;
+      t.labs.forEach(([s2,x2])=>pg.drawText(s2,{x:x2,y:t.y+4,size:7.5,font,color:PDFLib.rgb(.1,.1,.1)}));
+      try{const tf=form.createTextField(f.name);tf.addToPage(pg,{x:t.x,y:t.y,width:t.w,height:12,borderWidth:.6,borderColor:PDFLib.rgb(.6,.6,.6),backgroundColor:white,font});tf.setFontSize(8);tf.setText(f.el.value.replace(/[^\x20-\x7E]/g,""))}catch(_){}});
     fresh.forEach(f=>{let cb;try{cb=form.getCheckBox(f.name)}catch(_){cb=form.createCheckBox(f.name);
       cb.addToPage(pg,{x:f.newOpt.x,y:f.newOpt.y,width:10,height:10,borderWidth:.8,borderColor:PDFLib.rgb(.35,.35,.35),backgroundColor:white})}
-      pg.drawText(f.newOpt.lab,{x:f.newOpt.x+14,y:f.newOpt.y+2,size:7.5,font,color:PDFLib.rgb(.1,.1,.1)});f.el.checked?cb.check():cb.uncheck()})});
+      pg.drawText(f.newOpt.lab,{x:f.newOpt.x+14,y:f.newOpt.y+2,size:7.5,font,color:PDFLib.rgb(.1,.1,.1)});f.el.checked?cb.check():cb.uncheck();f.saved=true})});
   if(vHab.cons){const C=vHab.cons,n=Math.max(1,(vHab.lines||[]).length),h=C.top-C.bot;
     const tf=field("habconso_"+C.pi,C.pi,C.x0,C.bot,C.x1-C.x0,h,+Math.max(4,Math.min(8,(h-2)/n/1.2)).toFixed(1));
     tf.enableMultiline();tf.setText(clean((vHab.lines||[]).join("\n")));tf.enableReadOnly()}
