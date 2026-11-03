@@ -206,6 +206,32 @@ function weekNav(){return`<div class="weeknav"><button class="btn ghost" data-we
 document.addEventListener("click",e=>{const b=e.target.closest("[data-week]");if(!b)return;
   const n=+b.dataset.week;week=n?addDays(week,7*n):monday(new Date());render()});
 
+// question posée par Claude à une personne (réponse déposée dans documents/claude/reponses/, relue par Claude)
+const QUESTIONS=[{id:"heures-marine",pour:"m.renault@mgds.fr",
+  q:"Bonjour Marine, c'est Claude. Les poseurs notent maintenant leurs heures ici. Comment veux-tu que je te les transmette pour les salaires ?",
+  choix:["Je les regarde moi-même dans l'appli (onglet Heures) et je télécharge le fichier Excel quand j'en ai besoin",
+    "Claude me dépose chaque fin de mois un fichier Excel sur le serveur (par poseur et par jour)",
+    "Claude me dépose un fichier Excel chaque semaine sur le serveur"],
+  detail:"Précisions (facultatif) : heures par chantier ou total par jour, dossier du serveur, format de ton logiciel de paie…"}];
+let qDone=null;
+async function questionCard(){
+  const me_=profils.find(p=>p.id===me)||{},Q=QUESTIONS.find(x=>x.pour===me_.email);if(!Q)return"";
+  if(qDone===null){try{const{data}=await sb.storage.from("documents").list("claude/reponses",{search:Q.id});qDone=!!(data&&data.length)}catch(_){qDone=false}}
+  if(qDone)return"";
+  return`<div class="box" id="qcard" style="border-left:6px solid var(--accent);margin-top:14px"><h3>Une question de Claude</h3><p style="margin:0 0 8px">${esc(Q.q)}</p>
+   ${Q.choix.map((c,i)=>`<label style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer"><input type="radio" name="qchoix" value="${i}" style="width:22px;height:22px;flex:none;margin-top:2px"><span>${esc(c)}</span></label>`).join("")}
+   <label class="fld">${esc(Q.detail)}<textarea id="qdetail" rows="3" style="font:inherit;font-size:17px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);width:100%"></textarea></label>
+   <div class="acts"><button class="btn" data-qsend="${Q.id}">Envoyer ma réponse à Claude</button></div></div>`;
+}
+document.addEventListener("click",async e=>{const b=e.target.closest("[data-qsend]");if(!b)return;
+  const c=document.querySelector("[name=qchoix]:checked"),d=($("qdetail")?.value||"").trim();
+  if(!c&&!d){toast("Choisissez une réponse ou écrivez quelques mots.");return}
+  const Q=QUESTIONS.find(x=>x.id===b.dataset.qsend),rep={question:Q.q,choix:c?Q.choix[+c.value]:null,precisions:d||null,par:nameOf(me),le:new Date().toISOString()};
+  b.disabled=true;
+  const{error}=await sb.storage.from("documents").upload(`claude/reponses/${Q.id}-${Date.now()}.json`,new Blob([JSON.stringify(rep,null,1)],{type:"application/json"}),{contentType:"application/json"});
+  b.disabled=false;if(error){toast("Envoi impossible. Réessayez.");return}
+  qDone=true;$("qcard")?.remove();toast("Merci ! Claude a bien reçu ta réponse.");
+});
 async function render(){
   const v=$("view");
   try{
@@ -214,6 +240,7 @@ async function render(){
     else if(tab==="gplanning")await vGPlanning(v);
     else if(tab==="gheures")await vGHeures(v);
     else if(tab==="gphotos")await vGPhotos(v);
+    if(tab&&tab.startsWith("g")){const qc=await questionCard();if(qc)v.insertAdjacentHTML("afterbegin",qc)}
   }catch(e){console.error(e);
     v.innerHTML=/planning|heures|photos/.test(e.message||"")&&/exist|schema cache/.test(e.message||"")
       ?`<div class="empty" style="margin-top:16px">L'espace poseurs n'est pas encore activé dans la base. Claude s'en occupe.</div>`
