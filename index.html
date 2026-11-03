@@ -138,17 +138,33 @@ textarea{min-height:64px;resize:vertical}
 .viewer{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column}
 .viewer .vbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);background:var(--surface)}
 .viewer .vbar b{font:700 18px var(--f-display);min-width:0;overflow-wrap:anywhere}
-.viewer .pages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.viewer .pages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;-webkit-overflow-scrolling:touch}
+.viewer .pages>p,.viewer .pages>img{align-self:center}
 .viewer canvas,.viewer img{max-width:100%;height:auto;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15)}
 .docs select{width:auto;font-size:13px;padding:3px 6px}
 .dtype{font:600 12px var(--f-body);text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:4px;background:var(--t-bleu)}
 .new{font:600 11px var(--f-body);color:var(--s-orange);margin-left:6px;text-transform:uppercase}.new.ok{color:var(--s-vert)}
-.viewer .pg{position:relative;max-width:100%}.viewer .pg canvas{display:block}
-.viewer .fld{position:absolute;box-sizing:border-box;margin:0;border:1px solid var(--accent);border-radius:2px;background:rgba(220,232,244,.85);color:#111;padding:0 2px;font-family:var(--f-body);resize:none}
+.viewer .pg{position:relative;margin:0 auto;flex:none;container-type:inline-size}.viewer .pg canvas{display:block;width:100%;max-width:none}
+/* tracé au stylet : calque transparent au-dessus de la page, actif seulement en mode « Dessiner » */
+.viewer .pg canvas.ink{position:absolute;inset:0;width:100%;height:100%;z-index:3;background:transparent;box-shadow:none;pointer-events:none}
+.viewer.drawing .pg canvas.ink{pointer-events:auto;touch-action:none;cursor:crosshair}
+.viewer.drawing .pg{outline:2px dashed var(--s-orange);outline-offset:3px}
+.viewer label.hit{position:absolute;transform:translate(-50%,-50%);min-width:26px;min-height:26px;display:grid;place-items:center;z-index:2;cursor:pointer}
+.viewer label.hit input.fld{position:static}
+.viewer .vtools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.viewer .zoom{display:inline-flex;align-items:center;gap:4px}.viewer .zoom .btn{min-width:40px;padding:6px 10px;font-size:18px;line-height:1}.viewer #vzoom{min-width:48px;text-align:center;font:600 14px var(--f-body)}
+.viewer .pens{display:inline-flex;align-items:center;gap:6px}
+.viewer .pen{width:32px;height:32px;border-radius:50%;border:3px solid var(--surface);box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0}
+.viewer .pen.on{box-shadow:0 0 0 3px var(--accent)}
+.viewer #vdraw.on{background:var(--s-orange);color:#fff;border-color:var(--s-orange)}
+.viewer #vfill{font:600 15px var(--f-body)}
+@media (pointer:coarse){.viewer .vbar .btn{min-height:44px;padding:10px 16px;font-size:16px}.viewer .pen{width:40px;height:40px}.viewer label.hit{min-width:32px;min-height:32px}}
+.viewer .fld{position:absolute;box-sizing:border-box;margin:0;border:1.5px solid var(--accent);border-radius:2px;background:rgba(220,232,244,.85);color:#000;line-height:1.2;padding:0 2px;font-family:var(--f-body);resize:none}
 .viewer .fldro{position:absolute;color:#111;font-family:Helvetica,Arial,sans-serif;line-height:1.15;padding:1px 2px;pointer-events:none;white-space:pre-wrap}
-.viewer .fld.opt{background:rgba(220,232,244,.35);border-style:dashed}
+.viewer .fld.opt{background:rgba(220,232,244,.45);border-style:dashed}
+.viewer textarea.fld{padding:4px 6px}
 .viewer .fld.need{background:rgba(255,236,150,.9);border-color:var(--s-orange)}
-.viewer input.fld[type=checkbox]{appearance:none;-webkit-appearance:none;cursor:pointer;padding:0}
+.viewer input.fld[type=checkbox]{appearance:none;-webkit-appearance:none;cursor:pointer;padding:0;min-width:14px;min-height:14px;border-width:2px;background:#fff}
 .viewer input.fld[type=checkbox]:checked{background:var(--accent);box-shadow:inset 0 0 0 2px #fff}
 .viewer .fld:focus{outline:2px solid var(--accent);outline-offset:1px}
 #vfill{font:600 13px var(--f-body);color:var(--s-orange)}#vfill.ok{color:var(--s-vert)}
@@ -196,7 +212,7 @@ textarea{min-height:64px;resize:vertical}
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="sheet" id="sheet" hidden aria-label="Fiche chantier"></aside>
-<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="vfill" role="status"></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div></div>
+<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span class="vtools"><span id="vfill" role="status"></span><span class="zoom" id="vzoomg" hidden><button class="btn ghost" id="vzout" aria-label="Rétrécir la page">−</button><span id="vzoom">100 %</span><button class="btn ghost" id="vzin" aria-label="Agrandir la page">+</button></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn ghost" id="vdraw" hidden>✏️ Dessiner</button><span class="pens" id="vpens" hidden><button class="pen on" data-pen="#D0021B" style="background:#D0021B" aria-label="Crayon rouge"></button><button class="pen" data-pen="#1F5FBF" style="background:#1F5FBF" aria-label="Crayon bleu"></button><button class="pen" data-pen="#111111" style="background:#111" aria-label="Crayon noir"></button><button class="btn ghost" id="vundo">↶ Effacer le dernier trait</button></span><label class="btn ghost" id="vphoto" hidden>📷 Photo<input type="file" accept="image/*" capture="environment" hidden id="vphotoin"></label><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div></div>
 <div class="toast" id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
@@ -754,7 +770,7 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.who){who=t.dataset.who;render()}
   else if(t.dataset.open){openSheet(t.dataset.open)}
   else if(t.dataset.view!==undefined){viewDoc((jobs.get(openId).docs||[])[+t.dataset.view])}
-  else if(t.id==="vclose"){if(vForm&&vForm.dirty&&!vForm.saving){toast("Fiche non enregistrée : appuyez sur « Enregistrer », ou sur « Fermer » une seconde fois pour abandonner.");vForm.dirty=false;return}$("viewer").hidden=true;$("vpages").innerHTML="";vForm=null}
+  else if(t.id==="vclose"){if(vForm&&vForm.dirty&&!vForm.saving){toast("Fiche non enregistrée : appuyez sur « Enregistrer », ou sur « Fermer » une seconde fois pour abandonner.");vForm.dirty=false;return}$("viewer").hidden=true;$("vpages").innerHTML="";vForm=null;resetTools()}
   else if(t.id==="vedit"){startFill()}
   else if(t.id==="vsave"){saveFill()}
   else if(t.id==="vnext"){const f=vForm&&vForm.fields.find(x=>x.el.classList.contains("need"));if(f){f.el.scrollIntoView({block:"center",behavior:"smooth"});setTimeout(()=>f.el.focus({preventScroll:true}),350)}}
@@ -850,7 +866,7 @@ async function withAddress(blob,d){
   }catch(_){return blob}
 }
 async function viewDoc(d){
-  if(!d)return;const pg=$("vpages");$("vname").textContent=d.name;pg.innerHTML='<p class="sub">Ouverture du document…</p>';$("viewer").hidden=false;$("vdl").hidden=true;pg.style.alignItems="";["vedit","vsave","vnext"].forEach(x=>$(x).hidden=true);$("vfill").textContent="";vDoc=d;vPdf=null;vPages=[];vForm=null;
+  if(!d)return;const pg=$("vpages");$("vname").textContent=d.name;pg.innerHTML='<p class="sub">Ouverture du document…</p>';$("viewer").hidden=false;$("vdl").hidden=true;resetTools();$("vfill").textContent="";vDoc=d;vPdf=null;vPages=[];vForm=null;vZoom=1;
   try{
     const r=await fetch("/_blob/"+d.id);if(!r.ok)throw 0;vBlob=await r.blob();vName=d.name;$("vdl").hidden=!downloads;
     const isPdf=/pdf/.test(vBlob.type)||/\.pdf$/i.test(d.name);
@@ -859,50 +875,131 @@ async function viewDoc(d){
     pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
     vBlob=await withAddress(vBlob,d);
     const pdf=await pdfjsLib.getDocument({data:await vBlob.arrayBuffer()}).promise;pg.innerHTML="";vPdf=pdf;
-    const w=Math.min(pg.clientWidth-32,1000);
+    // la page est dessinée une fois en bonne définition ; le zoom (− / +) ne fait que changer sa largeur à l'écran
+    const w=fitW(),bw=Math.min(1800,Math.round(w*(window.devicePixelRatio||1)*1.5));$("vzoomg").hidden=false;showZoom();
     for(let n=1;n<=pdf.numPages;n++){
       if($("viewer").hidden)return;
-      const page=await pdf.getPage(n),v0=page.getViewport({scale:1}),sc=w/v0.width*(window.devicePixelRatio||1),vp=page.getViewport({scale:sc});
-      const box=document.createElement("div");box.className="pg";box.style.width=w+"px";
-      const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;c.style.width=w+"px";box.appendChild(c);pg.appendChild(box);
+      const page=await pdf.getPage(n),v0=page.getViewport({scale:1}),vp=page.getViewport({scale:bw/v0.width});
+      const box=document.createElement("div");box.className="pg";box.style.width=Math.round(w*vZoom)+"px";
+      const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;box.appendChild(c);pg.appendChild(box);
       await page.render({canvasContext:c.getContext("2d"),viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
-      vPages.push({page,box,c,css:w/v0.width,vp});
+      vPages.push({page,box,c,vp,w0:v0.width,h0:v0.height});
     }
     if((canWrite||canFill)&&assets&&d.type in FORM_TYPES&&!$("viewer").hidden){const fs=(await pdf.getFieldObjects())||{};if(Object.keys(fs).length){$("vedit").hidden=false;if(d.rempli)showFill(d.rempli.reste)}}
   }catch(_){pg.innerHTML='<p class="sub">Ce document ne peut pas s\'afficher ici.'+(downloads?' Utilisez « Télécharger ».':'')+'</p>';if(vBlob)$("vdl").hidden=!downloads}
 }
+
+// ---------- zoom, outils du visualiseur ----------
+let vZoom=1;const ZOOMS=[1,1.25,1.5,1.75,2,2.5,3];
+function fitW(){return Math.max(280,Math.min($("vpages").clientWidth-32,1000))}
+function showZoom(){$("vzoom").textContent=Math.round(vZoom*100)+" %";$("vzout").disabled=vZoom<=ZOOMS[0];$("vzin").disabled=vZoom>=ZOOMS[ZOOMS.length-1]}
+function setZoom(z){
+  const pg=$("vpages"),ry=pg.scrollHeight?pg.scrollTop/pg.scrollHeight:0,rx=pg.scrollWidth?pg.scrollLeft/pg.scrollWidth:0;
+  vZoom=Math.max(ZOOMS[0],Math.min(ZOOMS[ZOOMS.length-1],z));const w=Math.round(fitW()*vZoom);
+  vPages.forEach(P=>P.box.style.width=w+"px");showZoom();
+  pg.scrollTop=ry*pg.scrollHeight;pg.scrollLeft=rx*pg.scrollWidth;
+  if(vForm)try{localStorage.setItem("mgds-zoom",String(vZoom))}catch(_){}
+}
+function resetTools(){
+  ["vedit","vsave","vnext","vdraw","vpens","vphoto","vzoomg"].forEach(x=>$(x).hidden=true);
+  vDraw.on=false;$("viewer").classList.remove("drawing");$("vdraw").classList.remove("on");$("vdraw").textContent="✏️ Dessiner";
+}
+// ---------- dessin au stylet ----------
+// traits gardés en coordonnées relatives à la page (0 à 1) ; écrits dans le PDF à l'enregistrement
+const vDraw={on:false,color:"#D0021B",w:1.3,pen:false,stack:[]};
+function inkLine(P,s){const c=P.ink,x=c.getContext("2d");x.strokeStyle=s.c;x.lineWidth=Math.max(1.5,s.w*c.width/P.w0);x.lineCap="round";x.lineJoin="round";
+  x.beginPath();s.p.forEach((q,i)=>{const X=q[0]*c.width,Y=q[1]*c.height;i?x.lineTo(X,Y):x.moveTo(X,Y)});if(s.p.length===1)x.lineTo(s.p[0][0]*c.width+.5,s.p[0][1]*c.height+.5);x.stroke()}
+function inkRedraw(P){P.ink.getContext("2d").clearRect(0,0,P.ink.width,P.ink.height);P.done.concat(P.strokes).forEach(s=>inkLine(P,s))}
+function setDraw(on){
+  vDraw.on=on;$("viewer").classList.toggle("drawing",on);$("vdraw").classList.toggle("on",on);$("vpens").hidden=!on;
+  $("vdraw").textContent=on?"✋ Arrêter de dessiner":"✏️ Dessiner";
+  if(on)toast("Dessinez au stylet ou au doigt. Pour faire défiler : deux doigts, ou « Arrêter de dessiner ».");
+}
+(()=>{const pg=$("vpages"),touches=new Map();let st=null,last=null;
+  const rel=(P,e)=>{const r=P.ink.getBoundingClientRect();return[+((e.clientX-r.left)/r.width).toFixed(4),+((e.clientY-r.top)/r.height).toFixed(4)]};
+  const avg=()=>{let x=0,y=0;touches.forEach(v=>{x+=v[0];y+=v[1]});return[x/touches.size,y/touches.size]};
+  pg.addEventListener("pointerdown",e=>{
+    if(!vDraw.on||!vForm)return;
+    if(e.pointerType==="pen")vDraw.pen=true;
+    if(e.pointerType==="touch"){touches.set(e.pointerId,[e.clientX,e.clientY]);
+      if(touches.size>=2){if(st&&st.touch){st.P.strokes.pop();inkRedraw(st.P);st=null}last=avg();return}
+      if(vDraw.pen)return} // stylet détecté : la main posée sur l'écran ne dessine pas
+    if(st||!e.target.classList.contains("ink"))return;
+    const P=vPages.find(x=>x.ink===e.target);if(!P)return;
+    e.preventDefault();try{e.target.setPointerCapture(e.pointerId)}catch(_){}
+    st={P,pid:e.pointerId,touch:e.pointerType==="touch",s:{c:vDraw.color,w:vDraw.w,p:[rel(P,e)]}};P.strokes.push(st.s);inkLine(P,st.s);
+  });
+  pg.addEventListener("pointermove",e=>{
+    if(touches.has(e.pointerId)){touches.set(e.pointerId,[e.clientX,e.clientY]);
+      if(touches.size>=2&&last){const a=avg();pg.scrollBy(last[0]-a[0],last[1]-a[1]);last=a;e.preventDefault();return}}
+    if(!st||e.pointerId!==st.pid)return;e.preventDefault();
+    const evs=e.getCoalescedEvents?e.getCoalescedEvents():[];(evs.length?evs:[e]).forEach(v=>st.s.p.push(rel(st.P,v)));
+    const c=st.P.ink.getContext("2d"),n=st.s.p.length;inkLine(st.P,{c:st.s.c,w:st.s.w,p:st.s.p.slice(Math.max(0,n-evs.length-2))});
+  });
+  const end=e=>{touches.delete(e.pointerId);if(touches.size<2)last=null;
+    if(!st||e.pointerId!==st.pid)return;
+    if(e.type==="pointercancel"&&st.s.p.length<3){st.P.strokes.pop();inkRedraw(st.P)}
+    else{vDraw.stack.push(st.P);if(vForm)vForm.dirty=true}
+    st=null};
+  pg.addEventListener("pointerup",end);pg.addEventListener("pointercancel",end);
+})();
 
 // ---------- fiches remplies dans l'appli ----------
 // Obligatoire : chaque champ texte d'une ligne (sauf remarques et grands cadres d'observations, et champs posés sur une ligne de cases à cocher),
 // et au moins une case cochée par ligne de cases (par groupe pour les options d'habillage de l'annexe).
 const FORM_TYPES={"Métré":"metre","Préparation":"prepa","Réception":"recep"};
 function showFill(n){const e=$("vfill");e.textContent=n?n+" case"+(n>1?"s":"")+" à remplir":"Fiche complète ✓";e.className=n?"":"ok";$("vnext").hidden=!n||!vForm}
+const pct=(v,t)=>(v/t*100).toFixed(3)+"%",cqw=(v,t)=>(v/t*100).toFixed(3)+"cqw";
 async function startFill(){
   if(!vPdf||!vPages.length)return;$("vedit").hidden=true;
   const fields=[];
-  // sur téléphone, les pages passent en grand (900 px) et défilent : les cases restent assez grosses pour le doigt
-  const big=vPages[0].box.clientWidth<800;if(big)$("vpages").style.alignItems="flex-start";
+  // tablette et téléphone : la page s'affiche plus grande pour que les cases restent faciles à toucher (réglable avec − / +)
+  let z=0;try{z=+localStorage.getItem("mgds-zoom")||0}catch(_){}
+  if(!z){const want=matchMedia("(pointer:coarse)").matches?1300:900;z=Math.min(2.5,Math.max(1,want/fitW()));z=ZOOMS.reduce((a,b)=>Math.abs(b-z)<Math.abs(a-z)?b:a)}
   for(const [pi,P] of vPages.entries()){
-    if(big){const v0=P.page.getViewport({scale:1}),w=900;P.css=w/v0.width;P.vp=P.page.getViewport({scale:P.css*(window.devicePixelRatio||1)});
-      P.c.width=P.vp.width;P.c.height=P.vp.height;P.c.style.width=w+"px";P.c.style.maxWidth="none";P.box.style.width=w+"px";P.box.style.maxWidth="none";P.box.style.flex="none"}
+    const {w0,h0}=P;
     const anns=(await P.page.getAnnotations({intent:"display"})).filter(a=>a.subtype==="Widget"&&a.fieldName&&(a.fieldType==="Tx"||(a.fieldType==="Btn"&&a.checkBox)));
-    const vpc=P.page.getViewport({scale:P.css});
+    const vpc=P.page.getViewport({scale:1});
     await P.page.render({canvasContext:P.c.getContext("2d"),viewport:P.vp,annotationMode:pdfjsLib.AnnotationMode.DISABLE}).promise;
+    const place=(el,L,T,W,H)=>Object.assign(el.style,{left:pct(L,w0),top:pct(T,h0),width:pct(W,w0),height:pct(H,h0)});
+    const addText=(name,L,T,W,H,multi,value,extra)=>{
+      const el=document.createElement(multi?"textarea":"input");el.className="fld";if(!multi)el.type="text";el.value=value||"";
+      // taille du texte proportionnelle à la page, jamais en dessous de 12 px pour rester lisible
+      const fpt=multi?10:Math.min(12,H*.68);el.style.fontSize="13px";el.style.fontSize=`max(12px, ${cqw(fpt,w0)})`;
+      place(el,L,T,W,H);el.setAttribute("aria-label",name);P.box.appendChild(el);
+      fields.push({name,cb:false,multi,el,pi,cy:h0-(T+H/2),x:L,...extra});return el};
     for(const a of anns){
       const [x1,y1,x2,y2]=vpc.convertToViewportRectangle(a.rect),L=Math.min(x1,x2),T=Math.min(y1,y2),W=Math.abs(x2-x1),H=Math.abs(y2-y1);
       if(/^(client_nom|client_adresse|adresse_chantier)_/.test(a.fieldName)){
         // nom et adresses : écrits depuis la fiche chantier, affichés tels quels
-        if(a.fieldValue){const t=document.createElement("div");t.className="fldro";t.textContent=a.fieldValue;Object.assign(t.style,{left:L+"px",top:T+"px",width:W+"px",fontSize:8*P.css+"px",fontWeight:/^client_nom/.test(a.fieldName)?"700":"400"});P.box.appendChild(t)}
+        if(a.fieldValue){const t=document.createElement("div");t.className="fldro";t.textContent=a.fieldValue;Object.assign(t.style,{left:pct(L,w0),top:pct(T,h0),width:pct(W,w0),fontSize:cqw(8,w0),fontWeight:/^client_nom/.test(a.fieldName)?"700":"400"});P.box.appendChild(t)}
         continue}
-      const cb=a.fieldType==="Btn",multi=!cb&&Math.abs(a.rect[3]-a.rect[1])>45;
-      const el=document.createElement(multi?"textarea":"input");el.className="fld";
-      if(cb){el.type="checkbox";el.checked=!!a.fieldValue&&a.fieldValue!=="Off"}else{if(!multi)el.type="text";el.value=a.fieldValue||"";el.style.fontSize=Math.max(9,Math.min(16,H*.68))+"px"}
-      Object.assign(el.style,{left:L+"px",top:T+"px",width:W+"px",height:H+"px"});el.setAttribute("aria-label",a.alternativeText||a.fieldName);
-      P.box.appendChild(el);
-      fields.push({name:a.fieldName,cb,multi,el,pi,cy:(a.rect[1]+a.rect[3])/2,x:Math.min(a.rect[0],a.rect[2])});
+      if(a.fieldType==="Btn"){
+        // case à cocher : zone de toucher agrandie autour de la petite case du PDF
+        const hit=document.createElement("label");hit.className="hit";
+        Object.assign(hit.style,{left:pct(L+W/2,w0),top:pct(T+H/2,h0),width:cqw(W+6,w0),height:cqw(H+6,w0)});
+        const el=document.createElement("input");el.type="checkbox";el.className="fld";el.checked=!!a.fieldValue&&a.fieldValue!=="Off";
+        Object.assign(el.style,{width:cqw(W,w0),height:cqw(H,w0)});el.setAttribute("aria-label",a.alternativeText||a.fieldName);
+        hit.appendChild(el);P.box.appendChild(hit);
+        fields.push({name:a.fieldName,cb:true,multi:false,el,pi,cy:(a.rect[1]+a.rect[3])/2,x:Math.min(a.rect[0],a.rect[2])});continue}
+      const f=addText(a.fieldName,L,T,W,H,Math.abs(a.rect[3]-a.rect[1])>45,a.fieldValue);
+      f.setAttribute("aria-label",a.alternativeText||a.fieldName);fields[fields.length-1].cy=(a.rect[1]+a.rect[3])/2;fields[fields.length-1].x=Math.min(a.rect[0],a.rect[2]);
     }
-    P.labels=(await P.page.getTextContent()).items.filter(t=>/:\s*$|:\s/.test(t.str)).map(t=>({x:t.transform[4],y:t.transform[5]}));
+    const items=(await P.page.getTextContent()).items;
+    P.labels=items.filter(t=>/:\s*$|:\s/.test(t.str)).map(t=>({x:t.transform[4],y:t.transform[5]}));
+    // cadre « Croquis et remarques » des anciennes fiches : pas de champ dans le PDF, on en crée un (ajouté au PDF à l'enregistrement)
+    const head=items.find(t=>/croquis et remarques/i.test(t.str));
+    if(head){
+      const hx=head.transform[4],hy=head.transform[5],sig=items.find(t=>/signature du commercial/i.test(t.str)&&t.transform[5]<hy);
+      const top=hy-9,bot=sig?sig.transform[5]+16:42,rect=[hx+3,bot+3,w0-hx-3,top-3];
+      const taken=anns.some(a=>a.fieldType==="Tx"&&a.rect[1]<rect[3]&&a.rect[3]>rect[1]&&a.rect[0]<rect[2]&&a.rect[2]>rect[0]);
+      if(!taken&&rect[3]-rect[1]>30)addText("croquis_remarques",rect[0],h0-rect[3],rect[2]-rect[0],rect[3]-rect[1],true,"",{synth:{pi,rect}});
+    }
+    // calque de dessin
+    const ink=document.createElement("canvas");ink.className="ink";ink.width=Math.min(1600,P.c.width);ink.height=Math.round(ink.width*h0/w0);
+    P.box.appendChild(ink);P.ink=ink;P.strokes=[];P.done=[];
   }
+  setZoom(z);
   const rowKey=f=>f.pi+":"+Math.round(f.cy/5);
   const near=(f,g)=>f.pi===g.pi&&Math.abs(f.cy-g.cy)<4;
   const cbs=fields.filter(f=>f.cb);
@@ -922,7 +1019,8 @@ async function startFill(){
     Object.values(groups).forEach(g=>{const need=!g.some(f=>f.el.checked);g.forEach(f=>f.el.classList.toggle("need",need));if(need)n++});
     vForm.reste=n;vForm.total=fields.filter(f=>f.req).length+Object.keys(groups).length;showFill(n)};
     fields.forEach(f=>f.el.addEventListener(f.cb?"change":"input",()=>{vForm.dirty=true;upd()}));upd()}
-  $("vsave").hidden=false;toast("Touchez une case pour la remplir. Les cases en jaune sont obligatoires.");
+  $("vsave").hidden=false;$("vdraw").hidden=false;$("vphoto").hidden=vDoc.type!=="Métré";vDraw.stack=[];
+  toast("Touchez une case pour la remplir. Les cases en jaune sont obligatoires. « Dessiner » pour tracer au stylet.");
 }
 async function saveFill(){
   if(!vForm||vForm.saving)return;const id=openId,d0=vDoc;if(!id||!d0)return;
@@ -934,21 +1032,110 @@ async function saveFill(){
       if(f.cb){const c=form.getCheckBox(f.name);f.el.checked?c.check():c.uncheck()}
       else form.getTextField(f.name).setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF\n€œŒ’‘“”–—…]/g,""))
     }catch(_){}}
+    // cadre croquis et remarques des anciennes fiches : le champ est ajouté au PDF
+    for(const f of vForm.fields.filter(x=>x.synth&&x.el.value.trim())){try{form.getTextField(f.name)}catch(_){try{
+      const [x1,y1,x2,y2]=f.synth.rect,tf=form.createTextField(f.name);tf.enableMultiline();
+      tf.addToPage(doc.getPage(f.synth.pi),{x:x1,y:y1,width:x2-x1,height:y2-y1,borderWidth:0,font});tf.setFontSize(10);
+      tf.setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF\n€œŒ’‘“”–—…]/g,""))}catch(_){}}}
     form.updateFieldAppearances(font);
+    // traits au stylet : dessinés pour de bon dans la page du PDF
+    const inked=new Set(d0.encre||[]);
+    vPages.forEach((P,pi)=>{if(!P.strokes||!P.strokes.length)return;const pg=doc.getPage(pi),cb=pg.getCropBox();inked.add(pi);
+      P.strokes.forEach(st=>{const d=st.p.map((q,i)=>(i?"L":"M")+(q[0]*cb.width).toFixed(1)+" "+(q[1]*cb.height).toFixed(1)).join(" ")+(st.p.length===1?" l .3 .3":"");
+        const h=st.c.replace("#",""),col=PDFLib.rgb(parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255);
+        pg.drawSvgPath(d,{x:cb.x,y:cb.y+cb.height,borderColor:col,borderWidth:st.w,borderLineCap:PDFLib.LineCapStyle.Round})})});
     const file=new File([await doc.save()],d0.name,{type:"application/pdf"});
     const r=await assets.upload(file,{type:"application/pdf"});
     const j=jobs.get(id)||{},docs=(j.docs||[]).map(x=>({...x}));
     const i=docs.findIndex(x=>x.id===d0.id);
     const nd={...d0,id:r.id,size:r.sizeBytes,at:today(),by:me||"",traite:false,rempli:{reste:vForm.reste,total:vForm.total,le:today()}};
+    if(inked.size)nd.encre=[...inked].sort((a,b)=>a-b);
+    const newInk=vPages.some(P=>P.strokes&&P.strokes.length);
+    vPages.forEach(P=>{if(P.strokes){P.done.push(...P.strokes);P.strokes=[]}});vDraw.stack=[];
     if(i>=0)docs[i]=nd;else docs.push(nd);
     const patch={docs},k=FORM_TYPES[d0.type];
     if(k&&vForm.reste===0&&!sd(j,k)&&stepsOf(j).some(s=>s.k===k))patch.steps={[k]:{d:today(),by:me||""}};
     jobs.set(id,{...j,docs,steps:{...(j.steps||{}),...(patch.steps||{})}});vDoc=nd;vBlob=file;vForm.dirty=false;
     await save(id,patch);renderSheet();render();
     toast(vForm.reste?"Fiche enregistrée. Il reste "+vForm.reste+" case"+(vForm.reste>1?"s":"")+" à remplir.":patch.steps?"Fiche complète et enregistrée : l'étape « "+SK[k].l+" » est cochée.":"Fiche complète et enregistrée.");
+    if(d0.type==="Métré"&&newInk)setTimeout(()=>joinPrepa(id),2500);
   }catch(e){toast("La fiche n'a pas pu être enregistrée. Réessayez.")}
   finally{if(vForm)vForm.saving=false;$("vsave").disabled=false}
 }
+
+// ---------- photos du métré et annexe de la fiche de préparation ----------
+// photo réduite (1800 px max) pour ne pas remplir le stockage
+async function shrink(f){
+  try{const url=URL.createObjectURL(f),im=new Image();im.src=url;await im.decode();
+    const k=Math.min(1,1800/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement("canvas");
+    c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(url);
+    const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.82));c.width=0;return b||f}catch(_){return f}
+}
+async function addPhotos(files){
+  const id=openId;if(!id||!assets||!files.length)return;let ok=0;
+  for(const f0 of files){
+    toast("Enregistrement de la photo…");
+    try{const b=await shrink(f0),j=jobs.get(id)||{},n=(j.docs||[]).filter(x=>x.type==="Photo"&&x.metre).length+1;
+      const name="Photo metre "+today().split("-").reverse().slice(0,2).join("-")+" n"+n+(b.type==="image/png"?".png":".jpg");
+      const r=await assets.upload(new File([b],name,{type:b.type||"image/jpeg"}),{type:b.type||"image/jpeg"});
+      const j2=jobs.get(id)||{},docs=[...(j2.docs||[]),{id:r.id,name,type:"Photo",size:r.sizeBytes,at:today(),by:me||"",traite:true,metre:true}];
+      jobs.set(id,{...j2,docs});await save(id,{docs});ok++;
+    }catch(e){toast(e&&e.code==="quota_or_state"?"Plus de place pour les documents : prévenez Steven.":"La photo n'a pas pu être enregistrée. Réessayez.")}
+  }
+  if(ok){renderSheet();toast(ok>1?ok+" photos rangées dans les documents du chantier.":"Photo rangée dans les documents du chantier.");setTimeout(()=>joinPrepa(id),2500)}
+}
+// Ajoute à la fin de la fiche de préparation (celle des poseurs) les pages dessinées du métré et les photos du métré.
+// Les pages ajoutées la fois précédente sont remplacées (nombre gardé dans « annexe »).
+let joinChain=Promise.resolve();
+function joinPrepa(id){joinChain=joinChain.then(()=>doJoin(id)).catch(()=>toast("Les croquis et photos n'ont pas pu être joints à la fiche de préparation. Ils restent dans les documents."));return joinChain}
+async function doJoin(id){
+  const j=jobs.get(id)||{},docs=j.docs||[];
+  const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name));
+  const prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
+  const photos=docs.filter(x=>x.type==="Photo"&&x.metre),pages=(metre&&metre.encre)||[];
+  if(!photos.length&&!pages.length)return;
+  if(!prep){toast("Pas de fiche de préparation dans ce chantier : croquis et photos restent dans les documents.");return}
+  toast("Ajout des croquis et photos à la fiche de préparation…");
+  const doc=await PDFLib.PDFDocument.load(await (await fetch("/_blob/"+prep.id)).arrayBuffer());
+  for(let k=0;k<(prep.annexe||0)&&doc.getPageCount()>1;k++)doc.removePage(doc.getPageCount()-1);
+  const font=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold),imgs=[];
+  if(pages.length&&window.pdfjsLib){
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const pdf=await pdfjsLib.getDocument({data:await (await fetch("/_blob/"+metre.id)).arrayBuffer()}).promise;
+    for(const n of pages){if(n>=pdf.numPages)continue;
+      const page=await pdf.getPage(n+1),v0=page.getViewport({scale:1}),vp=page.getViewport({scale:1700/v0.width}),c=document.createElement("canvas");
+      c.width=vp.width;c.height=vp.height;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);
+      await page.render({canvasContext:x,viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
+      const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.85));c.width=0;
+      imgs.push({t:"Croquis du metre · page "+(n+1),b:new Uint8Array(await b.arrayBuffer()),png:false})}
+  }
+  for(const p of photos){const r=await fetch("/_blob/"+p.id);if(!r.ok)continue;const b=await r.blob();
+    imgs.push({t:"Photo du metre · "+clean(p.name).replace(/\.\w+$/,""),b:new Uint8Array(await b.arrayBuffer()),png:/png/.test(b.type)||/\.png$/i.test(p.name)})}
+  let added=0;
+  for(const im of imgs){try{
+    const e=im.png?await doc.embedPng(im.b):await doc.embedJpg(im.b),W=841.89,H=595.28,pg=doc.addPage([W,H]);
+    pg.drawText(im.t,{x:36,y:H-40,size:13,font});
+    const mw=W-72,mh=H-90,k=Math.min(mw/e.width,mh/e.height);
+    pg.drawImage(e,{x:36+(mw-e.width*k)/2,y:36+(mh-e.height*k)/2,width:e.width*k,height:e.height*k});added++}catch(_){}}
+  const file=new File([await doc.save()],prep.name,{type:"application/pdf"}),r=await assets.upload(file,{type:"application/pdf"});
+  const j2=jobs.get(id)||{},d2=(j2.docs||[]).map(x=>({...x})),i=d2.findIndex(x=>x.id===prep.id);if(i<0)return;
+  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
+  if(openId===id)renderSheet();
+  toast("Croquis et photos joints à la fiche de préparation ("+added+" page"+(added>1?"s":"")+").");
+}
+// barre d'outils du visualiseur : zoom, dessin, photo
+$("viewer").addEventListener("click",e=>{
+  const t=e.target.closest("#vzin,#vzout,#vdraw,#vundo,[data-pen]");if(!t)return;
+  if(t.id==="vzin")setZoom(ZOOMS.find(z=>z>vZoom+.01)||vZoom);
+  else if(t.id==="vzout")setZoom([...ZOOMS].reverse().find(z=>z<vZoom-.01)||vZoom);
+  else if(t.id==="vdraw")setDraw(!vDraw.on);
+  else if(t.id==="vundo"){const P=vDraw.stack.pop();if(P){P.strokes.pop();inkRedraw(P)}else toast("Rien à effacer depuis le dernier enregistrement.")}
+  else if(t.dataset.pen){vDraw.color=t.dataset.pen;document.querySelectorAll("#vpens .pen").forEach(b=>b.classList.toggle("on",b===t))}
+});
+addEventListener("resize",()=>{if(!$("viewer").hidden&&vPages.length)setZoom(vZoom)});
+$("vphotoin").addEventListener("change",e=>{const fs=[...e.target.files];e.target.value="";addPhotos(fs)});
+// iPad / iPhone : pas de zoom automatique de toute la page quand on touche une case
+if(/iP(ad|hone|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)){const m=document.querySelector('meta[name="viewport"]');if(m&&!/maximum-scale/.test(m.content))m.content+=", maximum-scale=1"}
 
 // ---------- démarrage ----------
 (async()=>{
