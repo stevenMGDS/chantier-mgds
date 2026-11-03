@@ -193,6 +193,9 @@ textarea{min-height:64px;resize:vertical}
 .cpanel .vrow.hrow{flex-wrap:wrap}.cpanel .hrow b{min-width:9em;white-space:nowrap}.cpanel .hrow select.cin{flex:1}.cpanel .hrow input.cin{flex-basis:100%}
 .viewer .optlab{position:absolute;z-index:2;color:#1a1a1a;font-family:Helvetica,Arial,sans-serif;white-space:nowrap;line-height:1.4;pointer-events:none}
 .viewer .fldro.habp{color:#0B3D91;font-weight:700;white-space:pre;line-height:1.15;overflow:hidden;font-family:Helvetica,Arial,sans-serif}
+.viewer .fld.lock{color:#0B3D91;font-weight:700;background:#EEF3FB;border-style:solid;border-color:transparent}
+.viewer .fld.plus,.cpanel .qty.plus .cin{color:#C2410C;font-weight:700}.cpanel .qty.plus .clab{color:#C2410C}
+.cpanel .cpre{color:#0B3D91;font-weight:700;align-self:center}
 .viewer .habwhite{position:absolute;z-index:1;background:#fff;pointer-events:none}
 .cpanel .nitem{display:flex;justify-content:space-between;gap:10px;align-items:center;text-align:left;width:100%;font:15px var(--f-body);min-height:48px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);cursor:pointer}.cpanel .nitem small{color:var(--muted);flex:none}
 .viewer .fld.flash{animation:flash 1s ease 2}@keyframes flash{50%{box-shadow:0 0 0 8px rgba(232,89,12,.6)}}
@@ -1130,7 +1133,12 @@ function openConso(){
     let qtyIn=null;
     // case qui reçoit le détail des vis : Remarque, sinon Besoin calculé, sinon Coloris (vides sur cette ligne)
     const visF=isVis?(R.fs.find(x=>x.r==="rem"&&!x.f.cb)||R.fs.find(x=>x.r==="need"&&!x.f.cb)||R.fs.find(x=>x.r==="col"&&!x.f.cb)):null;
-    R.fs.filter(x=>x.r==="qty").forEach(x=>{const g=mk("div","qty"),i=bindText(x.f,"Quantité",true);qtyIn=qtyIn||i;
+    R.fs.filter(x=>x.r==="qty"&&x.f.lock).forEach(x=>line.appendChild(mk("div","cpre","Préconisé (métré) : "+(x.f.el.value.trim()||"—"))));
+    R.fs.filter(x=>x.r==="chg"&&!x.f.cb&&/^plus_/.test(x.f.name)).forEach(x=>{const g=mk("div","qty plus"),i=bindText(x.f,"0",true);
+      const step=d=>{const n=parseFloat((i.value||"0").replace(/[^\d,.-]/g,"").replace(",","."))||0,v=Math.max(0,n+d);i.value=v?"+"+String(v).replace(".",","):"";i.dispatchEvent(new Event("input"))};
+      const m=mk("button","btn ghost","−"),p=mk("button","btn ghost","+");m.type=p.type="button";m.setAttribute("aria-label","Moins");p.setAttribute("aria-label","Plus");m.onclick=()=>step(-1);p.onclick=()=>step(1);
+      g.append(mk("span","clab","Chargé en plus"),m,i,p);line.appendChild(g)});
+    R.fs.filter(x=>x.r==="qty"&&!x.f.lock).forEach(x=>{const g=mk("div","qty"),i=bindText(x.f,"Quantité",true);qtyIn=qtyIn||i;
       const step=d=>{const n=parseFloat((i.value||"0").replace(",","."))||0,v=Math.max(0,n+d);i.value=String(v).replace(".",",");i.dispatchEvent(new Event("input"))};
       const m=mk("button","btn ghost","−"),p=mk("button","btn ghost","+");m.type=p.type="button";m.setAttribute("aria-label","Moins");p.setAttribute("aria-label","Plus");m.onclick=()=>step(-1);p.onclick=()=>step(1);
       g.append(mk("span","clab","Quantité"),m,i,p);
@@ -1242,6 +1250,21 @@ function setupHab(fields){
     vHab.cons={pi:T.pi,x0,x1,top,bot,el,def:cleanDots((R.cell.col||"").split("☐")[0])};
   }));
   habUpdate(true);
+}
+// une menuiserie de la page 1 du métré : type de pose, sens, cote de commande, coloris (pour la fiche découverte)
+function metreRowInfo(r){
+  try{
+    const P=vPages[r.pi],fs=vForm.fields.filter(f=>f.pi===r.pi),its=P.items,ty=t=>t.transform[5],tx=t=>t.transform[4];
+    const lab=f=>{let t=its.find(t=>Math.abs(ty(t)+2.5-f.cy)<5&&tx(t)>f.x+5&&tx(t)<f.x+18&&t.str.trim()&&t.str.trim()!=="☐");
+      if(!t)t=its.filter(t=>Math.abs(ty(t)+2.5-(f.cy-9.5))<4&&tx(t)<f.x&&t.str.trim()&&t.str.trim()!=="☐").sort((a,b)=>tx(b)-tx(a))[0];return t?t.str.trim():""};
+    const on=(y0,y1,x0)=>fs.filter(f=>f.cb&&f.el.checked&&f.cy>y0&&f.cy<y1&&f.x>=x0).map(lab).filter(Boolean);
+    const pose=on(r.y+14,r.y+42,500),sens=on(r.y-4,r.y+9,410).filter(s=>/^(TD|TG|fixe)$/i.test(s));
+    const cf=fs.find(f=>!f.cb&&f.x>=630&&f.cy>r.y+12&&f.cy<r.y+44),cde=cf?cf.el.value.trim():"";
+    const ct=its.find(t=>/^Coloris\s*:/.test(t.str.trim())&&Math.abs(ty(t)-(r.y-11))<4);let col="";
+    if(ct){const s2=ct.str.replace(/^\s*Coloris\s*:\s*/,"").replace(/\.{2,}/g,"").trim();
+      const f=fs.find(f=>!f.cb&&Math.abs(f.cy-(ty(ct)+2.5))<6&&f.x>=tx(ct)-2&&f.x<tx(ct)+ct.width+5);col=(f&&f.el.value.trim())||s2}
+    return{pose,sens,cde,col};
+  }catch(_){return{}}
 }
 function habFmt(v){return[["Mont.","me","mi"],["Haut","the","thi"],["Bas","tbe","tbi"]].map(([l,e,i])=>v[e]||v[i]?l+" "+(v[e]||"—")+"/"+(v[i]||"—"):"").filter(Boolean).join(" · ")}
 function habUpdate(first){
@@ -1427,6 +1450,7 @@ async function startFill(){
         hit.appendChild(el);P.box.appendChild(hit);
         fields.push({name:a.fieldName,cb:true,multi:false,el,pi,cy:(a.rect[1]+a.rect[3])/2,x:Math.min(a.rect[0],a.rect[2]),top:Math.max(a.rect[1],a.rect[3])});continue}
       const f=addText(a.fieldName,L,T,W,H,Math.abs(a.rect[3]-a.rect[1])>45,a.fieldValue);
+      if(a.readOnly){f.readOnly=true;f.classList.add("lock");fields[fields.length-1].free=true;fields[fields.length-1].lock=true}
       f.setAttribute("aria-label",a.alternativeText||a.fieldName);fields[fields.length-1].cy=(a.rect[1]+a.rect[3])/2;fields[fields.length-1].x=Math.min(a.rect[0],a.rect[2]);
     }
     const WIPE=/^(si r[ée]no|selon support)$/i,all=(await P.page.getTextContent()).items,items=all.filter(t=>!WIPE.test(t.str.trim()));P.items=items;P.hrows=null;
@@ -1458,6 +1482,12 @@ async function startFill(){
     f.group=g&&!cut?g.group:"g"+(++gn)});
   // texte obligatoire, sauf remarques, grands cadres, et petit champ collé juste après une case (« autre : … », nombre de grilles, remarque d'un contrôle)
   classify(fields);
+  // fiche découverte : le tableau des menuiseries et les quantités préconisées viennent du métré (pas de ressaisie)
+  if(vDoc.type==="Préparation")fields.forEach(f=>{
+    if(/^plus_/.test(f.name)){f.free=true;f.el.classList.add("plus");return}
+    const t=f.tab;if(!t)return;const cs=t.h.cols.map(c=>c.s).join("|");
+    if((/Type de pose/.test(cs)&&/Rep/.test(cs))||(/^Qt/.test(t.col.s)&&/Article/.test(cs))){f.free=true;f.lock=true;if(f.cb)f.el.disabled=true;else{f.el.readOnly=true;f.el.classList.add("lock")}}});
+  fields.forEach(f=>{if(f.cb&&f.lock)f.free=true});
   fields.forEach(f=>{if(!f.cb)f.req=!f.free&&!f.multi&&!/^rem_/.test(f.name)&&!cbs.some(g=>!/^opt_/.test(g.name)&&near(f,g)&&g.x<f.x&&f.x-g.x<40)});
   fields.forEach(f=>{if(!f.cb&&!f.req)f.el.classList.add("opt")});
   vForm={fields,dirty:false,saving:false};
@@ -1467,6 +1497,13 @@ async function startFill(){
     vForm.reste=n;vForm.total=fields.filter(f=>f.req).length+Object.keys(groups).length;showFill(n)};
     fields.forEach(f=>f.el.addEventListener(f.cb?"change":"input",()=>{vForm.dirty=true;upd()}));vForm.upd=upd;upd()}
   buildConso(fields);
+  // consommables de la fiche découverte : case « en plus » à côté de « Chargé » (ce que l'équipe charge en plus du préconisé)
+  if(vDoc.type==="Préparation")cTables.forEach(T=>{const P=vPages[T.pi],chg=T.h.cols.find(c=>/^Charg/.test(c.s)),nx=chg&&T.h.cols[T.h.cols.indexOf(chg)+1];if(!chg)return;
+    T.rows.forEach(R=>{if(R.head)return;const cb=R.fs.find(x=>x.r==="chg"&&x.f.cb);if(!cb||R.fs.some(x=>x.r==="chg"&&!x.f.cb))return;
+      const x0=cb.f.x+12,x1=(nx?nx.x:x0+44)-6,y0=cb.f.cy-5,el=document.createElement("input");
+      el.type="text";el.inputMode="decimal";el.className="fld opt plus";habPlace(el,P,x0,y0,x1-x0,10);el.style.fontSize=`max(12px, ${cqw(7.5,P.w0)})`;el.placeholder="+";el.setAttribute("aria-label","Chargé en plus");
+      el.addEventListener("input",()=>{if(vForm)vForm.dirty=true});P.box.appendChild(el);
+      const f={name:"plus_"+T.pi+"_"+Math.round(cb.f.cy),cb:false,multi:false,el,pi:T.pi,cy:cb.f.cy,x:x0,top:y0+10,free:true,req:false,plus:{x:x0,y:y0,w:x1-x0}};fields.push(f);R.fs.push({f,r:"chg"})})});
   try{setupHab(fields);fields.forEach(f=>{if(f.free&&!f.cb){f.req=false}});vForm.upd()}catch(_){vHab=null}
   if(vDoc.type==="Préparation")try{setupPrepX(fields);vForm.upd()}catch(_){vPrepX=null}else vPrepX=null;
   $("vsave").hidden=false;$("vdraw").hidden=false;$("vphoto").hidden=vDoc.type!=="Métré";vDraw.stack=[];
@@ -1482,6 +1519,10 @@ async function saveFill(){
       if(f.cb){const c=form.getCheckBox(f.name);f.el.checked?c.check():c.uncheck()}
       else form.getTextField(f.name).setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF\n€œŒ’‘“”–—…]/g,""))
     }catch(_){}}
+    // quantités chargées en plus (orange)
+    for(const f of vForm.fields.filter(x=>/^plus_/.test(x.name)&&x.el.value.trim())){const v=f.el.value.trim().replace(/[^\x20-\x7E]/g,""),txt=/^\+/.test(v)?v:"+"+v;
+      let tf;try{tf=form.getTextField(f.name)}catch(_){if(!f.plus)continue;try{tf=form.createTextField(f.name);tf.addToPage(doc.getPage(f.pi),{x:f.plus.x,y:f.plus.y,width:f.plus.w,height:10,borderWidth:0,font})}catch(_){continue}}
+      try{tf.acroField.setDefaultAppearance("0.85 0.33 0 rg /Helv 8 Tf");tf.setFontSize(8);tf.setText(txt);f.el.value=txt}catch(_){}}
     // cadre croquis et remarques des anciennes fiches : le champ est ajouté au PDF
     for(const f of vForm.fields.filter(x=>x.synth&&x.el.value.trim())){try{form.getTextField(f.name)}catch(_){try{
       const [x1,y1,x2,y2]=f.synth.rect,tf=form.createTextField(f.name);tf.enableMultiline();
@@ -1504,7 +1545,7 @@ async function saveFill(){
     const nd={...d0,id:r.id,size:r.sizeBytes,at:today(),by:me||"",traite:false,rempli:{reste:vForm.reste,total:vForm.total,le:today()}};
     if(inked.size)nd.encre=[...inked].sort((a,b)=>a-b);
     if(d0.type==="Métré"&&cTables.length)nd.conso=consoSummary();
-    if(d0.type==="Métré"&&vHab&&vHab.rows.length)nd.hab=vHab.rows.map(r=>({r:r.rep,t:r.text,v:r.v||{}}));
+    if(d0.type==="Métré"&&vHab&&vHab.rows.length)nd.hab=vHab.rows.map(r=>({r:r.rep,t:r.text,v:r.v||{},...metreRowInfo(r)}));
     if(vForm.photoPages&&vForm.photoPages.length){nd.photos=[...new Set([...(d0.photos||[]),...vForm.photoPages])].sort((a,b)=>a-b);vForm.photoPages=[]}
     const newInk=vPages.some(P=>P.strokes&&P.strokes.length);
     vPages.forEach(P=>{if(P.strokes){P.done.push(...P.strokes);P.strokes=[]}});vDraw.stack=[];
@@ -1598,9 +1639,12 @@ async function prepRepRows(data){
     const page=await pdf.getPage(n),items=(await page.getTextContent()).items,w0=page.getViewport({scale:1}).width;
     const pp=items.find(t=>/^Point particulier/.test(t.str.trim())),hy=pp?pp.transform[5]:page.getViewport({scale:1}).height;if(pp)x0=pp.transform[4]-2;if(x0==null)continue;
     const end=items.filter(t=>t.transform[5]<hy-4&&isCaps(t.str.trim())).map(t=>t.transform[5]).sort((a,b)=>b-a)[0]||0;
+    const pc=items.find(t=>t.str.trim()==="Pièce"&&Math.abs(t.transform[5]-hy)<3),tp=items.find(t=>/^Type de pose/.test(t.str.trim())&&Math.abs(t.transform[5]-hy)<3);
+    if(pc)out.hdr=out.hdr||[],out.hdr.push({pi:n-1,x:pc.transform[4],y:hy,done:items.some(t=>t.str.trim()==="Commande"&&Math.abs(t.transform[5]-hy)<3)});
     items.filter(t=>t.str.trim()==="Réno"&&t.transform[5]<hy&&t.transform[5]>end).forEach(t=>{const c=t.transform[5]+3.5;
       const name=items.filter(u=>u.transform[4]<110&&u.str.trim()&&u.transform[5]<=c+4&&u.transform[5]>c-17).sort((a,b)=>b.transform[5]-a.transform[5]).map(u=>u.str.trim()).join(" ");
-      out.push({pi:n-1,c,name,x0,x1:w0-37})});
+      const dp=items.find(u=>u.str.trim()==="Dépose"&&Math.abs(u.transform[5]-t.transform[5])<2);
+      out.push({pi:n-1,c,name,x0,x1:w0-37,renoX:t.transform[4]-10,depX:dp?dp.transform[4]-10:null,pc0:pc?pc.transform[4]-3:null,pc1:tp?tp.transform[4]-5:null})});
   }
   return out;
 }
@@ -1612,7 +1656,7 @@ async function doJoin(id){
   const prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
   const photos=docs.filter(x=>x.type==="Photo"&&x.metre&&!x.inMetre&&!x.album),pages=[...new Set([...((metre&&metre.encre)||[]),...((metre&&metre.photos)||[])])].sort((a,b)=>a-b);
   const sum=(metre&&metre.conso)||[],habs=(metre&&metre.hab)||[];
-  if(!photos.length&&!pages.length&&!sum.length&&!habs.some(h=>h.t))return;
+  if(!photos.length&&!pages.length&&!sum.length&&!habs.length)return;
   if(!prep){toast("Pas de fiche de préparation dans ce chantier : le métré reste dans les documents.");return}
   toast("Mise à jour de la fiche de préparation…");
   const bytes=new Uint8Array(await (await fetch("/_blob/"+prep.id)).arrayBuffer());
@@ -1633,29 +1677,46 @@ async function doJoin(id){
       let r=o.re&&find(o.re);
       if(!r){r=rows.find(x=>!used.has(x)&&x.art&&!x.label);if(r)put(r.art,o.a)}
       if(!r)continue;used.add(r);
-      put(r.qty,o.q.join(" + "));put(r.col,[...new Set(o.c)].join(" / "));put(r.rem,o.d.join(" · "));
+      put(r.qty,o.q.join(" + "));try{const qf=form.getTextField(r.qty);if((qf.getText()||"").trim()){qf.acroField.setDefaultAppearance("0 0.24 0.57 rg /Helv 8 Tf");qf.setFontSize(8);qf.enableReadOnly()}}catch(_){}put(r.col,[...new Set(o.c)].join(" / "));put(r.rem,o.d.join(" · "));
       if(/habillage/i.test(r.label)&&r.rem&&next[r.rem]){try{const tf=form.getTextField(r.rem);tf.enableMultiline();tf.setFontSize(6)}catch(_){}}
     }
     form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
     auto={...auto,...next};
   }catch(_){}}
   // habillages du métré écrits devant chaque repère (bas de la case « Point particulier »)
-  if(habs.some(h=>h.t)&&window.pdfjsLib){try{
+  if(habs.length&&window.pdfjsLib){try{
     pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    const rows=await prepRepRows(bytes.slice()),form=doc.getForm(),hf=await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+    const rows=await prepRepRows(bytes.slice()),form=doc.getForm(),hf=await doc.embedFont(PDFLib.StandardFonts.Helvetica),await0=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
     // deux lignes : extérieur / intérieur
     const two=h=>{const v=h.v;if(!v||!Object.keys(v).length)return h.t?"Habillage : "+h.t:"";
       return [["Hab. ext. : ","me","the","tbe"],["Hab. int. : ","mi","thi","tbi"]].filter(([,a,b,c])=>v[a]||v[b]||v[c]).map(([l,a,b,c])=>l+"Mont. "+(v[a]||"-")+" · Haut "+(v[b]||"-")+" · Bas "+(v[c]||"-")).join("\n")};
-    const byName=new Map(habs.map(h=>[habNorm(h.r),two(h)]));
-    rows.forEach((r,i)=>{const k=habNorm(r.name);let t=byName.get(k);
-      if(t==null){const e=habs.find(h=>{const n=habNorm(h.r);return k&&n&&(n.startsWith(k)||k.startsWith(n))});if(e)t=two(e)}
-      if(t==null&&rows.length===habs.length)t=two(habs[i]);
+    const byName=new Map(habs.map(h=>[habNorm(h.r),h])),blue=f=>{try{f.acroField.setDefaultAppearance("0 0.24 0.57 rg /Helv 8 Tf")}catch(_){}};
+    // en-tête « Pièce » remplacé par « Commande » (cote de commande, sens, coloris repris du métré)
+    (rows.hdr||[]).filter(h=>!h.done).forEach(h=>{const pg=doc.getPage(h.pi);pg.drawRectangle({x:h.x-1,y:h.y-2,width:40,height:10,color:PDFLib.rgb(.91,.93,.96)});pg.drawText("Commande",{x:h.x,y:h.y,size:7.5,font:await0,color:PDFLib.rgb(.1,.1,.1)})});
+    const cbs=form.getFields().filter(f=>f instanceof PDFLib.PDFCheckBox),txs=form.getFields().filter(f=>f instanceof PDFLib.PDFTextField);
+    const at=(list,x,c)=>list.find(f=>f.acroField.getWidgets().some(w=>{const R=w.getRectangle();return Math.abs(R.x-x)<4&&Math.abs(R.y+R.height/2-c)<6}));
+    rows.forEach((r,i)=>{const k=habNorm(r.name);let e=byName.get(k);
+      if(!e)e=habs.find(h=>{const n=habNorm(h.r);return k&&n&&(n.startsWith(k)||k.startsWith(n))});
+      if(!e&&rows.length===habs.length)e=habs[i];
+      let t=e?two(e):null;
+      if(e){
+        // type de pose : cases cochées d'après le métré, verrouillées
+        const pose=e.pose||[],rc=at(cbs,r.renoX,r.c),dc=r.depX!=null&&at(cbs,r.depX,r.c);
+        if(pose.length){if(rc){/^R[ée]no/i.test(pose.join())?rc.check():rc.uncheck();rc.enableReadOnly()}if(dc){/D[ée]pose/i.test(pose.join())?dc.check():dc.uncheck();dc.enableReadOnly()}}
+        // colonne « Commande » : cote de commande, sens, coloris (+ neuf applique)
+        if(r.pc0!=null&&r.pc1!=null){const lines=[e.cde,(e.sens||[]).join(" "),e.col,/neuf/i.test(pose.join())?"Neuf applique":""].filter(Boolean).map(x=>clean(x).replace(/[^\x20-\x7E\xA0-\xFF€]/g,""));
+          let pf=txs.find(f=>f.acroField.getWidgets().some(w=>{const R=w.getRectangle();return R.x>=r.pc0-3&&R.x<r.pc1&&R.y<r.c&&R.y+R.height>r.c-12}));
+          if(!pf&&lines.length){pf=form.createTextField("cdep_"+r.pi+"_"+Math.round(r.c));pf.addToPage(doc.getPage(r.pi),{x:r.pc0,y:r.c-17.4,width:r.pc1-r.pc0,height:23.5,borderWidth:0,font:hf})}
+          if(pf){const wm=Math.max(1,...lines.map(l=>hf.widthOfTextAtSize(l,1))),R=pf.acroField.getWidgets()[0].getRectangle();
+            pf.enableMultiline();blue(pf);pf.setFontSize(+Math.max(4,Math.min(7.5,(R.width-4)/wm,(R.height-3)/(Math.max(1,lines.length)*1.2))).toFixed(2));pf.setText(lines.join("\n"));pf.enableReadOnly()}}
+      }
+      if(!t)return;
       const txt=t?clean(t).replace(/—/g,"-").replace(/[^\x20-\x7E\xA0-\xFF€\n]/g,""):"",name="habp_"+r.pi+"_"+Math.round(r.c),H=13.5;
       let tf;try{tf=form.getTextField(name)}catch(_){if(!txt)return;
         form.getFields().forEach(f=>f.acroField.getWidgets().forEach(w=>{const R=w.getRectangle(),ny=r.c-17.2+H,top=R.y+R.height;
           if(R.x>=r.x0-3&&R.x<r.x1&&R.y<ny&&top>ny&&top-ny>6)w.setRectangle({x:R.x,y:ny,width:R.width,height:top-ny})}));
         tf=form.createTextField(name);tf.enableMultiline();tf.addToPage(doc.getPage(r.pi),{x:r.x0,y:r.c-17.4,width:r.x1-r.x0,height:H,borderWidth:0,font:hf})}
-      const ls=(txt||" ").split("\n"),wmax=Math.max(...ls.map(l=>hf.widthOfTextAtSize(l||" ",1)));
+      blue(tf);const ls=(txt||" ").split("\n"),wmax=Math.max(...ls.map(l=>hf.widthOfTextAtSize(l||" ",1)));
       const sz=Math.max(4,Math.min(7,(r.x1-r.x0-4)/Math.max(1,wmax),(H-3)/(ls.length*1.2)));tf.enableMultiline();tf.setFontSize(+sz.toFixed(2));tf.setText(txt);tf.enableReadOnly()});
     form.updateFieldAppearances(hf);
   }catch(_){}}
