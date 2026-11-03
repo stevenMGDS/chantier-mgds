@@ -939,6 +939,7 @@ async function viewDoc(d){
       vPages.push({page,box,c,vp,w0:v0.width,h0:v0.height});
     }
     if((canWrite||canFill)&&assets&&d.type in FORM_TYPES&&!$("viewer").hidden){const fs=(await pdf.getFieldObjects())||{};if(Object.keys(fs).length){$("vedit").hidden=false;if(d.rempli)showFill(d.rempli.reste)}}
+    if(d.type==="Préparation"&&!$("viewer").hidden)setTimeout(()=>prepFromMetre(d),50);
   }catch(_){pg.innerHTML='<p class="sub">Ce document ne peut pas s\'afficher ici.'+(downloads?' Utilisez « Télécharger ».':'')+'</p>';if(vBlob)$("vdl").hidden=!downloads}
 }
 
@@ -1754,6 +1755,29 @@ async function drawPoseTable(doc,R,data){
   return ins;
 }
 let joinChain=Promise.resolve();
+// fiche découverte ouverte alors qu'elle n'a pas encore été refaite à partir du métré rempli (métré enregistré avant la mise à jour) :
+// le métré est réenregistré automatiquement, la découverte est refaite, puis rouverte
+const prepTried=new Set();
+async function prepFromMetre(d){
+  const id=openId,j=jobs.get(id)||{},docs=j.docs||[];if(!id||!(canWrite||canFill)||!assets||vForm)return;
+  const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
+  if(!metre||!metre.rempli||!prep||prep.id!==d.id||prep.poseIns||prepTried.has(metre.id+"|"+prep.id))return;
+  prepTried.add(metre.id+"|"+prep.id);
+  const busy=$("vpages");
+  try{
+    if(!metre.pose){
+      toast("Mise à jour de la fiche découverte à partir du métré… (quelques secondes)");
+      busy.innerHTML='<p class="sub">Mise à jour de la fiche découverte à partir du métré…</p>';
+      await viewDoc(metre);if(vDoc!==metre||!vPdf)return;await startFill();if(!vForm)return;
+      vForm.dirty=true;await saveFill();if(vDoc===metre){toast("La fiche découverte n'a pas pu être mise à jour. Ouvrez le métré et appuyez sur « Enregistrer ».");return}
+      await new Promise(r=>setTimeout(r,2700))}
+    else joinPrepa(id);
+    await joinChain;
+    if($("viewer").hidden)return;vForm=null;
+    const p2=[...((jobs.get(id)||{}).docs||[])].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
+    if(p2)await viewDoc(p2);
+  }catch(_){}
+}
 function joinPrepa(id){joinChain=joinChain.then(()=>doJoin(id)).catch(()=>toast("Les croquis et photos n'ont pas pu être joints à la fiche de préparation. Ils restent dans les documents."));return joinChain}
 async function doJoin(id){
   const j=jobs.get(id)||{},docs=j.docs||[];
