@@ -159,6 +159,7 @@ textarea{min-height:64px;resize:vertical}
 .viewer #vdraw.on{background:var(--s-orange);color:#fff;border-color:var(--s-orange)}
 .viewer #vfill{font:600 15px var(--f-body)}
 .viewer .cbtn{position:absolute;z-index:2;transform:translateY(-50%);font-size:max(12px,1.2cqw);padding:4px 10px;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.cpanel .cadd2{min-height:48px;font-size:16px;margin-top:6px}
 .cpanel{position:absolute;top:0;right:0;bottom:0;width:min(560px,100%);z-index:45;background:var(--surface);border-left:1px solid var(--line);box-shadow:-6px 0 20px rgba(0,0,0,.2);display:flex;flex-direction:column}
 .cpanel .cbar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;border-bottom:1px solid var(--line)}.cpanel .cbar b{font:700 20px var(--f-display)}
 .cpanel .clist{flex:1;overflow:auto;padding:4px 16px 24px;display:flex;flex-direction:column;gap:10px}
@@ -1155,7 +1156,16 @@ function openConso(){
     if(remF&&remF!==visF)card.appendChild(bindText(remF.f,"Remarque (facultatif)"));
     list.appendChild(card);
   }));
+  if(vDoc&&vDoc.type==="Préparation"){const b=mk("button","btn cadd2","＋ Ajouter une ligne");b.type="button";b.dataset.consadd="1";list.appendChild(b)}
   $("cpanel").hidden=false;list.scrollTop=0;
+}
+// « + » : une ligne libre de plus en bas du tableau des consommables (la fiche est enregistrée puis rouverte)
+let consAdding=false;
+async function addConsRow(){
+  if(!vForm||vForm.saving||consAdding)return;consAdding=true;$("cpanel").hidden=true;
+  try{vForm.addRows=(vForm.addRows||0)+1;vForm.dirty=true;const d0=vDoc;await saveFill();if(vDoc===d0||!vDoc)return;
+    const top=$("vpages").scrollTop;await viewDoc(vDoc);await startFill();$("vpages").scrollTop=top;toast("Ligne ajoutée en bas du tableau des consommables.")}
+  finally{consAdding=false}
 }
 
 // ---------- habillages choisis sur le croquis (annexes) ----------
@@ -1499,7 +1509,7 @@ async function startFill(){
       if(a.readOnly){f.readOnly=true;f.classList.add("lock");fields[fields.length-1].free=true;fields[fields.length-1].lock=true}
       f.setAttribute("aria-label",a.alternativeText||a.fieldName);fields[fields.length-1].cy=(a.rect[1]+a.rect[3])/2;fields[fields.length-1].x=Math.min(a.rect[0],a.rect[2]);
     }
-    const WIPE=/^(si r[ée]no|selon support)$/i,all=(await P.page.getTextContent()).items,items=all.filter(t=>!WIPE.test(t.str.trim()));P.items=items;P.hrows=null;
+    const WIPE=/^(si r[ée]no|selon support)$/i,all=liveItems((await P.page.getTextContent()).items),items=all.filter(t=>!WIPE.test(t.str.trim()));P.items=items;P.hrows=null;
     P.wipe=all.filter(t=>WIPE.test(t.str.trim())).map(t=>{const h=Math.abs(t.transform[3])||7,r={x:t.transform[4]-1,y:t.transform[5]-h*.3,w:t.width+2,h:h*1.4};
       const d=document.createElement("div");d.className="habwhite";habPlace(d,P,r.x,r.y,r.w,r.h);P.box.appendChild(d);return r});
     P.labels=items.filter(t=>/:\s*$|:\s/.test(t.str)).map(t=>({x:t.transform[4],y:t.transform[5]}));
@@ -1550,6 +1560,9 @@ async function startFill(){
       el.type="text";el.inputMode="decimal";el.className="fld opt plus";habPlace(el,P,x0,y0,x1-x0,10);el.style.fontSize=`max(12px, ${cqw(7.5,P.w0)})`;el.placeholder="+";el.setAttribute("aria-label","Chargé en plus");
       el.addEventListener("input",()=>{if(vForm)vForm.dirty=true});P.box.appendChild(el);
       const f={name:"plus_"+T.pi+"_"+Math.round(cb.f.cy),cb:false,multi:false,el,pi:T.pi,cy:cb.f.cy,x:x0,top:y0+10,free:true,req:false,plus:{x:x0,y:y0,w:x1-x0}};fields.push(f);R.fs.push({f,r:"chg"})})});
+  if(vDoc.type==="Préparation"&&cTables.length){const T=cTables[cTables.length-1],P=vPages[T.pi],ys=T.rows.flatMap(R=>R.fs.map(x=>x.f.cy));
+    if(ys.length){const b=document.createElement("button");b.type="button";b.className="btn cbtn cadd";b.textContent="＋ Ajouter une ligne";b.dataset.consadd="1";
+      Object.assign(b.style,{right:pct(37,P.w0),top:pct(P.h0-Math.min(...ys)+15,P.h0)});P.box.appendChild(b)}}
   try{setupHab(fields);fields.forEach(f=>{if(f.free&&!f.cb){f.req=false}});vForm.upd()}catch(_){vHab=null}
   if(vDoc.type==="Préparation")try{setupPrepX(fields);vForm.upd()}catch(_){vPrepX=null}else vPrepX=null;
   $("vsave").hidden=false;$("vdraw").hidden=false;$("vphoto").hidden=vDoc.type!=="Métré";vDraw.stack=[];
@@ -1584,12 +1597,15 @@ async function saveFill(){
       P.strokes.forEach(st=>{const d=st.p.map((q,i)=>(i?"L":"M")+(q[0]*cb.width).toFixed(1)+" "+(q[1]*cb.height).toFixed(1)).join(" ")+(st.p.length===1?" l .3 .3":"");
         const h=st.c.replace("#",""),col=PDFLib.rgb(parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255);
         pg.drawSvgPath(d,{x:cb.x,y:cb.y+cb.height,borderColor:col,borderWidth:st.w,borderLineCap:PDFLib.LineCapStyle.Round})})});
+    let nAuto=null;
+    if(d0.type==="Préparation"&&vForm.addRows&&window.pdfjsLib){try{const c=await consRedraw(doc,{add:vForm.addRows,auto:d0.auto||{}});if(c)nAuto=c.auto}catch(e){console.log("conso",e)}vForm.addRows=0}
     const file=new File([await doc.save()],d0.name,{type:"application/pdf"});
     const r=await assets.upload(file,{type:"application/pdf"});
     const j=jobs.get(id)||{},docs=(j.docs||[]).map(x=>({...x}));
     const i=docs.findIndex(x=>x.id===d0.id);
     const nd={...d0,id:r.id,size:r.sizeBytes,at:today(),by:me||"",traite:false,rempli:{reste:vForm.reste,total:vForm.total,le:today()}};
     if(inked.size)nd.encre=[...inked].sort((a,b)=>a-b);
+    if(nAuto)nd.auto=nAuto;
     if(d0.type==="Métré"&&cTables.length)nd.conso=consoSummary();
     if(d0.type==="Métré"&&vHab&&vHab.rows.length){nd.hab=vHab.rows.map(r=>({r:r.rep,t:r.text,v:r.v||{},...metreRowInfo(r)}));try{nd.pose=metrePoseData()}catch(_){}}
     if(vForm.photoPages&&vForm.photoPages.length){nd.photos=[...new Set([...(d0.photos||[]),...vForm.photoPages])].sort((a,b)=>a-b);vForm.photoPages=[]}
@@ -1661,7 +1677,7 @@ async function addPhotos(files){
 async function prepRows(data){
   const pdf=await pdfjsLib.getDocument({data}).promise,out=[];
   for(let n=1;n<=pdf.numPages;n++){
-    const page=await pdf.getPage(n),items=(await page.getTextContent()).items;
+    const page=await pdf.getPage(n),items=liveItems((await page.getTextContent()).items);
     const art=items.find(t=>/^Article$/.test(t.str.trim()));if(!art)continue;
     const hy=art.transform[5],hdr=items.filter(t=>Math.abs(t.transform[5]-hy)<4).map(t=>({x:t.transform[4],s:t.str.trim()})).sort((a,b)=>a.x-b.x);
     const q=hdr.find(h=>/^Qt/.test(h.s));if(!q)continue;const qn=hdr[hdr.indexOf(q)+1],rh=hdr.find(h=>/^Remarque/.test(h.s));
@@ -1754,6 +1770,102 @@ async function drawPoseTable(doc,R,data){
   }
   return ins;
 }
+// ---------- tableau des consommables de la fiche découverte ----------
+// tableau redessiné : l'ancien texte reste dessous (caché par un fond blanc) ; on ne garde que le texte dessiné en dernier
+function liveItems(items){
+  const arts=items.map((t,i)=>[t,i]).filter(([t])=>/^Article$/.test(t.str.trim()));if(arts.length<2)return items;
+  const [a,ai]=arts[arts.length-1],top=a.transform[5]+10;
+  const end=items.filter(t=>t.transform[5]<top-14&&isCaps(t.str.trim())).sort((x,y)=>y.transform[5]-x.transform[5])[0],bot=end?end.transform[5]+8:0;
+  return items.filter((t,i)=>i>=ai||t.transform[5]>top||t.transform[5]<bot)}
+// lu dans le PDF (page principale + pages « CONSOMMABLES (suite) ») : une entrée par ligne, avec ce qui y est écrit
+async function consRead(doc){
+  const pdf=await pdfjsLib.getDocument({data:await doc.save()}).promise,form=doc.getForm(),pages=[];
+  const val=a=>{if(!a)return"";try{return form.getTextField(a.fieldName).getText()||""}catch(_){return typeof a.fieldValue==="string"?a.fieldValue:""}};
+  const ro=a=>{try{return form.getTextField(a.fieldName).isReadOnly()}catch(_){return !!a.readOnly}};
+  for(let n=1;n<=pdf.numPages;n++){
+    const page=await pdf.getPage(n),its=liveItems((await page.getTextContent()).items).filter(t=>t.str.trim()),vp=page.getViewport({scale:1});
+    const suite=its.some(t=>/^CONSOMMABLES \(suite\)/.test(t.str.trim()));
+    if(pages.length&&!suite)break;if(!pages.length&&suite)continue;
+    const art=its.find(t=>/^Article$/.test(t.str.trim()));if(!art)continue;
+    const hy=art.transform[5],hdr=its.filter(t=>Math.abs(t.transform[5]-hy)<4).map(t=>({x:t.transform[4],s:t.str.trim()})).sort((a,b)=>a.x-b.x);
+    const q=hdr.find(h=>/^Qt/.test(h.s)),c=hdr.find(h=>/^Charg/.test(h.s)),r=hdr.find(h=>/^Remarque/.test(h.s));if(!q||!c||!r)continue;
+    const end=its.filter(t=>t.transform[5]<hy-4&&isCaps(t.str.trim())).sort((a,b)=>b.transform[5]-a.transform[5])[0];
+    const bottom=end?end.transform[5]+14:44,X=[art.transform[4]-5,q.x-4,c.x-4,r.x-4,vp.width-35];
+    const an=(await page.getAnnotations()).filter(a=>a.subtype==="Widget"&&a.rect[1]>bottom-3&&a.rect[3]<hy+3);
+    const col=a=>{const x=Math.min(a.rect[0],a.rect[2])+1;return x<X[1]?0:x<X[2]?1:x<X[3]?2:3};
+    const lab=its.filter(t=>t.transform[5]<hy-4&&t.transform[5]>bottom&&t.transform[4]<X[1]-2),used=new Set(),rows=[];
+    an.filter(a=>a.checkBox&&col(a)===2).forEach(cb=>{const cy=(cb.rect[1]+cb.rect[3])/2,ov=a=>!a.checkBox&&a.rect[1]<cy+3&&a.rect[3]>cy-3;
+      const L=lab.filter(t=>Math.abs(t.transform[5]+3-cy)<6);L.forEach(t=>used.add(t));
+      const inArt=an.filter(a=>ov(a)&&col(a)===0),free=inArt.find(a=>a.rect[2]-a.rect[0]>=80),cf=inArt.find(a=>a.rect[2]-a.rect[0]<80);
+      const qa=an.find(a=>ov(a)&&col(a)===1),pa=an.find(a=>ov(a)&&col(a)===2),ra=an.find(a=>ov(a)&&col(a)===3);
+      const label=L.sort((a,b)=>b.transform[5]-a.transform[5]||a.transform[4]-b.transform[4]).map(t=>t.str).join(" ").replace(/\.{2,}|☐|…/g,"").replace(/\s+/g," ").trim().replace(/\s*\(coloris\s*:?\s*\)?\s*$/i,"");
+      let chk=false;try{chk=form.getCheckBox(cb.fieldName).isChecked()}catch(_){}
+      const colv=val(cf).trim(),remv=val(ra).trim(),qv=val(qa).trim();
+      rows.push({y:cy,label,free:!label,art:free?val(free).trim():"",qty:qv,ro:!!(qa&&qv&&ro(qa)),chk,plus:val(pa).trim(),
+        rem:[colv&&!/coloris/i.test(remv)?"coloris "+colv:"",remv].filter(Boolean).join(" · "),qn:qa&&qa.fieldName,rn:ra&&ra.fieldName,cn:cf&&cf.fieldName})});
+    // titres de rubrique (Fixation, Étanchéité…) : texte sans case « Chargé »
+    const heads=new Map();lab.filter(t=>!used.has(t)).forEach(t=>{const k=Math.round(t.transform[5]/3);const o=heads.get(k)||{y:t.transform[5],s:[]};o.s.push(t);heads.set(k,o)});
+    heads.forEach(o=>{const s=o.s.sort((a,b)=>a.transform[4]-b.transform[4]).map(t=>t.str).join(" ").replace(/\s+/g," ").trim();if(s&&!/^Aide/.test(s))rows.push({y:o.y+3,head:s})});
+    rows.sort((a,b)=>b.y-a.y);pages.push({pi:n-1,hy,bottom,w:vp.width,h:vp.height,suite,X,rows});
+  }
+  return pages.length?pages:null;
+}
+// redessiné : une ligne par profil d'habillage (o.hab), lignes libres ajoutées en bas (o.add), pages « suite » si besoin
+async function consRedraw(doc,o={}){
+  const pages=await consRead(doc);if(!pages)return null;
+  const main=pages[0],X=main.X,form=doc.getForm(),auto={...(o.auto||{})};
+  let rows=pages.flatMap(p=>p.rows);
+  rows.forEach(r=>{if(r.head)return;r.aq=!!(r.qn&&auto[r.qn]&&auto[r.qn]===r.qty);r.ar=!!(r.rn&&auto[r.rn]&&auto[r.rn]===r.rem)});
+  if(o.hab&&o.hab.length){const isH=r=>!r.head&&!r.free&&/^habillage/i.test(r.label),at=rows.findIndex(isH),old=rows.filter(isH);
+    rows=rows.filter(r=>!isH(r));
+    const nr=o.hab.map(h=>{const p=old.find(r=>r.label==="Habillage "+h.p)||{};return{label:"Habillage "+h.p,qty:h.q,ro:true,aq:true,chk:!!p.chk,plus:p.plus||"",rem:h.c||"",ar:true}});
+    let k=at>=0?at:rows.findIndex(r=>r.head&&/finition/i.test(r.head))+1;if(k<=0)k=rows.length;rows.splice(k,0,...nr)}
+  for(let k=0;k<(o.add||0);k++)rows.push({free:true,art:"",qty:"",chk:false,plus:"",rem:""});
+  // anciennes cases du tableau retirées, pages « suite » retirées
+  const refs=doc.getPages().map(pg=>{const an=pg.node.Annots();return an?an.asArray().map(x=>String(x)):[]});
+  form.getFields().forEach(f=>{const ws=f.acroField.getWidgets();
+    if(ws.length&&ws.every(w=>{const ref=doc.context.getObjectRef(w.dict),pi=ref?refs.findIndex(l=>l.includes(String(ref))):-1,r=w.getRectangle();
+      return pages.some(p=>p.pi===pi&&(p.suite||(r.y>=p.bottom-3&&r.y+r.height<=p.hy+3)))})){delete auto[f.getName()];try{form.removeField(f)}catch(_){}}});
+  pages.filter(p=>p.suite).map(p=>p.pi).sort((a,b)=>b-a).forEach(k=>doc.removePage(k));
+  doc.getPages().forEach(pg=>{const an=pg.node.Annots();if(!an)return;for(let k=an.size()-1;k>=0;k--){const x=an.get(k);if(x instanceof PDFLib.PDFRef&&!doc.context.lookup(x))an.remove(k)}});
+  const F=await doc.embedFont(PDFLib.StandardFonts.Helvetica),B=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+  const ink=PDFLib.rgb(.1,.1,.1),blu=PDFLib.rgb(.12,.25,.45),hdr=PDFLib.rgb(.91,.93,.96),line=PDFLib.rgb(.72,.76,.82),white=PDFLib.rgb(1,1,1),cell=PDFLib.rgb(.93,.95,.99);
+  const S=x=>String(x||"").replace(/[’‘]/g,"'").replace(/[^\x20-\x7E\xA0-\xFF€]/g,"").replace(/\s+/g," ").trim();
+  const HH=14,stamp=Date.now().toString(36);let seq=0;
+  const avail=main.hy+9.5-main.bottom-HH,RH=Math.min(17.8,Math.max(13,avail/Math.max(1,rows.length)));
+  let pi=main.pi,pg=doc.getPage(pi),y=main.hy+9.5,bottom=main.bottom;
+  const tx=(x,yb,w,h,v,{ro,blue,name,bg}={})=>{const tf=form.createTextField(name||"consx_"+stamp+"_"+(seq++)),t=S(v);
+    tf.addToPage(pg,{x,y:yb,width:w,height:h,borderWidth:0,font:F,backgroundColor:bg||(ro?white:cell)});
+    if(blue)tf.acroField.setDefaultAppearance("0 0.24 0.57 rg /Helv 8 Tf");
+    tf.setFontSize(+Math.max(5,Math.min(8,(w-4)/Math.max(1,F.widthOfTextAtSize(t||" ",1)))).toFixed(2));if(t)tf.setText(t);if(ro)tf.enableReadOnly();return tf};
+  const head=()=>{pg.drawRectangle({x:X[0],y:y-HH,width:X[4]-X[0],height:HH,color:hdr,borderColor:line,borderWidth:.5});
+    ["Article","Qté prévue","Chargé","Remarque"].forEach((t,i)=>pg.drawText(t,{x:X[i]+(i?4:5),y:y-HH+4.5,size:7.5,font:B,color:ink}));
+    X.forEach(x=>pg.drawLine({start:{x,y},end:{x,y:y-HH},thickness:.5,color:line}));y-=HH};
+  pg.drawRectangle({x:X[0]-3,y:bottom-2,width:X[4]-X[0]+6,height:y-bottom+3.5,color:white});head();
+  for(const r of rows){
+    if(y-RH<bottom-1){pi++;pg=doc.insertPage(pi,[main.w,main.h]);
+      pg.drawText("CONSOMMABLES (suite)",{x:X[0],y:main.h-50,size:11,font:B,color:blu});y=main.h-62;bottom=48;head()}
+    const cy=y-RH/2,fh=Math.min(14,RH-3),fy=cy-fh/2;
+    if(r.head){pg.drawRectangle({x:X[0],y:y-RH,width:X[4]-X[0],height:RH,color:hdr});pg.drawText(S(r.head),{x:X[0]+4,y:cy-3,size:8.5,font:B,color:blu});
+      tx(X[1]+2,fy,X[2]-X[1]-4,fh,"",{ro:true,bg:hdr})}
+    else{
+      if(r.free){const t=tx(X[0]+2,fy,X[1]-X[0]-4,fh,r.art)}
+      else{const t=S(r.label),sz=Math.max(5.5,Math.min(8.5,(X[1]-X[0]-8)/Math.max(1,F.widthOfTextAtSize(t,1))));pg.drawText(t,{x:X[0]+4,y:cy-3,size:sz,font:F,color:ink})}
+      const q=tx(X[1]+2,fy,X[2]-X[1]-4,fh,r.qty,{ro:r.ro,blue:r.ro});if(r.aq&&r.qty)auto[q.getName()]=S(r.qty);
+      const cb=form.createCheckBox("consx_"+stamp+"_"+(seq++));cb.addToPage(pg,{x:X[2]+4,y:cy-5,width:10,height:10,borderWidth:.8,borderColor:PDFLib.rgb(.35,.35,.35),backgroundColor:white});if(r.chk)cb.check();
+      if(r.plus){const t=tx(X[2]+16,cy-5,X[3]-X[2]-22,10,/^\+/.test(r.plus)?r.plus:"+"+r.plus,{ro:false,name:"plus_"+pi+"_"+Math.round(cy)});
+        t.acroField.setDefaultAppearance("0.85 0.33 0 rg /Helv 8 Tf");t.setFontSize(8);t.setText(S(/^\+/.test(r.plus)?r.plus:"+"+r.plus))}
+      const m=tx(X[3]+2,fy,X[4]-X[3]-4,fh,r.rem);if(r.ar&&r.rem)auto[m.getName()]=S(r.rem);
+    }
+    X.forEach(x=>pg.drawLine({start:{x,y},end:{x,y:y-RH},thickness:.5,color:line}));
+    pg.drawLine({start:{x:X[0],y:y-RH},end:{x:X[4],y:y-RH},thickness:.5,color:line});y-=RH;
+  }
+  form.updateFieldAppearances(F);
+  return{auto,rows:rows.length};
+}
+// lignes d'habillage du métré (« C20x20 0,9 ml RAL 9016 · … ») : une par profil
+const habLinesOf=sum=>(sum||[]).filter(x=>/habillage|t[ôo]le|corni[èe]re/i.test(x.a||"")).flatMap(x=>(x.d||"").split(/\s*·\s*/))
+  .map(t=>{const m=/^(\S+)\s+([\d.,]+\s*ml)\s*(.*)$/.exec(t.trim());return m?{p:m[1],q:m[2].replace(/\s+/g," "),c:m[3].trim()}:null}).filter(Boolean);
 let joinChain=Promise.resolve();
 // fiche découverte ouverte alors qu'elle n'a pas encore été refaite à partir du métré rempli (métré enregistré avant la mise à jour) :
 // le métré est réenregistré automatiquement, la découverte est refaite, puis rouverte
@@ -1761,7 +1873,7 @@ const prepTried=new Set();
 async function prepFromMetre(d){
   const id=openId,j=jobs.get(id)||{},docs=j.docs||[];if(!id||!(canWrite||canFill)||!assets||vForm)return;
   const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
-  if(!metre||!metre.rempli||!prep||prep.id!==d.id||prep.poseIns||prepTried.has(metre.id+"|"+prep.id))return;
+  if(consAdding||!metre||!metre.rempli||!prep||prep.id!==d.id||prep.poseIns||prepTried.has(metre.id+"|"+prep.id))return;
   prepTried.add(metre.id+"|"+prep.id);
   const busy=$("vpages");
   try{
@@ -1802,11 +1914,13 @@ async function doJoin(id){
     const merged=new Map();
     sum.forEach(x=>{const m=MAP.find(([a])=>a.test(x.a));const k=m?m[1].source:"libre:"+x.a;
       const o=merged.get(k)||{re:m&&m[1],a:x.a,q:[],c:[],d:[]};if(x.d)o.d.push(x.d);if(x.q)o.q.push(x.q+(x.o?" ("+x.o+")":"")+(m&&merged.has(k)||/silicone/i.test(x.a)?" "+x.a.replace(/silicone\s*/i,"").replace(/ext[ée]rieur/i,"ext.").replace(/int[ée]rieur/i,"int."):""));if(x.c)o.c.push(x.c.replace(/\s*\(.*?\)/g,""));merged.set(k,o)});
+    const hl=habLinesOf(sum);
     for(const o of merged.values()){
+      if(hl.length&&o.re&&/habillages/.test(o.re.source))continue;
       let r=o.re&&find(o.re);
       if(!r){r=rows.find(x=>!used.has(x)&&x.art&&!x.label);if(r)put(r.art,o.a)}
       if(!r)continue;used.add(r);
-      put(r.qty,o.q.join(" + "));try{const qf=form.getTextField(r.qty);if((qf.getText()||"").trim()){qf.acroField.setDefaultAppearance("0 0.24 0.57 rg /Helv 8 Tf");qf.setFontSize(8);qf.enableReadOnly()}}catch(_){}put(r.col,[...new Set(o.c)].join(" / "));put(r.rem,o.d.join(" · "));
+      put(r.qty,o.q.join(" + "));try{const qf=form.getTextField(r.qty);if((qf.getText()||"").trim()){qf.acroField.setDefaultAppearance("0 0.24 0.57 rg /Helv 8 Tf");qf.setFontSize(8);qf.enableReadOnly()}}catch(_){}if(r.col)put(r.col,[...new Set(o.c)].join(" / "));else if(o.c.length&&!o.d.length)o.d.push("coloris "+[...new Set(o.c)].join(" / "));put(r.rem,o.d.join(" · "));
       if(/habillage/i.test(r.label)&&r.rem&&next[r.rem]){try{const tf=form.getTextField(r.rem);tf.enableMultiline();tf.setFontSize(6)}catch(_){}}
     }
     form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
@@ -1827,6 +1941,9 @@ async function doJoin(id){
       poseIns=await drawPoseTable(doc,R,poseData);
     }
   }catch(e){console.log("pose",e)}}
+  // consommables : une ligne par profil d'habillage, au même format que le reste du tableau
+  if(window.pdfjsLib){try{pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const r=await consRedraw(doc,{hab:habLinesOf(sum),auto});if(r)auto=r.auto}catch(e){console.log("conso",e)}}
   for(let k=0;k<(prep.annexe||0)&&doc.getPageCount()>1;k++)doc.removePage(doc.getPageCount()-1);
   const font=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold),imgs=[];
   if(pages.length&&window.pdfjsLib){
@@ -1855,7 +1972,8 @@ async function doJoin(id){
 }
 // barre d'outils du visualiseur : zoom, dessin, photo
 $("viewer").addEventListener("click",e=>{
-  const t=e.target.closest("#vzin,#vzout,#vdraw,#vundo,[data-pen],#vconso,[data-conso],#cdone,#vmiss,#ndone");if(!t)return;
+  const t=e.target.closest("#vzin,#vzout,#vdraw,#vundo,[data-pen],#vconso,[data-conso],[data-consadd],#cdone,#vmiss,#ndone");if(!t)return;
+  if(t.dataset.consadd){if(vDraw.on)setDraw(false);addConsRow();return}
   if(t.id==="vmiss"){if(vDraw.on)setDraw(false);openMissing();return}
   if(t.id==="ndone"){$("npanel").hidden=true;return}
   if(t.id==="vconso"||t.dataset.conso){if(vDraw.on)setDraw(false);$("npanel").hidden=true;openConso();return}
