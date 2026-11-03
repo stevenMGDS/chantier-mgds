@@ -1171,10 +1171,11 @@ async function addConsRow(){
 // ---------- habillages choisis sur le croquis (annexes) ----------
 // Menus déroulants posés sur chaque annexe : montants ext. / int., traverse haute ext. / int., traverse basse ext. / int.
 // Le résultat remplace les cases « Habillage » de chaque menuiserie en page 1 et donne un total en ml dans les consommables.
-const HAB_OPTS=["","C20x20","C30x30","C40x40","C50x50","C60x60","P30","P40","P50","P60","P80","P100"];
+// « Fourni menuiserie » : habillage / couvre-joint déjà compris dans la ligne du produit (pas de consommable à préparer)
+const HAB_FOURNI="Fourni menuiserie",HAB_OPTS=["","C20x20","C30x30","C40x40","C50x50","C60x60","P30","P40","P50","P60","P80","P100",HAB_FOURNI];
 const HAB_POS={me:"Montant ext.",mi:"Montant int.",the:"Haut ext.",thi:"Haut int.",tbe:"Bas ext.",tbi:"Bas int."};
 let vHab=null;
-const OPT_DEL=[0,1,2,3,4,8,9],OPT_NEW=[["rej","Création de rejingot",36],["del","Délignage des cochonnets",186],["sol","oui",450,["Modification du sol intérieur :",336]],["soln","non",486]];
+const OPT_DEL=[0,1,2,3,4,8,9],OPT_NEW=[["rej","Création de rejingot",36],["del","Délignage des cochonnets",186],["sol","oui",450,["Modification du sol intérieur :",336]]];
 const OPT_TX={id:"solh",x:556,w:40,labs:[["hauteur :",522],["mm",599]]};
 const OPT_COVERS=[0,1,2,3,4].map(k=>[34+k*150,77]).concat([[484,61],[634,61]]);
 const habNorm=s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9/()]+/g,"");
@@ -1220,10 +1221,11 @@ function setupHab(fields){
           const ti=document.createElement("input");ti.type="text";ti.inputMode="numeric";ti.className="fld opt";habPlace(ti,P,tx.x,y-2,tx.w,12);ti.style.fontSize=`max(12px, ${cqw(7.5,P.w0)})`;
           ti.setAttribute("aria-label","Hauteur de modification du sol en mm");ti.addEventListener("input",()=>{if(vForm){vForm.dirty=true;vForm.upd()}});P.box.appendChild(ti);
           fields.push({name:"optx_"+pi+"_"+tx.id,cb:false,multi:false,el:ti,pi,cy:y+4,x:tx.x,top:y+10,free:true,req:false,newTx:{x:tx.x,y:y-2,w:tx.w,labs:tx.labs}})}
-        // modification du sol intérieur : oui ou non obligatoire, hauteur obligatoire si oui
+        // modification du sol intérieur : case facultative ; si elle est cochée, la hauteur est obligatoire
+        // (« non » des fiches enregistrées entre-temps : gardé, facultatif)
         const g=id=>fields.find(f=>f.name==="optx_"+pi+"_"+id),so=g("sol"),sn=g("soln"),sh=g("solh");
-        if(so&&sn){const hReq=()=>{if(sh){sh.req=so.el.checked;sh.free=!sh.req;sh.el.classList.toggle("opt",!sh.req)}};
-          [so,sn].forEach(f=>{f.free=false;f.group="sol"+pi;f.el.addEventListener("change",()=>{if(f.el.checked)(f===so?sn:so).el.checked=false;hReq();if(vForm){vForm.dirty=true;vForm.upd()}})});hReq()}
+        if(so){const hReq=()=>{if(sh){sh.req=so.el.checked;sh.free=!sh.req;sh.el.classList.toggle("opt",!sh.req)}};
+          [so,sn].filter(Boolean).forEach(f=>{f.free=true;delete f.group;f.el.addEventListener("change",()=>{if(f.el.checked&&sn)(f===so?sn:so).el.checked=false;hReq();if(vForm){vForm.dirty=true;vForm.upd()}})});hReq()}
       }
       vHab.opts.push(pi);
       return;
@@ -1294,7 +1296,7 @@ function metrePoseData(){
     const tl=cell(hd(/^Tableau L/)),th=cell(hd(/^Tableau H/)),hl=cell(hd(/^Hors tout L/)),hh=cell(hd(/^Hors tout H/));
     const iso=after(its,fs,/^Isolation\s*:/,r.y),vit=after(its,fs,/^Vitrage\s*:/,r.y-11),all=after(its,fs,/^All[èe]ge\s*:/,r.y-11);
     const pg=vHab.pages.find(pg=>pg.reps.some(x=>same(x.name,r.rep))),rp=pg&&pg.reps.find(x=>same(x.name,r.rep)),v=r.v||{},ml={};
-    if(rp){const L=rp.L/1000,H=rp.H/1000,add=(k,m)=>{if(k)ml[k]=(ml[k]||0)+m};add(v.me,2*H);add(v.mi,2*H);add(v.the,L);add(v.thi,L);add(v.tbe,L);add(v.tbi,L)}
+    if(rp){const L=rp.L/1000,H=rp.H/1000,add=(k,m)=>{if(k&&k!==HAB_FOURNI)ml[k]=(ml[k]||0)+m};add(v.me,2*H);add(v.mi,2*H);add(v.the,L);add(v.thi,L);add(v.tbe,L);add(v.tbi,L)}
     let opts=[],sol="",rem="",colhab="";
     if(pg){const af=vForm.fields.filter(f=>f.pi===pg.pi),ai=vPages[pg.pi].items;
       opts=af.filter(f=>f.cb&&f.el.checked&&/^opt(x)?_/.test(f.name)&&!/_soln?$/.test(f.name)&&!f.habHidden).map(f=>optLab(f,ai)).filter(Boolean);
@@ -1317,7 +1319,7 @@ function habFmt(v){return[["Mont.","me","mi"],["Haut","the","thi"],["Bas","tbe",
 function habUpdate(first){
   if(!vHab)return;const by={},ml={};
   vHab.pages.forEach(pg=>{const v={};vHab.sel.filter(s=>s.pi===pg.pi).forEach(s=>{if(s.el.value)v[s.k]=s.el.value});
-    pg.reps.forEach(r=>{by[habNorm(r.name)]=v;const L=r.L/1000,H=r.H/1000,add=(p,m)=>{if(p)ml[p]=(ml[p]||0)+m};
+    pg.reps.forEach(r=>{by[habNorm(r.name)]=v;const L=r.L/1000,H=r.H/1000,add=(p,m)=>{if(p&&p!==HAB_FOURNI)ml[p]=(ml[p]||0)+m};
       add(v.me,2*H);add(v.mi,2*H);add(v.the,L);add(v.thi,L);add(v.tbe,L);add(v.tbi,L)})});
   vHab.rows.forEach(r=>{const k=habNorm(r.rep),v=by[k]||Object.entries(by).find(([n])=>k&&(n.startsWith(k)||k.startsWith(n)))?.[1]||{};
     r.v=v;r.text=habFmt(v);r.el.textContent=r.text||"à choisir sur le croquis en annexe";r.el.classList.toggle("vide",!r.text)});
@@ -1741,7 +1743,7 @@ async function drawPoseTable(doc,R,data){
     [{t:r.des},r.cde&&{t:"Commande : "+r.cde,f:B,c:blu},(r.tab||r.ht)&&{t:[r.tab&&"Tableau "+r.tab,r.ht&&"H.T. "+r.ht].filter(Boolean).join(" · "),c:grey},r.col&&{t:"Coloris : "+r.col}],
     [{t:(r.pose||[]).join(" + ")||"à préciser",f:B,c:blu},(r.sens||[]).length&&{t:"Sens : "+r.sens.join(" ")},real(r.iso)&&{t:"Isolation "+r.iso+" mm"}],
     [side(v,"Habillage ext. : ","me","the","tbe")&&{t:side(v,"Habillage ext. : ","me","the","tbe")},side(v,"Habillage int. : ","mi","thi","tbi")&&{t:side(v,"Habillage int. : ","mi","thi","tbi")},
-     ml(r.ml)&&{t:"Longueurs : "+ml(r.ml),f:B,c:blu},r.colhab&&{t:"Coloris habillage : "+r.colhab},
+     ml(r.ml)&&{t:"Longueurs : "+ml(r.ml),f:B,c:blu},Object.values(v).includes(HAB_FOURNI)&&{t:"Couvre-joints / habillages fournis avec la menuiserie (à poser)",f:B},r.colhab&&{t:"Coloris habillage : "+r.colhab},
      r.sol&&{t:r.sol==="oui"?"ATTENTION : modification du sol intérieur":"ATTENTION : sol intérieur rehaussé de "+r.sol+" mm",f:B,c:red},
      (r.opts||[]).length&&{t:r.opts.join(" · ")},real(r.vit)&&{t:"Vitrage : "+r.vit},real(r.all)&&{t:"Allège : "+r.all+" mm"},r.rem&&real(r.rem)&&{t:"Remarque : "+r.rem}]
   ].map(c=>c.filter(Boolean))});
@@ -1873,7 +1875,7 @@ const prepTried=new Set();
 async function prepFromMetre(d){
   const id=openId,j=jobs.get(id)||{},docs=j.docs||[];if(!id||!(canWrite||canFill)||!assets||vForm)return;
   const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
-  if(consAdding||!metre||!metre.rempli||!prep||prep.id!==d.id||(prep.poseIns&&prep.consV)||prepTried.has(metre.id+"|"+prep.id))return;
+  if(consAdding||!metre||!metre.rempli||!prep||prep.id!==d.id||(prep.poseIns&&prep.consV&&(!metre.pose||prep.joinFrom===metre.id))||prepTried.has(metre.id+"|"+prep.id))return;
   prepTried.add(metre.id+"|"+prep.id);
   const busy=$("vpages");
   try{
@@ -1966,7 +1968,7 @@ async function doJoin(id){
     pg.drawImage(e,{x:36+(mw-e.width*k)/2,y:36+(mh-e.height*k)/2,width:e.width*k,height:e.height*k});added++}catch(_){}}
   const file=new File([await doc.save()],prep.name,{type:"application/pdf"}),r=await assets.upload(file,{type:"application/pdf"});
   const j2=jobs.get(id)||{},d2=(j2.docs||[]).map(x=>({...x})),i=d2.findIndex(x=>x.id===prep.id);if(i<0)return;
-  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto,poseIns,consV:1};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
+  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto,poseIns,consV:1,joinFrom:metre?metre.id:null};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
   if(openId===id)renderSheet();
   toast("Fiche de préparation mise à jour"+(nCons?" : consommables repris du métré":"")+(added?(nCons?",":" :")+" "+added+" page"+(added>1?"s":"")+" de croquis et photos":"")+".");
 }
