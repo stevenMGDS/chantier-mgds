@@ -227,7 +227,7 @@ async function vPlanning(v){
   v.innerHTML=weekNav()+days.map((d,i)=>{const items=pl.filter(p=>p.jour===d);
     if(i===6&&!items.length)return"";
     return`<section class="day${d===t?" today":""}"><div class="day-h">${d===t?"Aujourd'hui · ":""}${dayLabel(d)}</div>
-      ${items.length?items.map(p=>{const j=chantiers.get(p.chantier)||{};return`<button class="card" data-open="${esc(p.chantier)}">
+      ${items.length?items.map(p=>{if(!p.chantier)return`<div class="card" style="cursor:default"><div class="client">${esc(p.libelle)}</div>${p.note?`<div>${esc(p.note)}</div>`:`<div class="sub">${/cong|repos|fér|fer|repas|formation|atelier/i.test(p.libelle)?"":"Pas encore de fiche pour ce chantier dans l'appli"}</div>`}</div>`;const j=chantiers.get(p.chantier)||{};return`<button class="card" data-open="${esc(p.chantier)}">
         <div class="client">${esc(jobName(p.chantier))}</div><div class="sub">${esc(addrOf(j))||"Adresse à demander à Marine"}</div>${p.note?`<div>${esc(p.note)}</div>`:""}</button>`}).join("")
       :`<div class="none">Pas de chantier prévu</div>`}</section>`}).join("")
     +(pl.length?"":`<div class="empty" style="margin-top:16px">Aucun chantier prévu cette semaine pour vous. Marine remplit votre planning ici.</div>`);
@@ -539,7 +539,7 @@ function modal(html){
 }
 
 // ---------- gestion : planning ----------
-// équipes (Steven, 03/11) : 1 = Allan + Jordi, 2 = Yannis + Yousef, 3 = Steven ou Yannick + équipe 2 (chantiers Minimaliste)
+// équipes (Steven, 03/11) : 1 = Allan + Jordi, 2 = Yannis + Youssef, 3 = Steven ou Yannick + équipe 2 (chantiers Minimaliste)
 const EQUIPES=[
   {k:"1",l:"Équipe 1",m:["allan.poseur@mgds.fr","jordi.poseur@mgds.fr"]},
   {k:"2",l:"Équipe 2",m:["yannis.poseur@mgds.fr","yousef.poseur@mgds.fr"]},
@@ -547,12 +547,13 @@ const EQUIPES=[
 const idOf=email=>(profils.find(p=>p.email===email)||{}).id;
 const shortName=id=>nameOf(id).replace(/\s*\(.*\)$/,"");
 let gVue="equipe";
+const kOf=x=>x.chantier||"~"+(x.libelle||""),labOf=x=>x.chantier?jobShort(x.chantier):(x.libelle||"");
 async function vGPlanning(v){
   const days=weekDays(),pl=await loadPlanning(days[0],days[6]),ps=poseurs(),t=today(),ed=role==="editeur";
   const showSun=pl.some(p=>p.jour===days[6]);const cols=showSun?days:days.slice(0,6);
   v._pl=pl;
   const head=`<thead><tr><th>${gVue==="equipe"?"Équipe":"Personne"}</th>${cols.map(d=>`<th class="${d===t?"today":""}">${esc(dayLabel(d))}</th>`).join("")}</tr></thead>`;
-  const chip=(label,sub,ids,c)=>`<div class="pchip"><span><button style="all:unset;cursor:pointer" data-open="${esc(c)}">${esc(label)}</button>${sub?`<br><span class="sub">${esc(sub)}</span>`:""}</span>${ed?`<button data-pdel="${ids.join(",")}" aria-label="Retirer">×</button>`:""}</div>`;
+  const chip=(label,sub,ids,c)=>`<div class="pchip"${c?"":` style="background:var(--sunk)"`}><span>${c?`<button style="all:unset;cursor:pointer" data-open="${esc(c)}">${esc(label)}</button>`:`<b style="font-weight:600">${esc(label)}</b>`}${sub?`<br><span class="sub">${esc(sub)}</span>`:""}</span>${ed?`<button data-pdel="${ids.join(",")}" aria-label="Retirer">×</button>`:""}</div>`;
   let body;
   if(gVue==="equipe"){
     body=EQUIPES.map(eq=>{const mem=eq.m.map(idOf).filter(Boolean),chefs=(eq.chefs||[]).map(idOf).filter(Boolean);
@@ -560,18 +561,18 @@ async function vGPlanning(v){
         const day=pl.filter(x=>x.jour===d);let cells="";
         if(eq.chefs){
           // équipe 3 : un chantier où Steven ou Yannick est placé ce jour-là
-          for(const x of day.filter(x=>chefs.includes(x.poseur))){const with_=day.filter(y=>y.chantier===x.chantier&&mem.includes(y.poseur));
-            cells+=chip(jobShort(x.chantier),[shortName(x.poseur)+(with_.length?" + "+with_.map(y=>shortName(y.poseur)).join(", "):""),x.note].filter(Boolean).join(" · "),[x,...with_].map(y=>y.id),x.chantier)}
+          for(const x of day.filter(x=>chefs.includes(x.poseur))){const with_=day.filter(y=>kOf(y)===kOf(x)&&mem.includes(y.poseur));
+            cells+=chip(labOf(x),[shortName(x.poseur)+(with_.length?" + "+with_.map(y=>shortName(y.poseur)).join(", "):""),x.note].filter(Boolean).join(" · "),[x,...with_].map(y=>y.id),x.chantier)}
         }else{
-          const cs=[...new Set(day.filter(x=>mem.includes(x.poseur)).map(x=>x.chantier))];
-          for(const c of cs){if(EQUIPES[2].chefs.map(idOf).some(ch=>day.some(y=>y.chantier===c&&y.poseur===ch))&&eq.k==="2")continue; // affiché en équipe 3
-            const rows=day.filter(x=>x.chantier===c&&mem.includes(x.poseur)),who=rows.length<mem.length?rows.map(x=>shortName(x.poseur)).join(", "):"",note=rows.find(x=>x.note)?.note||"";
-            cells+=chip(jobShort(c),[who,note].filter(Boolean).join(" · "),rows.map(x=>x.id),c)}
+          const cs=[...new Set(day.filter(x=>mem.includes(x.poseur)).map(kOf))];
+          for(const c of cs){if(EQUIPES[2].chefs.map(idOf).some(ch=>day.some(y=>kOf(y)===c&&y.poseur===ch))&&eq.k==="2")continue; // affiché en équipe 3
+            const rows=day.filter(x=>kOf(x)===c&&mem.includes(x.poseur)),who=rows.length<mem.length?rows.map(x=>shortName(x.poseur)).join(", "):"",note=rows.find(x=>x.note)?.note||"";
+            cells+=chip(labOf(rows[0]),[who,note].filter(Boolean).join(" · "),rows.map(x=>x.id),rows[0].chantier)}
         }
         return`<td>${cells}${ed?`<button class="add" data-padd="eq${eq.k}|${d}" aria-label="Placer l'équipe">+</button>`:""}</td>`}).join("")}</tr>`}).join("");
   }else{
     const people=[...ps,...EQUIPES[2].chefs.map(e=>profils.find(p=>p.email===e)).filter(Boolean)];
-    body=people.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${pl.filter(x=>x.poseur===p.id&&x.jour===d).map(x=>chip(jobShort(x.chantier),x.note,[x.id],x.chantier)).join("")}
+    body=people.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${pl.filter(x=>x.poseur===p.id&&x.jour===d).map(x=>chip(labOf(x),x.note,[x.id],x.chantier)).join("")}
      ${ed?`<button class="add" data-padd="${p.id}|${d}" aria-label="Ajouter un chantier">+</button>`:""}</td>`).join("")}</tr>`).join("");
   }
   v.innerHTML=weekNav()+`<div class="chips"><button class="chip" data-gvue="equipe" aria-pressed="${gVue==="equipe"}">Par équipe</button><button class="chip" data-gvue="personne" aria-pressed="${gVue==="personne"}">Par personne</button></div>`
@@ -590,17 +591,18 @@ document.addEventListener("click",async e=>{
    ${eq?`<div class="sub">${eq.m.map(idOf).filter(Boolean).map(shortName).join(", ")}</div>`:""}
    ${eq&&eq.chefs?`<label class="fld">Avec<select name="chef">${eq.chefs.map(idOf).filter(Boolean).map(id=>`<option value="${id}">${esc(shortName(id))}</option>`).join("")}</select></label>`:""}
    <label class="fld">Chantier<select name="c"><option value="">Choisir…</option>${ids.map(i=>`<option value="${esc(i)}">${esc(jobName(i))}</option>`).join("")}</select></label>
+   <label class="fld">ou texte libre (chantier pas encore dans l'appli, congé, atelier…)<input type="text" name="lib" placeholder="ex. BLAISE, CONGÉ, ATELIER"></label>
    <label class="fld">Consigne (facultatif)<input type="text" name="note" placeholder="ex. RDV 8h, prendre l'échafaudage"></label>
    <label class="fld" style="display:flex;gap:10px;align-items:center;font-weight:500"><input type="checkbox" name="suite" style="width:22px;height:22px;min-height:0"> Jusqu'à la fin de la semaine (jusqu'au vendredi)</label>
    <div class="acts"><button class="btn ghost" data-x>Annuler</button><button class="btn" data-ok>Placer</button></div>`);
   m.querySelector("[data-x]").onclick=()=>m.close();
   m.querySelector("[data-ok]").onclick=async()=>{
-    const c=m.querySelector("[name=c]").value;if(!c){toast("Choisissez le chantier.");return}
+    const c=m.querySelector("[name=c]").value||null,lib=m.querySelector("[name=lib]").value.trim()||null;if(!c&&!lib){toast("Choisissez le chantier ou écrivez un texte.");return}
     const note=m.querySelector("[name=note]").value.trim()||null;
     const pids=eq?[...eq.m.map(idOf).filter(Boolean),...(eq.chefs?[m.querySelector("[name=chef]").value]:[])]:[who];
     let ds=[day];if(m.querySelector("[name=suite]").checked){const d0=parse(day);for(let x=addDays(d0,1);(x.getDay()+6)%7<5;x=addDays(x,1))ds.push(iso(x))}
-    const rows=ds.flatMap(j=>pids.map(pid=>({jour:j,chantier:c,poseur:pid,note})));
-    const{error}=await sb.from("planning").upsert(rows,{onConflict:"jour,chantier,poseur"});
+    const rows=ds.flatMap(j=>pids.map(pid=>({jour:j,chantier:c,poseur:pid,note,...(c?{}:{libelle:lib})})));
+    const{error}=c?await sb.from("planning").upsert(rows,{onConflict:"jour,chantier,poseur"}):await sb.from("planning").insert(rows);
     if(error){toast("Enregistrement impossible.");return}
     m.close();toast("Planning enregistré ✓");render();
   };
