@@ -539,22 +539,56 @@ function modal(html){
 }
 
 // ---------- gestion : planning ----------
+// équipes (Steven, 03/11) : 1 = Allan + Jordi, 2 = Yannis + Yousef, 3 = Steven ou Yannick + équipe 2 (chantiers Minimaliste)
+const EQUIPES=[
+  {k:"1",l:"Équipe 1",m:["allan.poseur@mgds.fr","jordi.poseur@mgds.fr"]},
+  {k:"2",l:"Équipe 2",m:["yannis.poseur@mgds.fr","yousef.poseur@mgds.fr"]},
+  {k:"3",l:"Équipe 3",sub:"Minimaliste",m:["yannis.poseur@mgds.fr","yousef.poseur@mgds.fr"],chefs:["s.gallais@mgds.fr","travaux@mgds.fr"]}];
+const idOf=email=>(profils.find(p=>p.email===email)||{}).id;
+const shortName=id=>nameOf(id).replace(/\s*\(.*\)$/,"");
+let gVue="equipe";
 async function vGPlanning(v){
   const days=weekDays(),pl=await loadPlanning(days[0],days[6]),ps=poseurs(),t=today(),ed=role==="editeur";
   const showSun=pl.some(p=>p.jour===days[6]);const cols=showSun?days:days.slice(0,6);
-  v.innerHTML=weekNav()+(ps.length?`<div class="gridwrap"><table class="plan"><thead><tr><th>Poseur</th>${cols.map(d=>`<th class="${d===t?"today":""}">${esc(dayLabel(d))}</th>`).join("")}</tr></thead><tbody>
-   ${ps.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${pl.filter(x=>x.poseur===p.id&&x.jour===d).map(x=>`<div class="pchip"><span><button style="all:unset;cursor:pointer" data-open="${esc(x.chantier)}">${esc(jobShort(x.chantier))}</button>${x.note?`<br><span class="sub">${esc(x.note)}</span>`:""}</span>${ed?`<button data-pdel="${x.id}" aria-label="Retirer">×</button>`:""}</div>`).join("")}
-     ${ed?`<button class="add" data-padd="${p.id}|${d}" aria-label="Ajouter un chantier">+</button>`:""}</td>`).join("")}</tr>`).join("")}
-   </tbody></table></div>${ed?`<p class="sub">Touchez « + » pour placer un poseur sur un chantier. Chaque poseur voit sur son téléphone les chantiers où vous l'avez placé, avec les fiches.</p>`:""}`
-   :`<div class="empty" style="margin-top:16px">Aucun poseur n'a encore d'accès. Donnez à Claude le prénom de chaque poseur : il crée leurs accès et vous transmet leurs identifiants.</div>`);
+  v._pl=pl;
+  const head=`<thead><tr><th>${gVue==="equipe"?"Équipe":"Personne"}</th>${cols.map(d=>`<th class="${d===t?"today":""}">${esc(dayLabel(d))}</th>`).join("")}</tr></thead>`;
+  const chip=(label,sub,ids,c)=>`<div class="pchip"><span><button style="all:unset;cursor:pointer" data-open="${esc(c)}">${esc(label)}</button>${sub?`<br><span class="sub">${esc(sub)}</span>`:""}</span>${ed?`<button data-pdel="${ids.join(",")}" aria-label="Retirer">×</button>`:""}</div>`;
+  let body;
+  if(gVue==="equipe"){
+    body=EQUIPES.map(eq=>{const mem=eq.m.map(idOf).filter(Boolean),chefs=(eq.chefs||[]).map(idOf).filter(Boolean);
+      return`<tr><td class="name">${esc(eq.l)}${eq.sub?`<br><span class="sub">${esc(eq.sub)}</span>`:""}<br><span class="sub" style="font-weight:400">${eq.chefs?"Steven ou Yannick + ":""}${mem.map(shortName).join(", ")}</span></td>${cols.map(d=>{
+        const day=pl.filter(x=>x.jour===d);let cells="";
+        if(eq.chefs){
+          // équipe 3 : un chantier où Steven ou Yannick est placé ce jour-là
+          for(const x of day.filter(x=>chefs.includes(x.poseur))){const with_=day.filter(y=>y.chantier===x.chantier&&mem.includes(y.poseur));
+            cells+=chip(jobShort(x.chantier),[shortName(x.poseur)+(with_.length?" + "+with_.map(y=>shortName(y.poseur)).join(", "):""),x.note].filter(Boolean).join(" · "),[x,...with_].map(y=>y.id),x.chantier)}
+        }else{
+          const cs=[...new Set(day.filter(x=>mem.includes(x.poseur)).map(x=>x.chantier))];
+          for(const c of cs){if(EQUIPES[2].chefs.map(idOf).some(ch=>day.some(y=>y.chantier===c&&y.poseur===ch))&&eq.k==="2")continue; // affiché en équipe 3
+            const rows=day.filter(x=>x.chantier===c&&mem.includes(x.poseur)),who=rows.length<mem.length?rows.map(x=>shortName(x.poseur)).join(", "):"",note=rows.find(x=>x.note)?.note||"";
+            cells+=chip(jobShort(c),[who,note].filter(Boolean).join(" · "),rows.map(x=>x.id),c)}
+        }
+        return`<td>${cells}${ed?`<button class="add" data-padd="eq${eq.k}|${d}" aria-label="Placer l'équipe">+</button>`:""}</td>`}).join("")}</tr>`}).join("");
+  }else{
+    const people=[...ps,...EQUIPES[2].chefs.map(e=>profils.find(p=>p.email===e)).filter(Boolean)];
+    body=people.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${pl.filter(x=>x.poseur===p.id&&x.jour===d).map(x=>chip(jobShort(x.chantier),x.note,[x.id],x.chantier)).join("")}
+     ${ed?`<button class="add" data-padd="${p.id}|${d}" aria-label="Ajouter un chantier">+</button>`:""}</td>`).join("")}</tr>`).join("");
+  }
+  v.innerHTML=weekNav()+`<div class="chips"><button class="chip" data-gvue="equipe" aria-pressed="${gVue==="equipe"}">Par équipe</button><button class="chip" data-gvue="personne" aria-pressed="${gVue==="personne"}">Par personne</button></div>`
+   +(ps.length?`<div class="gridwrap"><table class="plan">${head}<tbody>${body}</tbody></table></div>${ed?`<p class="sub">Touchez « + » pour placer une équipe (ou une personne) sur un chantier. Chacun voit sur son téléphone les chantiers où vous l'avez placé, avec les fiches.</p>`:""}`
+   :`<div class="empty" style="margin-top:16px">Aucun poseur n'a encore d'accès.</div>`);
 }
+document.addEventListener("click",e=>{const b=e.target.closest("[data-gvue]");if(b){gVue=b.dataset.gvue;render()}});
 document.addEventListener("click",async e=>{
   const d=e.target.closest("[data-pdel]");if(d){
-    const{error}=await sb.from("planning").delete().eq("id",d.dataset.pdel);if(error){toast("Modification impossible.");return}render();return}
+    const{error}=await sb.from("planning").delete().in("id",d.dataset.pdel.split(","));if(error){toast("Modification impossible.");return}render();return}
   const a=e.target.closest("[data-padd]");if(!a)return;
-  const[pid,day]=a.dataset.padd.split("|");
+  const[who,day]=a.dataset.padd.split("|");
+  const eq=who.startsWith("eq")?EQUIPES.find(x=>"eq"+x.k===who):null;
   const ids=[...chantiers.keys()].filter(i=>!(chantiers.get(i).steps||{}).recep||i===openId).sort((x,y)=>jobName(x).localeCompare(jobName(y)));
-  const m=modal(`<h2>${esc(nameOf(pid))} · ${esc(dayLabel(day))}</h2>
+  const m=modal(`<h2>${esc(eq?eq.l:nameOf(who))} · ${esc(dayLabel(day))}</h2>
+   ${eq?`<div class="sub">${eq.m.map(idOf).filter(Boolean).map(shortName).join(", ")}</div>`:""}
+   ${eq&&eq.chefs?`<label class="fld">Avec<select name="chef">${eq.chefs.map(idOf).filter(Boolean).map(id=>`<option value="${id}">${esc(shortName(id))}</option>`).join("")}</select></label>`:""}
    <label class="fld">Chantier<select name="c"><option value="">Choisir…</option>${ids.map(i=>`<option value="${esc(i)}">${esc(jobName(i))}</option>`).join("")}</select></label>
    <label class="fld">Consigne (facultatif)<input type="text" name="note" placeholder="ex. RDV 8h, prendre l'échafaudage"></label>
    <label class="fld" style="display:flex;gap:10px;align-items:center;font-weight:500"><input type="checkbox" name="suite" style="width:22px;height:22px;min-height:0"> Jusqu'à la fin de la semaine (jusqu'au vendredi)</label>
@@ -563,8 +597,10 @@ document.addEventListener("click",async e=>{
   m.querySelector("[data-ok]").onclick=async()=>{
     const c=m.querySelector("[name=c]").value;if(!c){toast("Choisissez le chantier.");return}
     const note=m.querySelector("[name=note]").value.trim()||null;
+    const pids=eq?[...eq.m.map(idOf).filter(Boolean),...(eq.chefs?[m.querySelector("[name=chef]").value]:[])]:[who];
     let ds=[day];if(m.querySelector("[name=suite]").checked){const d0=parse(day);for(let x=addDays(d0,1);(x.getDay()+6)%7<5;x=addDays(x,1))ds.push(iso(x))}
-    const{error}=await sb.from("planning").upsert(ds.map(j=>({jour:j,chantier:c,poseur:pid,note})),{onConflict:"jour,chantier,poseur"});
+    const rows=ds.flatMap(j=>pids.map(pid=>({jour:j,chantier:c,poseur:pid,note})));
+    const{error}=await sb.from("planning").upsert(rows,{onConflict:"jour,chantier,poseur"});
     if(error){toast("Enregistrement impossible.");return}
     m.close();toast("Planning enregistré ✓");render();
   };
