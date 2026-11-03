@@ -674,7 +674,7 @@ async function renderSheet(){
    <ul class="arcs">${facs||`<li class="sub">Facture unique : cochez « Facturé » et « Payé » dans les étapes. Pour facturer en plusieurs fois, ajoutez une ligne par facture.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="fac"><input type="text" id="add-fac" placeholder="Libellé (ex. situation 1 : phase 1 posée)" aria-label="Libellé de la facture"><select id="add-fac-solde" aria-label="Type"><option value="">Partielle</option><option value="1">Solde</option></select><button class="btn">+</button></form>`:""}
    <h3>Documents</h3>
-   ${canWrite&&assets?`<div class="drop" id="drop">Glissez ici devis, ARC, métré, photos… ou <label for="file">choisissez des fichiers</label><input type="file" id="file" multiple hidden accept=".pdf,image/*,.csv,.txt"><div class="sub" style="margin-top:4px">PDF et photos. Pour un Word ou un Excel, enregistrez-le d'abord en PDF.</div></div>`:`<p class="sub">Vous ne pouvez pas déposer de fichier sur cette page. Demandez à Steven de vous donner l'accès « Modifier ».</p>`}
+   ${(canWrite||canFill)&&assets?`<div class="drop" id="drop">Glissez ici devis, ARC, métré, photos… ou <label for="file">choisissez des fichiers</label><input type="file" id="file" multiple hidden accept=".pdf,image/*,.csv,.txt"><div class="sub" style="margin-top:4px">PDF et photos. Pour un Word ou un Excel, enregistrez-le d'abord en PDF.</div></div>`:`<p class="sub">Vous ne pouvez pas déposer de fichier sur cette page. Demandez à Steven de vous donner l'accès « Modifier ».</p>`}
    <ul class="docs">${docs||`<li style="grid-template-columns:1fr"><span class="sub">Aucun document pour l'instant.</span></li>`}</ul>
    ${window.sbClient?`<h3>Terrain (poseurs)<span class="sub" style="text-transform:none;letter-spacing:0">planning, heures et photos</span></h3><div class="terr" id="terrain"><span class="sub">Chargement…</span></div>`:""}
    <h3>Tâches de Yannick</h3>
@@ -750,7 +750,7 @@ function guessType(n){n=n.toLowerCase();
   if(/r[eé]cep|pv/.test(n))return"Réception";if(/fact/.test(n))return"Facture";if(/command|bdc/.test(n))return"Commande";if(/\.(jpe?g|png|heic|webp)$/.test(n))return"Photo";return"Autre"}
 function ctype(f){if(f.type&&!/;/.test(f.type)&&f.type!=="application/vnd.ms-excel")return f.type;const e=f.name.split(".").pop().toLowerCase();return{pdf:"application/pdf",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",csv:"text/csv",txt:"text/plain"}[e]||f.type}
 async function upload(files){
-  if(!canWrite||!assets||!openId)return;const id=openId;
+  if(!(canWrite||canFill)||!assets||!openId)return;const id=openId;
   for(const f of files){
     toast("Envoi de « "+f.name+" »…");
     try{
