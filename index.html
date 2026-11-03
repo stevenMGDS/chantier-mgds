@@ -1274,6 +1274,46 @@ function habSave(doc,form,font){
   doc.getPages().forEach(pg=>{const a=pg.node.Annots();if(!a)return;for(let i=a.size()-1;i>=0;i--){const r=a.get(i);if(r instanceof PDFLib.PDFRef&&!doc.context.lookup(r))a.remove(i)}});
 }
 
+// ---------- fiche découverte (préparation) : « Attention à » complété ----------
+// type de mur (placo, brique plâtrière, autre) et travaux de peinture prévus par le client ; ajoutés au PDF à l'enregistrement
+let vPrepX=null;
+function setupPrepX(fields){
+  vPrepX=null;
+  vPages.forEach((P,pi)=>{
+    if(vPrepX||!(P.items||[]).some(t=>/^ATTENTION [ÀA]/.test(t.str.trim())))return;
+    if(fields.some(f=>/^prepx_/.test(f.name))){const xs=fields.filter(f=>/^prepx_/.test(f.name));xs.forEach(f=>{f.free=true;f.req=false;f.el.classList.remove("need");
+      if(f.cb)f.el.addEventListener("change",()=>{if(f.el.checked)xs.filter(g=>g.cb&&g!==f&&g.name.split("_")[1]===f.name.split("_")[1]).forEach(g=>{g.el.checked=false})})});vPrepX={done:true};return}
+    const at=re=>{const t=P.items.find(t=>re.test(t.str.trim()));return t&&{x:t.transform[4],y:t.transform[5],e:t.transform[4]+t.width}};
+    const a1=at(/^d[ée]pose de menuiseries anciennes/),a2=at(/^ma[çc]onnerie ou GO/);if(!a1||!a2)return;
+    const texts=[],boxes=[],inputs=[],fs=7,tw=t=>t.length*fs*.5;
+    const row=(y,x,parts)=>parts.forEach(pt=>{
+      if(pt.t){texts.push({x,y,t:pt.t});x+=tw(pt.t)+4}
+      if(pt.cb){boxes.push({name:pt.cb,lab:pt.lab,x,y:y-1});x+=11;texts.push({x,y,t:pt.lab});x+=tw(pt.lab)+5}
+      if(pt.tx){inputs.push({name:pt.tx,x,y:y-2,w:Math.max(20,P.w0-36-x)})}});
+    row(a1.y,a1.e+12,[{t:"Mur :"},{cb:"prepx_mur_placo",lab:"placo"},{cb:"prepx_mur_brique",lab:"brique plâtrière"},{cb:"prepx_mur_autre",lab:"autre"},{tx:"prepx_mur_txt"}]);
+    row(a2.y,a2.e+12,[{t:"Peinture client prévue :"},{cb:"prepx_peint_oui",lab:"oui"},{cb:"prepx_peint_non",lab:"non"}]);
+    texts.forEach(t=>{const d=document.createElement("div");d.className="optlab";habPlace(d,P,t.x,t.y-1.5,tw(t.t)+6,fs*1.4);d.style.fontSize=cqw(fs,P.w0);d.textContent=t.t;P.box.appendChild(d)});
+    boxes.forEach(b=>{const hit=document.createElement("label");hit.className="hit";Object.assign(hit.style,{left:pct(b.x+4,P.w0),top:pct(P.h0-b.y-4,P.h0),width:cqw(14,P.w0),height:cqw(14,P.w0)});
+      const el=document.createElement("input");el.type="checkbox";el.className="fld";Object.assign(el.style,{width:cqw(8,P.w0),height:cqw(8,P.w0)});el.setAttribute("aria-label",b.lab);
+      // une seule réponse par question
+      el.addEventListener("change",()=>{if(el.checked)fields.filter(f=>f.prepx&&f!==me&&f.name.split("_")[1]===b.name.split("_")[1]).forEach(f=>{f.el.checked=false});if(vForm)vForm.dirty=true});
+      hit.appendChild(el);P.box.appendChild(hit);const me={name:b.name,cb:true,multi:false,el,pi,cy:b.y+4,x:b.x,top:b.y+8,free:true,prepx:b};fields.push(me)});
+    inputs.forEach(i=>{const el=document.createElement("input");el.type="text";el.className="fld opt";habPlace(el,P,i.x,i.y,i.w,10);el.style.fontSize=`max(12px, ${cqw(7,P.w0)})`;
+      el.setAttribute("aria-label","Autre type de mur");el.placeholder="";el.addEventListener("input",()=>{if(vForm)vForm.dirty=true});P.box.appendChild(el);
+      fields.push({name:i.name,cb:false,multi:false,el,pi,cy:i.y+5,x:i.x,top:i.y+10,free:true,req:false,prepx:i})});
+    vPrepX={pi,texts,fs};
+  });
+}
+function prepXSave(doc,form,font){
+  if(!vPrepX||vPrepX.done)return;const pg=doc.getPage(vPrepX.pi),white=PDFLib.rgb(1,1,1),grey=PDFLib.rgb(.35,.35,.35);
+  vPrepX.texts.forEach(t=>pg.drawText(t.t,{x:t.x,y:t.y,size:vPrepX.fs,font,color:PDFLib.rgb(.1,.1,.1)}));
+  vForm.fields.filter(f=>f.prepx).forEach(f=>{const b=f.prepx;try{
+    if(f.cb){const cb=form.createCheckBox(f.name);cb.addToPage(pg,{x:b.x,y:b.y,width:8,height:8,borderWidth:.7,borderColor:grey,backgroundColor:white});f.el.checked?cb.check():cb.uncheck()}
+    else{const tf=form.createTextField(f.name);tf.addToPage(pg,{x:b.x,y:b.y,width:b.w,height:10,borderWidth:0,font});tf.setFontSize(7);tf.setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF€]/g,""))}
+  }catch(_){}});
+  vPrepX.done=true;
+}
+
 // ---------- fiches remplies dans l'appli ----------
 // Obligatoire : chaque champ texte d'une ligne (sauf remarques et grands cadres d'observations, et champs posés sur une ligne de cases à cocher),
 // et au moins une case cochée par ligne de cases (par groupe pour les options d'habillage de l'annexe).
@@ -1380,6 +1420,7 @@ async function startFill(){
     fields.forEach(f=>f.el.addEventListener(f.cb?"change":"input",()=>{vForm.dirty=true;upd()}));vForm.upd=upd;upd()}
   buildConso(fields);
   try{setupHab(fields);fields.forEach(f=>{if(f.free&&!f.cb){f.req=false}});vForm.upd()}catch(_){vHab=null}
+  if(vDoc.type==="Préparation")try{setupPrepX(fields);vForm.upd()}catch(_){vPrepX=null}else vPrepX=null;
   $("vsave").hidden=false;$("vdraw").hidden=false;$("vphoto").hidden=vDoc.type!=="Métré";vDraw.stack=[];
   toast("Touchez une case pour la remplir. Les cases en jaune sont obligatoires. « Dessiner » pour tracer au stylet.");
 }
@@ -1399,6 +1440,7 @@ async function saveFill(){
       tf.addToPage(doc.getPage(f.synth.pi),{x:x1,y:y1,width:x2-x1,height:y2-y1,borderWidth:0,font});tf.setFontSize(10);
       tf.setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF\n€œŒ’‘“”–—…]/g,""))}catch(_){}}}
     try{habSave(doc,form,font)}catch(_){}
+    try{prepXSave(doc,form,font)}catch(_){}
     vPages.forEach((P,pi)=>(P.wipe||[]).forEach(r=>{try{doc.getPage(pi).drawRectangle({x:r.x,y:r.y,width:r.w,height:r.h,color:PDFLib.rgb(1,1,1)})}catch(_){}}));
     form.updateFieldAppearances(font);
     // traits au stylet : dessinés pour de bon dans la page du PDF
