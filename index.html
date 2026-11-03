@@ -189,6 +189,9 @@ textarea{min-height:64px;resize:vertical}
 .viewer select.hab{position:absolute;z-index:2;box-sizing:border-box;margin:0;padding:0 2px;border:2px solid #1F5FBF;border-radius:3px;background:#fff;color:#000;font-family:var(--f-body)}
 .viewer select.hab.set{background:#E6F0FB;font-weight:700}
 .viewer .habres{position:absolute;z-index:2;background:#fff;color:#0B3D91;font-family:Helvetica,Arial,sans-serif;font-weight:700;white-space:nowrap;overflow:hidden;line-height:1.5;pointer-events:none}.viewer .habres.vide{color:#B5540A;font-weight:400;font-style:italic}
+.viewer .habcons{position:absolute;z-index:2;box-sizing:border-box;margin:0;padding:1px 4px;border:2px solid #1F5FBF;border-radius:3px;background:#fff;color:#0B3D91;font-family:Helvetica,Arial,sans-serif;font-weight:700;text-align:left;line-height:1.3;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:center}.viewer .habcons.vide{color:#B5540A;font-weight:400;font-style:italic}
+.cpanel .vrow.hrow{flex-wrap:wrap}.cpanel .hrow b{min-width:9em;white-space:nowrap}.cpanel .hrow select.cin{flex:1}.cpanel .hrow input.cin{flex-basis:100%}
+.viewer .optlab{position:absolute;z-index:2;color:#1a1a1a;font-family:Helvetica,Arial,sans-serif;white-space:nowrap;line-height:1.4;pointer-events:none}
 .viewer .habwhite{position:absolute;z-index:1;background:#fff;pointer-events:none}
 .cpanel .nitem{display:flex;justify-content:space-between;gap:10px;align-items:center;text-align:left;width:100%;font:15px var(--f-body);min-height:48px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);cursor:pointer}.cpanel .nitem small{color:var(--muted);flex:none}
 .viewer .fld.flash{animation:flash 1s ease 2}@keyframes flash{50%{box-shadow:0 0 0 8px rgba(232,89,12,.6)}}
@@ -893,6 +896,24 @@ async function withAddress(blob,d){
     return new Blob([await doc.save()],{type:"application/pdf"});
   }catch(_){return blob}
 }
+// annexes du métré : les encadrés rouges en pointillés (habillage, seuil…) sont retirés du dessin ;
+// leurs libellés restent dans le PDF en texte invisible pour placer les menus d'habillage
+async function cleanMetre(blob,d){
+  if(d.type!=="Métré"||!window.PDFLib)return blob;
+  try{
+    const doc=await PDFLib.PDFDocument.load(await blob.arrayBuffer()),RED=/q\n\.823529 \.294118 \.294118 RG\n[\s\S]*?\nQ\n/g,N=PDFLib.PDFName.of("Contents");let changed=false;
+    const str=u=>{let t="";for(let i=0;i<u.length;i+=8192)t+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return t};
+    for(const pg of doc.getPages()){const c=pg.node.get(N);if(!c)continue;
+      for(const r of (c instanceof PDFLib.PDFArray?c.asArray():[c])){
+        const st=r instanceof PDFLib.PDFRef?doc.context.lookup(r):r;if(!(st instanceof PDFLib.PDFRawStream))continue;
+        let t;try{t=str(PDFLib.decodePDFRawStream(st).decode())}catch(_){continue}
+        if(!t.includes(".823529 .294118 .294118 RG"))continue;
+        const out=t.replace(RED,m=>"q\n3 Tr\n"+(m.match(/^BT .*ET$/gm)||[]).join("\n")+"\nQ\n");if(out===t)continue;
+        const ns=doc.context.flateStream(Uint8Array.from(out,ch=>ch.charCodeAt(0)&255));
+        if(r instanceof PDFLib.PDFRef)doc.context.assign(r,ns);else pg.node.set(N,doc.context.register(ns));changed=true}}
+    return changed?new Blob([await doc.save()],{type:"application/pdf"}):blob;
+  }catch(_){return blob}
+}
 async function viewDoc(d){
   if(!d)return;const pg=$("vpages");$("vname").textContent=d.name;pg.innerHTML='<p class="sub">Ouverture du document…</p>';$("viewer").hidden=false;$("vdl").hidden=true;resetTools();$("vfill").textContent="";vDoc=d;vPdf=null;vPages=[];vForm=null;vZoom=1;
   try{
@@ -901,7 +922,7 @@ async function viewDoc(d){
     if(!isPdf){pg.innerHTML="";const im=new Image();im.alt=d.name;im.src=URL.createObjectURL(vBlob);pg.appendChild(im);return}
     if(!window.pdfjsLib)throw 0;
     pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    vBlob=await withAddress(vBlob,d);
+    vBlob=await withAddress(vBlob,d);vBlob=await cleanMetre(vBlob,d);
     const pdf=await pdfjsLib.getDocument({data:await vBlob.arrayBuffer()}).promise;pg.innerHTML="";vPdf=pdf;
     // la page est dessinée une fois en bonne définition ; le zoom (− / +) ne fait que changer sa largeur à l'écran
     const w=fitW(),bw=Math.min(1800,Math.round(w*(window.devicePixelRatio||1)*1.5));$("vzoomg").hidden=false;showZoom();
@@ -1031,7 +1052,7 @@ function consoSummary(){
     const pick=(r,lab)=>R.fs.filter(x=>x.r===r&&x.f.cb).sort((x,y)=>y.f.cy-x.f.cy||x.f.x-y.f.x).map((x,k)=>x.f.el.checked?lab[k+1]:"").filter(Boolean);
     const colTxt=(R.cell.col||"").split("☐").map(cleanDots),colPick=pick("col",colTxt).filter(c=>!/^autre/i.test(c));
     const isCol=/silicone|mastic/i.test(a),c=isCol?[val("col")||colPick.join(", ")||(colTxt.length===1?colTxt[0]:"")].filter(Boolean).join(""):"",q=val("qty"),o=pick("art",segs).join(", ");
-    const d=/^habillage/i.test(a)?val("need"):/^vis\b/i.test(a)?["rem","need","col"].map(val).find(v=>v.split(" · ").some(x=>VIS_RE.test(x)))||"":"";
+    const d=/^habillage/i.test(a)?(vHab&&vHab.cons?(vHab.lines||[]).map(l=>l.replace(/ — /g," ")).join(" · "):val("need")):/^vis\b/i.test(a)?["rem","need","col"].map(val).find(v=>v.split(" · ").some(x=>VIS_RE.test(x)))||"":"";
     if(q||c||o||d)out.push({a,q,c,o,d})}));
   return out;
 }
@@ -1060,6 +1081,23 @@ function visBlock(remEl,qtyIn,mk){
   noteIn.oninput=write;
   draw();box.append(list,add,noteIn);return box;
 }
+// habillages : une ligne par type (longueur calculée sur les croquis) avec le choix de la couleur
+const HAB_COLS=["Blanc RAL 9016","Noir RAL 9005","Gris anthracite RAL 7016","Gris clair RAL 7035"];
+function habBlock(mk){
+  const box=mk("div","vis"),C=vHab.cons,ps=Object.keys(vHab.ml||{}).sort();
+  if(!ps.length){box.appendChild(mk("div","cinfo","Choisissez d'abord les habillages sur les croquis (annexes du métré) : une ligne par type apparaîtra ici avec sa longueur."));return box}
+  ps.forEach(p=>{
+    const row=mk("div","vrow hrow"),sel=mk("select","cin"),other=mk("input","cin");
+    const opts=[...new Set([C.def,...HAB_COLS].filter(Boolean))],cur=vHab.col[p]||C.def||"",isOther=cur&&!opts.includes(cur);
+    sel.innerHTML=(cur?"":'<option value="">Couleur…</option>')+opts.map(o=>`<option ${o===cur?"selected":""}>${esc(o)}</option>`).join("")+`<option value="__autre" ${isOther?"selected":""}>Autre couleur…</option>`;
+    sel.setAttribute("aria-label","Couleur "+p);
+    other.type="text";other.placeholder="Couleur (ex. RAL 7022)";other.value=isOther?cur:"";other.hidden=!isOther;other.setAttribute("aria-label","Autre couleur "+p);
+    const set=v=>{vHab.col[p]=v;if(vForm)vForm.dirty=true;habUpdate()};
+    sel.onchange=()=>{if(sel.value==="__autre"){other.hidden=false;other.focus();set(other.value.trim())}else{other.hidden=true;set(sel.value)}};
+    other.oninput=()=>set(other.value.trim());
+    row.append(mk("b",null,p+" · "+vHab.ml[p].toFixed(1).replace(".",",")+" ml"),sel,other);box.appendChild(row)});
+  return box;
+}
 const cleanDots=s=>(s||"").replace(/\.{2,}|…/g,"").replace(/\s+/g," ").trim();
 function openConso(){
   const list=$("clist");list.innerHTML="";
@@ -1077,6 +1115,8 @@ function openConso(){
     card.appendChild(top);
     // coloris seulement pour le silicone et les mastics (demande de Steven) ; listes déroulantes pour les vis
     const title=segs[0]||"",isCol=/silicone|mastic/i.test(title),isVis=/^vis\b/i.test(title);
+    if(R.habTaken)return;
+    if(/^habillage/i.test(title)&&vHab&&vHab.cons){card.appendChild(habBlock(mk));list.appendChild(card);return}
     if(segs[0]&&artF&&(isCol||!/coloris/i.test(title)))card.appendChild(bindText(artF.f,/coloris/i.test(title)?"Précisez le coloris":"Précisez"));
     const colTxt=(R.cell.col||"").split("☐"),info=[isCol&&cleanDots(colTxt[0])&&"Coloris : "+cleanDots(colTxt[0]),cleanDots(R.cell.need)&&"Besoin calculé : "+cleanDots(R.cell.need),!R.fs.some(x=>x.r==="rem")&&cleanDots(R.cell.rem)].filter(Boolean).join(" · ");
     if(info)card.appendChild(mk("div","cinfo",info));
@@ -1114,6 +1154,8 @@ function openConso(){
 const HAB_OPTS=["","C20x20","C30x30","C40x40","C50x50","C60x60","P30","P40","P50","P60","P80","P100"];
 const HAB_POS={me:"Montant ext.",mi:"Montant int.",the:"Haut ext.",thi:"Haut int.",tbe:"Bas ext.",tbi:"Bas int."};
 let vHab=null;
+const OPT_DEL=[0,1,2,3,4,8,9],OPT_NEW=[["rej","Création de rejingot"],["del","Délignage des cochonnets"]];
+const OPT_COVERS=[0,1,2,3,4].map(k=>[34+k*150,77]).concat([[484,61],[634,61]]);
 const habNorm=s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9/()]+/g,"");
 function habPlace(el,P,x,y,w,h){Object.assign(el.style,{left:pct(x,P.w0),top:pct(P.h0-y-h,P.h0),width:pct(w,P.w0),height:pct(h,P.h0)})}
 function setupHab(fields){
@@ -1139,10 +1181,20 @@ function setupHab(fields){
         P.box.appendChild(el);vHab.sel.push({pi,k,el,x,y,w:W,h:H});
       });
       vHab.pages.push({pi,reps});
-      // cases « Cornière, Tôle pliée, Couvre-joint, Tapée » en double : masquées ; les autres options ne bloquent plus
+      // options : Cornière, Tôle pliée, Couvre-joint, Tapée (en double), Bavette, Mousse + compribande, Silicone retirées ;
+      // ajout de « Création de rejingot » et « Délignage des cochonnets » à leur place ; aucune option ne bloque
       fields.forEach(f=>{const m=/^opt_\d+_(\d+)$/.exec(f.name);if(!m||f.pi!==pi)return;f.free=true;
-        if(+m[1]<=3){f.el.closest("label").style.visibility="hidden";f.habHidden=true}});
-      for(let k=0;k<4;k++){const d=document.createElement("div");d.className="habwhite";habPlace(d,P,34+k*150,77,140,16);P.box.appendChild(d)}
+        if(OPT_DEL.includes(+m[1])){f.el.closest("label").style.visibility="hidden";f.habHidden=true}});
+      fields.forEach(f=>{if(f.pi===pi&&/^optx_/.test(f.name))f.free=true});
+      if(!fields.some(f=>f.name==="optx_"+pi+"_rej")){
+        OPT_COVERS.forEach(([x,y])=>{const d=document.createElement("div");d.className="habwhite";habPlace(d,P,x,y,140,16);P.box.appendChild(d)});
+        OPT_NEW.forEach(([id,lab],k)=>{const x=36+k*150,y=80;
+          const hit=document.createElement("label");hit.className="hit";Object.assign(hit.style,{left:pct(x+5,P.w0),top:pct(P.h0-y-5,P.h0),width:cqw(16,P.w0),height:cqw(16,P.w0)});
+          const el=document.createElement("input");el.type="checkbox";el.className="fld";Object.assign(el.style,{width:cqw(10,P.w0),height:cqw(10,P.w0)});el.setAttribute("aria-label",lab);
+          el.addEventListener("change",()=>{if(vForm)vForm.dirty=true});hit.appendChild(el);
+          const t=document.createElement("div");t.className="optlab";habPlace(t,P,x+14,y-1,132,11);t.style.fontSize=cqw(7.5,P.w0);t.textContent=lab;
+          P.box.append(t,hit);fields.push({name:"optx_"+pi+"_"+id,cb:true,multi:false,el,pi,cy:y+5,x,top:y+10,free:true,newOpt:{lab,x,y}})});
+      }
       vHab.opts.push(pi);
       return;
     }
@@ -1161,6 +1213,23 @@ function setupHab(fields){
     });
   });
   if(!vHab.pages.length){vHab=null;return}
+  // consommables : une ligne par type d'habillage (longueur + couleur), sur la ligne « Habillages » et la ligne vide en dessous
+  vHab.col={};vHab.cons=null;
+  cTables.forEach(T=>T.rows.forEach((R,k)=>{if(vHab.cons||R.head||!/^Habillage/i.test(R.cell.art||""))return;
+    const P=vPages[T.pi],nf=R.fs.find(x=>x.r==="need"&&!x.f.cb);if(!nf)return;
+    const fw=f=>parseFloat(f.el.style.width)/100*P.w0,fh=f=>parseFloat(f.el.style.height)/100*P.h0;
+    const colC=T.h.cols.find(c=>/^Coloris/.test(c.s)),x0=colC?colC.x-3:nf.f.x,x1=nf.f.x+fw(nf.f),top=nf.f.top;let bot=top-fh(nf.f);
+    const hide=[nf.f],R2=T.rows[k+1];
+    if(R2&&!R2.head&&!cleanDots(R2.cell.art)&&R2.fs.every(x=>x.f.cb?!x.f.el.checked:!x.f.el.value.trim())){
+      R2.fs.forEach(x=>hide.push(x.f));R2.habTaken=true;
+      const b2=R2.fs.filter(x=>!x.f.cb).map(x=>x.f.top-fh(x.f));if(b2.length)bot=Math.min(bot,...b2)}
+    if(/ ml( ·|$)/.test(nf.f.el.value))nf.f.el.value="";
+    hide.forEach(f=>{f.free=true;f.habHidden=true;(f.cb?f.el.closest("label"):f.el).style.visibility="hidden"});
+    const el=document.createElement("button");el.type="button";el.className="habcons";habPlace(el,P,x0,bot,x1-x0,top-bot);
+    el.style.fontSize=`max(11px, ${cqw(7,P.w0)})`;el.title="Couleurs des habillages";el.onclick=openConso;P.box.appendChild(el);
+    ((P.habVals||{})["habconso_"+T.pi]||"").split("\n").forEach(l=>{const m=/^(\S+) — [\d,]+ ml(?: — (.+))?$/.exec(l.trim());if(m&&m[2])vHab.col[m[1]]=m[2]});
+    vHab.cons={pi:T.pi,x0,x1,top,bot,el,def:cleanDots((R.cell.col||"").split("☐")[0])};
+  }));
   habUpdate(true);
 }
 function habFmt(v){return[["Mont.","me","mi"],["Haut","the","thi"],["Bas","tbe","tbi"]].map(([l,e,i])=>v[e]||v[i]?l+" "+(v[e]||"—")+"/"+(v[i]||"—"):"").filter(Boolean).join(" · ")}
@@ -1172,7 +1241,12 @@ function habUpdate(first){
   vHab.rows.forEach(r=>{const k=habNorm(r.rep),v=by[k]||Object.entries(by).find(([n])=>k&&(n.startsWith(k)||k.startsWith(n)))?.[1]||{};
     r.text=habFmt(v);r.el.textContent=r.text||"à choisir sur le croquis en annexe";r.el.classList.toggle("vide",!r.text)});
   vHab.total=Object.entries(ml).sort().map(([p,m])=>p+" : "+m.toFixed(1).replace(".",",")+" ml").join(" · ");
-  // total dans la ligne « Habillages » des consommables (case Besoin calculé)
+  vHab.ml=ml;
+  if(vHab.cons){const C=vHab.cons;
+    vHab.lines=Object.entries(ml).sort().map(([p,m])=>{const c=vHab.col[p]||C.def;return p+" — "+m.toFixed(1).replace(".",",")+" ml"+(c?" — "+c:"")});
+    C.el.innerHTML="";vHab.lines.forEach(l=>{const d=document.createElement("div");d.textContent=l;C.el.appendChild(d)});
+    if(!vHab.lines.length)C.el.textContent="Habillages : à choisir sur les croquis en annexe";C.el.classList.toggle("vide",!vHab.lines.length);return}
+  // ancienne présentation : total dans la ligne « Habillages » des consommables (case Besoin calculé)
   cTables.forEach(T=>T.rows.forEach(R=>{if(!/^Habillage/i.test(R.cell.art||""))return;
     const nf=R.fs.find(x=>x.r==="need"&&!x.f.cb)||R.fs.find(x=>x.r==="qty"&&!x.f.cb);if(!nf)return;const el=nf.f.el;
     if(first&&!vHab.total)return;if(el.value===vHab.total)return;
@@ -1187,8 +1261,15 @@ function habSave(doc,form,font){
     if(s.el.value||has)field(name,s.pi,s.x,s.y,s.w,s.h,7).setText(s.el.value?HAB_POS[s.k]+" : "+s.el.value:"")});
   vHab.rows.forEach(r=>{r.hidden.forEach(rm);
     const tf=field("habres_"+r.pi+"_"+Math.round(r.y),r.pi,r.x0,r.y-3,r.x1-r.x0,11,5.5);tf.setText(clean(r.text||"voir croquis en annexe"));tf.enableReadOnly()});
-  vHab.opts.forEach(pi=>{const pg=doc.getPage(pi);vForm.fields.filter(f=>f.pi===pi&&/^opt_\d+_[0-3]$/.test(f.name)).forEach(f=>rm(f.name));
-    for(let k=0;k<4;k++)pg.drawRectangle({x:34+k*150,y:77,width:140,height:16,color:white})});
+  vHab.opts.forEach(pi=>{const pg=doc.getPage(pi),fresh=vForm.fields.filter(f=>f.pi===pi&&f.newOpt);if(!fresh.length)return;
+    vForm.fields.filter(f=>{const m=/^opt_\d+_(\d+)$/.exec(f.name);return f.pi===pi&&m&&OPT_DEL.includes(+m[1])}).forEach(f=>rm(f.name));
+    OPT_COVERS.forEach(([x,y])=>pg.drawRectangle({x,y,width:140,height:16,color:white}));
+    fresh.forEach(f=>{let cb;try{cb=form.getCheckBox(f.name)}catch(_){cb=form.createCheckBox(f.name);
+      cb.addToPage(pg,{x:f.newOpt.x,y:f.newOpt.y,width:10,height:10,borderWidth:.8,borderColor:PDFLib.rgb(.35,.35,.35),backgroundColor:white})}
+      pg.drawText(f.newOpt.lab,{x:f.newOpt.x+14,y:f.newOpt.y+2,size:7.5,font,color:PDFLib.rgb(.1,.1,.1)});f.el.checked?cb.check():cb.uncheck()})});
+  if(vHab.cons){const C=vHab.cons,n=Math.max(1,(vHab.lines||[]).length),h=C.top-C.bot;
+    const tf=field("habconso_"+C.pi,C.pi,C.x0,C.bot,C.x1-C.x0,h,+Math.max(4,Math.min(8,(h-2)/n/1.2)).toFixed(1));
+    tf.enableMultiline();tf.setText(clean((vHab.lines||[]).join("\n")));tf.enableReadOnly()}
   // retire des pages les renvois vers les cases supprimées
   doc.getPages().forEach(pg=>{const a=pg.node.Annots();if(!a)return;for(let i=a.size()-1;i>=0;i--){const r=a.get(i);if(r instanceof PDFLib.PDFRef&&!doc.context.lookup(r))a.remove(i)}});
 }
@@ -1248,7 +1329,7 @@ async function startFill(){
         // nom et adresses : écrits depuis la fiche chantier, affichés tels quels
         if(a.fieldValue){const t=document.createElement("div");t.className="fldro";t.textContent=a.fieldValue;Object.assign(t.style,{left:pct(L,w0),top:pct(T,h0),width:pct(W,w0),fontSize:cqw(8,w0),fontWeight:/^client_nom/.test(a.fieldName)?"700":"400"});P.box.appendChild(t)}
         continue}
-      if(/^hab(res)?_/.test(a.fieldName)){P.habVals[a.fieldName]=a.fieldValue||"";continue}
+      if(/^hab(res|conso)?_/.test(a.fieldName)){P.habVals[a.fieldName]=a.fieldValue||"";continue}
       if(a.fieldType==="Btn"){
         // case à cocher : zone de toucher agrandie autour de la petite case du PDF
         const hit=document.createElement("label");hit.className="hit";
@@ -1260,7 +1341,9 @@ async function startFill(){
       const f=addText(a.fieldName,L,T,W,H,Math.abs(a.rect[3]-a.rect[1])>45,a.fieldValue);
       f.setAttribute("aria-label",a.alternativeText||a.fieldName);fields[fields.length-1].cy=(a.rect[1]+a.rect[3])/2;fields[fields.length-1].x=Math.min(a.rect[0],a.rect[2]);
     }
-    const items=(await P.page.getTextContent()).items;P.items=items;P.hrows=null;
+    const WIPE=/^(si r[ée]no|selon support)$/i,all=(await P.page.getTextContent()).items,items=all.filter(t=>!WIPE.test(t.str.trim()));P.items=items;P.hrows=null;
+    P.wipe=all.filter(t=>WIPE.test(t.str.trim())).map(t=>{const h=Math.abs(t.transform[3])||7,r={x:t.transform[4]-1,y:t.transform[5]-h*.3,w:t.width+2,h:h*1.4};
+      const d=document.createElement("div");d.className="habwhite";habPlace(d,P,r.x,r.y,r.w,r.h);P.box.appendChild(d);return r});
     P.labels=items.filter(t=>/:\s*$|:\s/.test(t.str)).map(t=>({x:t.transform[4],y:t.transform[5]}));
     // cadre « Croquis et remarques » des anciennes fiches : pas de champ dans le PDF, on en crée un (ajouté au PDF à l'enregistrement)
     const head=items.find(t=>/croquis et remarques/i.test(t.str));
@@ -1291,7 +1374,7 @@ async function startFill(){
   fields.forEach(f=>{if(!f.cb&&!f.req)f.el.classList.add("opt")});
   vForm={fields,dirty:false,saving:false};
   P0:{const upd=()=>{let n=0;const groups={};
-    fields.forEach(f=>{if(f.cb){if(!f.free)(groups[f.group]=groups[f.group]||[]).push(f)}else{const need=f.req&&!f.el.value.trim();f.el.classList.toggle("need",need);if(need)n++}});
+    fields.forEach(f=>{if(f.cb){if(!f.free)(groups[f.group]=groups[f.group]||[]).push(f);else f.el.classList.remove("need")}else{const need=f.req&&!f.el.value.trim();f.el.classList.toggle("need",need);if(need)n++}});
     Object.values(groups).forEach(g=>{const need=!g.some(f=>f.el.checked);g.forEach(f=>f.el.classList.toggle("need",need));if(need)n++});
     vForm.reste=n;vForm.total=fields.filter(f=>f.req).length+Object.keys(groups).length;showFill(n)};
     fields.forEach(f=>f.el.addEventListener(f.cb?"change":"input",()=>{vForm.dirty=true;upd()}));vForm.upd=upd;upd()}
@@ -1316,6 +1399,7 @@ async function saveFill(){
       tf.addToPage(doc.getPage(f.synth.pi),{x:x1,y:y1,width:x2-x1,height:y2-y1,borderWidth:0,font});tf.setFontSize(10);
       tf.setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF\n€œŒ’‘“”–—…]/g,""))}catch(_){}}}
     try{habSave(doc,form,font)}catch(_){}
+    vPages.forEach((P,pi)=>(P.wipe||[]).forEach(r=>{try{doc.getPage(pi).drawRectangle({x:r.x,y:r.y,width:r.w,height:r.h,color:PDFLib.rgb(1,1,1)})}catch(_){}}));
     form.updateFieldAppearances(font);
     // traits au stylet : dessinés pour de bon dans la page du PDF
     const inked=new Set(d0.encre||[]);
@@ -1446,6 +1530,7 @@ async function doJoin(id){
       if(!r){r=rows.find(x=>!used.has(x)&&x.art&&!x.label);if(r)put(r.art,o.a)}
       if(!r)continue;used.add(r);
       put(r.qty,o.q.join(" + "));put(r.col,[...new Set(o.c)].join(" / "));put(r.rem,o.d.join(" · "));
+      if(/habillage/i.test(r.label)&&r.rem&&next[r.rem]){try{const tf=form.getTextField(r.rem);tf.enableMultiline();tf.setFontSize(6)}catch(_){}}
     }
     form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
     auto={...auto,...next};
