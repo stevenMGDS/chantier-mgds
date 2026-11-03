@@ -158,6 +158,25 @@ textarea{min-height:64px;resize:vertical}
 .viewer .pen.on{box-shadow:0 0 0 3px var(--accent)}
 .viewer #vdraw.on{background:var(--s-orange);color:#fff;border-color:var(--s-orange)}
 .viewer #vfill{font:600 15px var(--f-body)}
+.viewer .cbtn{position:absolute;z-index:2;transform:translateY(-50%);font-size:max(12px,1.2cqw);padding:4px 10px;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.cpanel{position:absolute;top:0;right:0;bottom:0;width:min(560px,100%);z-index:45;background:var(--surface);border-left:1px solid var(--line);box-shadow:-6px 0 20px rgba(0,0,0,.2);display:flex;flex-direction:column}
+.cpanel .cbar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;border-bottom:1px solid var(--line)}.cpanel .cbar b{font:700 20px var(--f-display)}
+.cpanel .clist{flex:1;overflow:auto;padding:4px 16px 24px;display:flex;flex-direction:column;gap:10px}
+.cpanel .chead{margin:10px 0 0;font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.04em;color:var(--accent)}
+.cpanel .crow{background:var(--sunk);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.cpanel .ctop b{font:600 17px var(--f-body)}.cpanel .cinfo{font-size:14px;color:var(--muted)}
+.cpanel .chips,.cpanel .cline{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cpanel .chip{font:600 15px var(--f-body);min-height:44px;padding:8px 14px;border-radius:22px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.cpanel .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.cpanel .cin{font:16px var(--f-body);min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);flex:1;min-width:120px;box-sizing:border-box}
+.cpanel .qty{display:flex;align-items:center;gap:6px}.cpanel .qty .cin{width:80px;flex:none;min-width:0;text-align:center}.cpanel .qty .btn{min-width:44px;min-height:44px;font-size:20px;padding:4px}.cpanel .qty .small{font-size:14px}
+.cpanel .clab{font-size:14px;color:var(--muted)}
+.cam{position:fixed;inset:0;z-index:60;background:#000;display:flex;flex-direction:column}
+.cam video{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
+.cam .camb{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.cam .camb .btn{color:#fff;border-color:#888;min-height:48px}
+.cam .shot{width:76px;height:76px;border-radius:50%;border:5px solid #fff;background:#e33;cursor:pointer;flex:none}
+.cam .shot:active{transform:scale(.92)}
 @media (pointer:coarse){.viewer .vbar .btn{min-height:44px;padding:10px 16px;font-size:16px}.viewer .pen{width:40px;height:40px}.viewer label.hit{min-width:32px;min-height:32px}}
 .viewer .fld{position:absolute;box-sizing:border-box;margin:0;border:1.5px solid var(--accent);border-radius:2px;background:rgba(220,232,244,.85);color:#000;line-height:1.2;padding:0 2px;font-family:var(--f-body);resize:none}
 .viewer .fldro{position:absolute;color:#111;font-family:Helvetica,Arial,sans-serif;line-height:1.15;padding:1px 2px;pointer-events:none;white-space:pre-wrap}
@@ -212,7 +231,7 @@ textarea{min-height:64px;resize:vertical}
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="sheet" id="sheet" hidden aria-label="Fiche chantier"></aside>
-<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span class="vtools"><span id="vfill" role="status"></span><span class="zoom" id="vzoomg" hidden><button class="btn ghost" id="vzout" aria-label="Rétrécir la page">−</button><span id="vzoom">100 %</span><button class="btn ghost" id="vzin" aria-label="Agrandir la page">+</button></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn ghost" id="vdraw" hidden>✏️ Dessiner</button><span class="pens" id="vpens" hidden><button class="pen on" data-pen="#D0021B" style="background:#D0021B" aria-label="Crayon rouge"></button><button class="pen" data-pen="#1F5FBF" style="background:#1F5FBF" aria-label="Crayon bleu"></button><button class="pen" data-pen="#111111" style="background:#111" aria-label="Crayon noir"></button><button class="btn ghost" id="vundo">↶ Effacer le dernier trait</button></span><label class="btn ghost" id="vphoto" hidden>📷 Photo<input type="file" accept="image/*" capture="environment" hidden id="vphotoin"></label><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div></div>
+<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span class="vtools"><span id="vfill" role="status"></span><span class="zoom" id="vzoomg" hidden><button class="btn ghost" id="vzout" aria-label="Rétrécir la page">−</button><span id="vzoom">100 %</span><button class="btn ghost" id="vzin" aria-label="Agrandir la page">+</button></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn ghost" id="vconso" hidden>🧰 Consommables</button><button class="btn ghost" id="vdraw" hidden>✏️ Dessiner</button><span class="pens" id="vpens" hidden><button class="pen on" data-pen="#D0021B" style="background:#D0021B" aria-label="Crayon rouge"></button><button class="pen" data-pen="#1F5FBF" style="background:#1F5FBF" aria-label="Crayon bleu"></button><button class="pen" data-pen="#111111" style="background:#111" aria-label="Crayon noir"></button><button class="btn ghost" id="vundo">↶ Effacer le dernier trait</button></span><button class="btn ghost" id="vphoto" hidden>📷 Photo</button><input type="file" accept="image/*" multiple hidden id="vphotoin"><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div><div class="cam" id="cam" hidden role="dialog" aria-label="Appareil photo"><video id="camv" playsinline muted autoplay></video><div class="camb"><button class="btn ghost" id="camx">Annuler</button><button class="shot" id="camshot" aria-label="Prendre la photo"></button><button class="btn ghost" id="camfile">Photo existante</button></div></div><div class="cpanel" id="cpanel" hidden role="dialog" aria-label="Consommables"><div class="cbar"><b>🧰 Consommables</b><button class="btn" id="cdone">Terminé</button></div><p class="sub" style="margin:0;padding:8px 16px">Indiquez les quantités avec − et +. Tout est facultatif : ne remplissez que ce qui sert.</p><div class="clist" id="clist"></div></div></div>
 <div class="toast" id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
@@ -901,7 +920,7 @@ function setZoom(z){
   if(vForm)try{localStorage.setItem("mgds-zoom",String(vZoom))}catch(_){}
 }
 function resetTools(){
-  ["vedit","vsave","vnext","vdraw","vpens","vphoto","vzoomg"].forEach(x=>$(x).hidden=true);
+  ["vedit","vsave","vnext","vdraw","vpens","vphoto","vzoomg","vconso","cpanel"].forEach(x=>$(x).hidden=true);if(camStream)closeCam();
   vDraw.on=false;$("viewer").classList.remove("drawing");$("vdraw").classList.remove("on");$("vdraw").textContent="✏️ Dessiner";
 }
 // ---------- dessin au stylet ----------
@@ -944,6 +963,109 @@ function setDraw(on){
   pg.addEventListener("pointerup",end);pg.addEventListener("pointercancel",end);
 })();
 
+// ---------- colonnes des tableaux : remarques facultatives, consommables ----------
+// En-têtes de colonnes reconnus ; un champ dépend de la ligne d'en-têtes la plus proche au-dessus de lui,
+// sauf si un titre de section en capitales les sépare (le tableau est alors terminé).
+const HDR=/^(Remarque|Article|Coloris|Besoin|Qt[ée]|Charg[ée]|Rep[èe]re|D[ée]signation|Cote|Tableau|Hors tout|Type de pose|Point contr|OK$|NC$|S\.O\.|Pos[ée]e|Man[œo]euvre|[ÉE]tanch|Finitions)/;
+const isCaps=s=>(s.match(/[A-ZÀ-Ü]/g)||[]).length>=8&&!/[a-zà-ÿ0-9]/.test(s);
+function hrowsOf(P){
+  if(!P.hrows){const m=new Map();
+    P.items.filter(t=>HDR.test(t.str.trim())).forEach(t=>{const k=Math.round(t.transform[5]/4);if(!m.has(k))m.set(k,[]);m.get(k).push(t)});
+    P.hrows=[...m.values()].filter(r=>r.length>=2).map(r=>({y:r[0].transform[5],cols:r.map(t=>({x:t.transform[4],s:t.str.trim()})).sort((a,b)=>a.x-b.x)}));
+    P.caps=P.items.filter(t=>isCaps(t.str.trim())).map(t=>t.transform[5])}
+  return P.hrows}
+function tableOf(f){
+  const P=vPages[f.pi],h=hrowsOf(P).filter(r=>r.y>f.top-2).sort((a,b)=>a.y-b.y)[0];
+  if(!h||P.caps.some(y=>y<h.y-2&&y>f.top+2))return null;
+  let col=h.cols[0];h.cols.forEach(c=>{if(c.x<=f.x+4)col=c});return{h,col}}
+// facultatif : colonnes « Remarque », champ précédé de « Remarque(s) : » ou « Observations », tout le tableau des consommables
+function classify(fields){
+  fields.forEach(f=>{const t=tableOf(f);f.tab=t;if(!t)return;
+    f.conso=t.h.cols.some(c=>/^Article/.test(c.s));if(f.conso||/^Remarque/.test(t.col.s))f.free=true});
+  fields.forEach(f=>{if(f.cb||f.free)return;
+    if(vPages[f.pi].items.some(t=>/remarque|observation/i.test(t.str)&&Math.abs(t.transform[5]-f.cy)<7&&t.transform[4]<f.x&&t.transform[4]>f.x-160))f.free=true});
+}
+// Fenêtre « Consommables » : une ligne par article, avec de gros boutons, reliée aux cases de la fiche
+let cTables=[];
+function buildConso(fields){
+  cTables=[];const by=new Map();
+  fields.filter(f=>f.conso).forEach(f=>{const k=f.pi+":"+Math.round(f.tab.h.y);if(!by.has(k))by.set(k,{pi:f.pi,h:f.tab.h,fs:[]});by.get(k).fs.push(f)});
+  for(const T of by.values()){
+    const P=vPages[T.pi],cols=T.h.cols,role=s=>/^Article/.test(s)?"art":/^Qt/.test(s)?"qty":/^Charg/.test(s)?"chg":/^Remarque/.test(s)?"rem":/^Coloris/.test(s)?"col":/^Besoin/.test(s)?"need":"other";
+    const colOf=x=>{let c=cols[0];cols.forEach(k=>{if(k.x<=x+4)c=k});return c};
+    // bandes de lignes : hauteur des cellules texte, ou de la case à cocher
+    // les cellules (hautes) définissent les lignes ; cases et petits champs se rangent dans la ligne qui les contient
+    const bands=[],hgt=f=>f.cb?0:parseFloat(f.el.style.height)/100*P.h0;
+    [...T.fs].sort((a,b)=>hgt(b)-hgt(a)).forEach(f=>{const r=hgt(f)>14?[f.top-hgt(f),f.top]:[f.cy-5,f.cy+5];
+      const b=bands.find(b=>hgt(f)>14?r[0]<b[1]-2&&r[1]>b[0]+2:f.cy>b[0]&&f.cy<b[1]);if(b){b[0]=Math.min(b[0],r[0]);b[1]=Math.max(b[1],r[1]);b.fs.push(f)}else{const n=[r[0],r[1]];n.fs=[f];bands.push(n)}});
+    bands.sort((a,b)=>b[1]-a[1]);
+    const hasChg=cols.some(c=>role(c.s)==="chg");
+    const rows=bands.map(b=>{
+      const txt=c=>{const nx=cols[cols.indexOf(c)+1];return P.items.filter(t=>{const y=t.transform[5],x=t.transform[4];return y>b[0]-1&&y<b[1]+1&&x>=c.x-4&&(!nx||x<nx.x-4)&&t.str.trim()})
+        .sort((a,b2)=>b2.transform[5]-a.transform[5]||a.transform[4]-b2.transform[4]).map(t=>t.str).join(" ").replace(/\s+/g," ").trim()};
+      const cell={};cols.forEach(c=>cell[role(c.s)]=(cell[role(c.s)]?cell[role(c.s)]+" ":"")+txt(c));
+      const fs=b.fs.map(f=>({f,r:role(colOf(f.x).s)}));
+      return{cell,fs,head:hasChg&&!fs.some(x=>x.f.cb&&x.r==="chg")&&!fs.some(x=>x.r==="art")}});
+    T.rows=rows;cTables.push(T);
+    // bouton posé sur la page, au-dessus du tableau
+    const btn=document.createElement("button");btn.type="button";btn.className="btn cbtn";btn.textContent="🧰 Remplir les consommables";btn.dataset.conso="1";
+    Object.assign(btn.style,{right:pct(Math.max(30,P.w0-cols[cols.length-1].x-60),P.w0),top:pct(P.h0-T.h.y-17,P.h0)});P.box.appendChild(btn);
+  }
+  $("vconso").hidden=!cTables.length;
+}
+function consoSummary(){
+  const out=[];
+  cTables.forEach(T=>T.rows.forEach(R=>{if(R.head)return;
+    const segs=(R.cell.art||"").split("☐").map(cleanDots),artF=R.fs.find(x=>x.r==="art"&&!x.f.cb&&!segs[0]);
+    const a=segs[0]||(artF&&artF.f.el.value.trim());if(!a)return;
+    const val=r=>R.fs.filter(x=>x.r===r&&!x.f.cb).map(x=>x.f.el.value.trim()).filter(Boolean).join(" ");
+    const pick=(r,lab)=>R.fs.filter(x=>x.r===r&&x.f.cb).sort((x,y)=>y.f.cy-x.f.cy||x.f.x-y.f.x).map((x,k)=>x.f.el.checked?lab[k+1]:"").filter(Boolean);
+    const colTxt=(R.cell.col||"").split("☐").map(cleanDots),colPick=pick("col",colTxt).filter(c=>!/^autre/i.test(c));
+    const c=[val("col")||colPick.join(", ")||(colTxt.length===1?colTxt[0]:"")].filter(Boolean).join(""),q=val("qty"),o=pick("art",segs).join(", ");
+    if(q||c||o)out.push({a,q,c,o})}));
+  return out;
+}
+const cleanDots=s=>(s||"").replace(/\.{2,}|…/g,"").replace(/\s+/g," ").trim();
+function openConso(){
+  const list=$("clist");list.innerHTML="";
+  const mk=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
+  const bindText=(f,ph,num)=>{const i=mk("input","cin");i.type="text";i.value=f.el.value;i.placeholder=ph;if(num)i.inputMode="decimal";
+    i.addEventListener("input",()=>{f.el.value=i.value;f.el.dispatchEvent(new Event("input"))});return i};
+  const bindChip=(f,label)=>{const b=mk("button","chip"+(f.el.checked?" on":""),label);b.type="button";b.setAttribute("aria-pressed",f.el.checked);
+    b.addEventListener("click",()=>{f.el.checked=!f.el.checked;b.classList.toggle("on",f.el.checked);b.setAttribute("aria-pressed",f.el.checked);f.el.dispatchEvent(new Event("change"))});return b};
+  cTables.forEach(T=>T.rows.forEach(R=>{
+    const segs=(R.cell.art||"").split("☐").map(cleanDots);
+    if(R.head){if(segs[0])list.appendChild(mk("h4","chead",segs[0]));return}
+    const card=mk("div","crow"),top=mk("div","ctop");
+    const artF=R.fs.find(x=>x.r==="art"&&!x.f.cb);
+    if(segs[0])top.appendChild(mk("b",null,segs[0]));else if(artF)top.appendChild(bindText(artF.f,"Article à ajouter"));else top.appendChild(mk("b",null,"Autre article"));
+    card.appendChild(top);
+    if(segs[0]&&artF)card.appendChild(bindText(artF.f,/coloris/i.test(segs[0])?"Précisez le coloris":"Précisez"));
+    const colTxt=(R.cell.col||"").split("☐"),info=[cleanDots(colTxt[0])&&"Coloris : "+cleanDots(colTxt[0]),cleanDots(R.cell.need)&&"Besoin calculé : "+cleanDots(R.cell.need),!R.fs.some(x=>x.r==="rem")&&cleanDots(R.cell.rem)].filter(Boolean).join(" · ");
+    if(info)card.appendChild(mk("div","cinfo",info));
+    // options à cocher (dimensions de compribande, coloris du silicone…)
+    const chips=mk("div","chips");
+    [["art",segs],["col",colTxt.map(cleanDots)]].forEach(([r,lab])=>{R.fs.filter(x=>x.r===r&&x.f.cb).sort((a,b)=>b.f.cy-a.f.cy||a.f.x-b.f.x).forEach((x,k)=>chips.appendChild(bindChip(x.f,lab[k+1]||"option "+(k+1))))});
+    if(chips.children.length)card.appendChild(chips);
+    const line=mk("div","cline");
+    R.fs.filter(x=>x.r==="col"&&!x.f.cb).forEach(x=>line.appendChild(bindText(x.f,colTxt.length>1?"Précisez le coloris":"Coloris")));
+    R.fs.filter(x=>x.r==="qty").forEach(x=>{const g=mk("div","qty"),i=bindText(x.f,"Quantité",true);
+      const step=d=>{const n=parseFloat((i.value||"0").replace(",","."))||0,v=Math.max(0,n+d);i.value=String(v).replace(".",",");i.dispatchEvent(new Event("input"))};
+      const m=mk("button","btn ghost","−"),p=mk("button","btn ghost","+");m.type=p.type="button";m.setAttribute("aria-label","Moins");p.setAttribute("aria-label","Plus");m.onclick=()=>step(-1);p.onclick=()=>step(1);
+      g.append(mk("span","clab","Quantité"),m,i,p);
+      const need=/(\d+(?:[.,]\d+)?)/.exec(R.cell.need||"");
+      if(need){const u=mk("button","btn ghost small","= "+need[1]);u.type="button";u.title="Reprendre le besoin calculé";u.onclick=()=>{i.value=need[1];i.dispatchEvent(new Event("input"))};g.appendChild(u)}
+      line.appendChild(g)});
+    R.fs.filter(x=>x.r==="chg"&&x.f.cb).forEach(x=>line.appendChild(bindChip(x.f,"✓ Chargé")));
+    R.fs.filter(x=>x.r==="need"&&!x.f.cb).forEach(x=>line.appendChild(bindText(x.f,"Besoin")));
+    R.fs.filter(x=>x.r==="other"&&!x.f.cb).forEach(x=>line.appendChild(bindText(x.f,"…")));
+    if(line.children.length)card.appendChild(line);
+    R.fs.filter(x=>x.r==="rem"&&!x.f.cb).forEach(x=>card.appendChild(bindText(x.f,"Remarque (facultatif)")));
+    list.appendChild(card);
+  }));
+  $("cpanel").hidden=false;list.scrollTop=0;
+}
+
 // ---------- fiches remplies dans l'appli ----------
 // Obligatoire : chaque champ texte d'une ligne (sauf remarques et grands cadres d'observations, et champs posés sur une ligne de cases à cocher),
 // et au moins une case cochée par ligne de cases (par groupe pour les options d'habillage de l'annexe).
@@ -967,7 +1089,7 @@ async function startFill(){
       // taille du texte proportionnelle à la page, jamais en dessous de 12 px pour rester lisible
       const fpt=multi?10:Math.min(12,H*.68);el.style.fontSize="13px";el.style.fontSize=`max(12px, ${cqw(fpt,w0)})`;
       place(el,L,T,W,H);el.setAttribute("aria-label",name);P.box.appendChild(el);
-      fields.push({name,cb:false,multi,el,pi,cy:h0-(T+H/2),x:L,...extra});return el};
+      fields.push({name,cb:false,multi,el,pi,cy:h0-(T+H/2),x:L,top:h0-T,...extra});return el};
     for(const a of anns){
       const [x1,y1,x2,y2]=vpc.convertToViewportRectangle(a.rect),L=Math.min(x1,x2),T=Math.min(y1,y2),W=Math.abs(x2-x1),H=Math.abs(y2-y1);
       if(/^(client_nom|client_adresse|adresse_chantier)_/.test(a.fieldName)){
@@ -981,11 +1103,11 @@ async function startFill(){
         const el=document.createElement("input");el.type="checkbox";el.className="fld";el.checked=!!a.fieldValue&&a.fieldValue!=="Off";
         Object.assign(el.style,{width:cqw(W,w0),height:cqw(H,w0)});el.setAttribute("aria-label",a.alternativeText||a.fieldName);
         hit.appendChild(el);P.box.appendChild(hit);
-        fields.push({name:a.fieldName,cb:true,multi:false,el,pi,cy:(a.rect[1]+a.rect[3])/2,x:Math.min(a.rect[0],a.rect[2])});continue}
+        fields.push({name:a.fieldName,cb:true,multi:false,el,pi,cy:(a.rect[1]+a.rect[3])/2,x:Math.min(a.rect[0],a.rect[2]),top:Math.max(a.rect[1],a.rect[3])});continue}
       const f=addText(a.fieldName,L,T,W,H,Math.abs(a.rect[3]-a.rect[1])>45,a.fieldValue);
       f.setAttribute("aria-label",a.alternativeText||a.fieldName);fields[fields.length-1].cy=(a.rect[1]+a.rect[3])/2;fields[fields.length-1].x=Math.min(a.rect[0],a.rect[2]);
     }
-    const items=(await P.page.getTextContent()).items;
+    const items=(await P.page.getTextContent()).items;P.items=items;P.hrows=null;
     P.labels=items.filter(t=>/:\s*$|:\s/.test(t.str)).map(t=>({x:t.transform[4],y:t.transform[5]}));
     // cadre « Croquis et remarques » des anciennes fiches : pas de champ dans le PDF, on en crée un (ajouté au PDF à l'enregistrement)
     const head=items.find(t=>/croquis et remarques/i.test(t.str));
@@ -1011,14 +1133,16 @@ async function startFill(){
     const cut=g&&vPages[f.pi].labels.some(t=>Math.abs(t.y-f.cy)<7&&t.x>g.x&&t.x<f.x);
     f.group=g&&!cut?g.group:"g"+(++gn)});
   // texte obligatoire, sauf remarques, grands cadres, et petit champ collé juste après une case (« autre : … », nombre de grilles, remarque d'un contrôle)
-  fields.forEach(f=>{if(!f.cb)f.req=!f.multi&&!/^rem_/.test(f.name)&&!cbs.some(g=>!/^opt_/.test(g.name)&&near(f,g)&&g.x<f.x&&f.x-g.x<40)});
+  classify(fields);
+  fields.forEach(f=>{if(!f.cb)f.req=!f.free&&!f.multi&&!/^rem_/.test(f.name)&&!cbs.some(g=>!/^opt_/.test(g.name)&&near(f,g)&&g.x<f.x&&f.x-g.x<40)});
   fields.forEach(f=>{if(!f.cb&&!f.req)f.el.classList.add("opt")});
   vForm={fields,dirty:false,saving:false};
   P0:{const upd=()=>{let n=0;const groups={};
-    fields.forEach(f=>{if(f.cb){(groups[f.group]=groups[f.group]||[]).push(f)}else{const need=f.req&&!f.el.value.trim();f.el.classList.toggle("need",need);if(need)n++}});
+    fields.forEach(f=>{if(f.cb){if(!f.free)(groups[f.group]=groups[f.group]||[]).push(f)}else{const need=f.req&&!f.el.value.trim();f.el.classList.toggle("need",need);if(need)n++}});
     Object.values(groups).forEach(g=>{const need=!g.some(f=>f.el.checked);g.forEach(f=>f.el.classList.toggle("need",need));if(need)n++});
     vForm.reste=n;vForm.total=fields.filter(f=>f.req).length+Object.keys(groups).length;showFill(n)};
     fields.forEach(f=>f.el.addEventListener(f.cb?"change":"input",()=>{vForm.dirty=true;upd()}));upd()}
+  buildConso(fields);
   $("vsave").hidden=false;$("vdraw").hidden=false;$("vphoto").hidden=vDoc.type!=="Métré";vDraw.stack=[];
   toast("Touchez une case pour la remplir. Les cases en jaune sont obligatoires. « Dessiner » pour tracer au stylet.");
 }
@@ -1050,6 +1174,7 @@ async function saveFill(){
     const i=docs.findIndex(x=>x.id===d0.id);
     const nd={...d0,id:r.id,size:r.sizeBytes,at:today(),by:me||"",traite:false,rempli:{reste:vForm.reste,total:vForm.total,le:today()}};
     if(inked.size)nd.encre=[...inked].sort((a,b)=>a-b);
+    if(d0.type==="Métré"&&cTables.length)nd.conso=consoSummary();
     const newInk=vPages.some(P=>P.strokes&&P.strokes.length);
     vPages.forEach(P=>{if(P.strokes){P.done.push(...P.strokes);P.strokes=[]}});vDraw.stack=[];
     if(i>=0)docs[i]=nd;else docs.push(nd);
@@ -1058,7 +1183,7 @@ async function saveFill(){
     jobs.set(id,{...j,docs,steps:{...(j.steps||{}),...(patch.steps||{})}});vDoc=nd;vBlob=file;vForm.dirty=false;
     await save(id,patch);renderSheet();render();
     toast(vForm.reste?"Fiche enregistrée. Il reste "+vForm.reste+" case"+(vForm.reste>1?"s":"")+" à remplir.":patch.steps?"Fiche complète et enregistrée : l'étape « "+SK[k].l+" » est cochée.":"Fiche complète et enregistrée.");
-    if(d0.type==="Métré"&&newInk)setTimeout(()=>joinPrepa(id),2500);
+    if(d0.type==="Métré")setTimeout(()=>joinPrepa(id),2500);
   }catch(e){toast("La fiche n'a pas pu être enregistrée. Réessayez.")}
   finally{if(vForm)vForm.saving=false;$("vsave").disabled=false}
 }
@@ -1086,6 +1211,26 @@ async function addPhotos(files){
 }
 // Ajoute à la fin de la fiche de préparation (celle des poseurs) les pages dessinées du métré et les photos du métré.
 // Les pages ajoutées la fois précédente sont remplacées (nombre gardé dans « annexe »).
+// lignes de la liste de consommables de la préparation : libellé, champ quantité, champ coloris, champ article libre
+async function prepRows(data){
+  const pdf=await pdfjsLib.getDocument({data}).promise,out=[];
+  for(let n=1;n<=pdf.numPages;n++){
+    const page=await pdf.getPage(n),items=(await page.getTextContent()).items;
+    const art=items.find(t=>/^Article$/.test(t.str.trim()));if(!art)continue;
+    const hy=art.transform[5],hdr=items.filter(t=>Math.abs(t.transform[5]-hy)<4).map(t=>({x:t.transform[4],s:t.str.trim()})).sort((a,b)=>a.x-b.x);
+    const q=hdr.find(h=>/^Qt/.test(h.s));if(!q)continue;const qn=hdr[hdr.indexOf(q)+1];
+    const tx=(await page.getAnnotations()).filter(a=>a.subtype==="Widget"&&a.fieldType==="Tx"&&a.rect[3]<hy);
+    const cut=items.filter(t=>t.transform[5]<hy&&(t.str.match(/[A-ZÀ-Ü]/g)||[]).length>=8&&!/[a-zà-ÿ0-9]/.test(t.str)).map(t=>t.transform[5]).sort((a,b)=>b-a)[0]||0;
+    // une ligne = une cellule « quantité »
+    tx.filter(a=>a.rect[0]>=q.x-8&&(!qn||a.rect[0]<qn.x-4)&&a.rect[1]>cut).forEach(a=>{
+      const [y0,y1]=[Math.min(a.rect[1],a.rect[3]),Math.max(a.rect[1],a.rect[3])];
+      const label=items.filter(t=>t.transform[5]>y0-1&&t.transform[5]<y1+1&&t.transform[4]<q.x-4&&t.str.trim()).map(t=>t.str).join(" ").replace(/\.{2,}|☐/g,"").replace(/\s+/g," ").trim();
+      const inArt=tx.filter(b=>b.rect[0]<q.x-4&&b.rect[1]<y1&&b.rect[3]>y0);
+      const col=inArt.find(b=>b.rect[2]-b.rect[0]<80),free=inArt.find(b=>b.rect[2]-b.rect[0]>=80);
+      out.push({label,qty:a.fieldName,col:label&&col?col.fieldName:null,art:free?free.fieldName:null})});
+  }
+  return out;
+}
 let joinChain=Promise.resolve();
 function joinPrepa(id){joinChain=joinChain.then(()=>doJoin(id)).catch(()=>toast("Les croquis et photos n'ont pas pu être joints à la fiche de préparation. Ils restent dans les documents."));return joinChain}
 async function doJoin(id){
@@ -1093,10 +1238,33 @@ async function doJoin(id){
   const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name));
   const prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
   const photos=docs.filter(x=>x.type==="Photo"&&x.metre),pages=(metre&&metre.encre)||[];
-  if(!photos.length&&!pages.length)return;
-  if(!prep){toast("Pas de fiche de préparation dans ce chantier : croquis et photos restent dans les documents.");return}
-  toast("Ajout des croquis et photos à la fiche de préparation…");
-  const doc=await PDFLib.PDFDocument.load(await (await fetch("/_blob/"+prep.id)).arrayBuffer());
+  const sum=(metre&&metre.conso)||[];
+  if(!photos.length&&!pages.length&&!sum.length)return;
+  if(!prep){toast("Pas de fiche de préparation dans ce chantier : le métré reste dans les documents.");return}
+  toast("Mise à jour de la fiche de préparation…");
+  const bytes=new Uint8Array(await (await fetch("/_blob/"+prep.id)).arrayBuffer());
+  const doc=await PDFLib.PDFDocument.load(bytes.slice());
+  // consommables du métré recopiés dans la liste de la préparation (sans écraser ce que l'équipe a écrit elle-même)
+  let auto=prep.auto||{},nCons=0;
+  if(sum.length&&window.pdfjsLib){try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const rows=await prepRows(bytes.slice()),form=doc.getForm(),next={};
+    const put=(name,v)=>{if(!name||!v)return;try{const tf=form.getTextField(name),cur=(tf.getText()||"").trim();
+      if(!cur||cur===auto[name]){const t=clean(v).replace(/[^\x20-\x7E\xA0-\xFF€]/g,"");tf.setText(t);next[name]=t;nCons++}}catch(_){}};
+    const used=new Set(),find=re=>rows.find(r=>!used.has(r)&&re.test(r.label));
+    const MAP=[[/silicone/i,/silicone/i],[/compribande/i,/compribande/i],[/mousse\s*pu/i,/^mousse pu/i],[/habillage|t[ôo]le|corni[èe]re/i,/habillages/i],[/patte/i,/pattes de fixation/i],[/vis|cheville/i,/^vis b[ée]ton/i]];
+    const merged=new Map();
+    sum.forEach(x=>{const m=MAP.find(([a])=>a.test(x.a));const k=m?m[1].source:"libre:"+x.a;
+      const o=merged.get(k)||{re:m&&m[1],a:x.a,q:[],c:[]};if(x.q)o.q.push(x.q+(x.o?" ("+x.o+")":"")+(m&&merged.has(k)||/silicone/i.test(x.a)?" "+x.a.replace(/silicone\s*/i,"").replace(/ext[ée]rieur/i,"ext.").replace(/int[ée]rieur/i,"int."):""));if(x.c)o.c.push(x.c.replace(/\s*\(.*?\)/g,""));merged.set(k,o)});
+    for(const o of merged.values()){
+      let r=o.re&&find(o.re);
+      if(!r){r=rows.find(x=>!used.has(x)&&x.art&&!x.label);if(r)put(r.art,o.a)}
+      if(!r)continue;used.add(r);
+      put(r.qty,o.q.join(" + "));put(r.col,[...new Set(o.c)].join(" / "));
+    }
+    form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
+    auto={...auto,...next};
+  }catch(_){}}
   for(let k=0;k<(prep.annexe||0)&&doc.getPageCount()>1;k++)doc.removePage(doc.getPageCount()-1);
   const font=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold),imgs=[];
   if(pages.length&&window.pdfjsLib){
@@ -1119,13 +1287,15 @@ async function doJoin(id){
     pg.drawImage(e,{x:36+(mw-e.width*k)/2,y:36+(mh-e.height*k)/2,width:e.width*k,height:e.height*k});added++}catch(_){}}
   const file=new File([await doc.save()],prep.name,{type:"application/pdf"}),r=await assets.upload(file,{type:"application/pdf"});
   const j2=jobs.get(id)||{},d2=(j2.docs||[]).map(x=>({...x})),i=d2.findIndex(x=>x.id===prep.id);if(i<0)return;
-  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
+  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
   if(openId===id)renderSheet();
-  toast("Croquis et photos joints à la fiche de préparation ("+added+" page"+(added>1?"s":"")+").");
+  toast("Fiche de préparation mise à jour"+(nCons?" : consommables repris du métré":"")+(added?(nCons?",":" :")+" "+added+" page"+(added>1?"s":"")+" de croquis et photos":"")+".");
 }
 // barre d'outils du visualiseur : zoom, dessin, photo
 $("viewer").addEventListener("click",e=>{
-  const t=e.target.closest("#vzin,#vzout,#vdraw,#vundo,[data-pen]");if(!t)return;
+  const t=e.target.closest("#vzin,#vzout,#vdraw,#vundo,[data-pen],#vconso,[data-conso],#cdone");if(!t)return;
+  if(t.id==="vconso"||t.dataset.conso){if(vDraw.on)setDraw(false);openConso();return}
+  if(t.id==="cdone"){$("cpanel").hidden=true;return}
   if(t.id==="vzin")setZoom(ZOOMS.find(z=>z>vZoom+.01)||vZoom);
   else if(t.id==="vzout")setZoom([...ZOOMS].reverse().find(z=>z<vZoom-.01)||vZoom);
   else if(t.id==="vdraw")setDraw(!vDraw.on);
@@ -1133,6 +1303,23 @@ $("viewer").addEventListener("click",e=>{
   else if(t.dataset.pen){vDraw.color=t.dataset.pen;document.querySelectorAll("#vpens .pen").forEach(b=>b.classList.toggle("on",b===t))}
 });
 addEventListener("resize",()=>{if(!$("viewer").hidden&&vPages.length)setZoom(vZoom)});
+// appareil photo ouvert dans l'appli (caméra arrière) ; sinon choix d'une photo
+let camStream=null;
+async function openCam(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$("vphotoin").click();return}
+  try{camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1440}},audio:false});
+    const v=$("camv");v.srcObject=camStream;$("cam").hidden=false;await v.play().catch(()=>{})}
+  catch(e){closeCam();toast(e&&e.name==="NotAllowedError"?"L'appli n'a pas le droit d'utiliser l'appareil photo : acceptez la demande d'autorisation, ou choisissez une photo existante.":"Appareil photo indisponible : choisissez une photo existante.");$("vphotoin").click()}
+}
+function closeCam(){if(camStream)camStream.getTracks().forEach(t=>t.stop());camStream=null;$("camv").srcObject=null;$("cam").hidden=true}
+$("vphoto").addEventListener("click",openCam);
+$("camx").addEventListener("click",closeCam);
+$("camfile").addEventListener("click",()=>{closeCam();$("vphotoin").click()});
+$("camshot").addEventListener("click",async()=>{
+  const v=$("camv");if(!v.videoWidth)return;const c=document.createElement("canvas");c.width=v.videoWidth;c.height=v.videoHeight;c.getContext("2d").drawImage(v,0,0);
+  const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.9));c.width=0;closeCam();
+  if(b)addPhotos([new File([b],"photo.jpg",{type:"image/jpeg"})]);
+});
 $("vphotoin").addEventListener("change",e=>{const fs=[...e.target.files];e.target.value="";addPhotos(fs)});
 // iPad / iPhone : pas de zoom automatique de toute la page quand on touche une case
 if(/iP(ad|hone|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)){const m=document.querySelector('meta[name="viewport"]');if(m&&!/maximum-scale/.test(m.content))m.content+=", maximum-scale=1"}
