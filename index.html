@@ -1873,7 +1873,7 @@ const prepTried=new Set();
 async function prepFromMetre(d){
   const id=openId,j=jobs.get(id)||{},docs=j.docs||[];if(!id||!(canWrite||canFill)||!assets||vForm)return;
   const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
-  if(consAdding||!metre||!metre.rempli||!prep||prep.id!==d.id||prep.poseIns||prepTried.has(metre.id+"|"+prep.id))return;
+  if(consAdding||!metre||!metre.rempli||!prep||prep.id!==d.id||(prep.poseIns&&prep.consV)||prepTried.has(metre.id+"|"+prep.id))return;
   prepTried.add(metre.id+"|"+prep.id);
   const busy=$("vpages");
   try{
@@ -1966,7 +1966,7 @@ async function doJoin(id){
     pg.drawImage(e,{x:36+(mw-e.width*k)/2,y:36+(mh-e.height*k)/2,width:e.width*k,height:e.height*k});added++}catch(_){}}
   const file=new File([await doc.save()],prep.name,{type:"application/pdf"}),r=await assets.upload(file,{type:"application/pdf"});
   const j2=jobs.get(id)||{},d2=(j2.docs||[]).map(x=>({...x})),i=d2.findIndex(x=>x.id===prep.id);if(i<0)return;
-  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto,poseIns};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
+  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto,poseIns,consV:1};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
   if(openId===id)renderSheet();
   toast("Fiche de préparation mise à jour"+(nCons?" : consommables repris du métré":"")+(added?(nCons?",":" :")+" "+added+" page"+(added>1?"s":"")+" de croquis et photos":"")+".");
 }
