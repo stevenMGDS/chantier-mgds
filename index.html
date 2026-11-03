@@ -183,7 +183,11 @@ textarea{min-height:64px;resize:vertical}
 .viewer .fldro{position:absolute;color:#111;font-family:Helvetica,Arial,sans-serif;line-height:1.15;padding:1px 2px;pointer-events:none;white-space:pre-wrap}
 .viewer .fld.opt{background:rgba(220,232,244,.45);border-style:dashed}
 .viewer textarea.fld{padding:4px 6px}
-.viewer .fld.need{background:rgba(255,236,150,.9);border-color:var(--s-orange)}
+.viewer .fld.need{background:rgba(255,214,90,.92);border:2px solid #E8590C;box-shadow:0 0 0 2px rgba(232,89,12,.3)}
+.viewer .fld.need:focus{box-shadow:0 0 0 4px rgba(232,89,12,.45)}
+.viewer .btn.miss{background:#E8590C;color:#fff}
+.cpanel .nitem{display:flex;justify-content:space-between;gap:10px;align-items:center;text-align:left;width:100%;font:15px var(--f-body);min-height:48px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);cursor:pointer}.cpanel .nitem small{color:var(--muted);flex:none}
+.viewer .fld.flash{animation:flash 1s ease 2}@keyframes flash{50%{box-shadow:0 0 0 8px rgba(232,89,12,.6)}}
 .viewer input.fld[type=checkbox]{appearance:none;-webkit-appearance:none;cursor:pointer;padding:0;min-width:14px;min-height:14px;border-width:2px;background:#fff}
 .viewer input.fld[type=checkbox]:checked{background:var(--accent);box-shadow:inset 0 0 0 2px #fff}
 .viewer .fld:focus{outline:2px solid var(--accent);outline-offset:1px}
@@ -232,7 +236,7 @@ textarea{min-height:64px;resize:vertical}
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="sheet" id="sheet" hidden aria-label="Fiche chantier"></aside>
-<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span class="vtools"><span id="vfill" role="status"></span><span class="zoom" id="vzoomg" hidden><button class="btn ghost" id="vzout" aria-label="Rétrécir la page">−</button><span id="vzoom">100 %</span><button class="btn ghost" id="vzin" aria-label="Agrandir la page">+</button></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn ghost" id="vconso" hidden>🧰 Consommables</button><button class="btn ghost" id="vdraw" hidden>✏️ Dessiner</button><span class="pens" id="vpens" hidden><button class="pen on" data-pen="#D0021B" style="background:#D0021B" aria-label="Crayon rouge"></button><button class="pen" data-pen="#1F5FBF" style="background:#1F5FBF" aria-label="Crayon bleu"></button><button class="pen" data-pen="#111111" style="background:#111" aria-label="Crayon noir"></button><button class="btn ghost" id="vundo">↶ Effacer le dernier trait</button></span><button class="btn ghost" id="vphoto" hidden>📷 Photo</button><input type="file" accept="image/*" multiple hidden id="vphotoin"><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div><div class="cam" id="cam" hidden role="dialog" aria-label="Appareil photo"><video id="camv" playsinline muted autoplay></video><div class="camb"><button class="btn ghost" id="camx">Annuler</button><button class="shot" id="camshot" aria-label="Prendre la photo"></button><button class="btn ghost" id="camfile">Photo existante</button></div></div><div class="cpanel" id="cpanel" hidden role="dialog" aria-label="Consommables"><div class="cbar"><b>🧰 Consommables</b><button class="btn" id="cdone">Terminé</button></div><p class="sub" style="margin:0;padding:8px 16px">Indiquez les quantités avec − et +. Tout est facultatif : ne remplissez que ce qui sert.</p><div class="clist" id="clist"></div></div></div>
+<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span class="vtools"><span id="vfill" role="status"></span><button class="btn miss" id="vmiss" hidden>📋 Ce qui manque</button><span class="zoom" id="vzoomg" hidden><button class="btn ghost" id="vzout" aria-label="Rétrécir la page">−</button><span id="vzoom">100 %</span><button class="btn ghost" id="vzin" aria-label="Agrandir la page">+</button></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn ghost" id="vconso" hidden>🧰 Consommables</button><button class="btn ghost" id="vdraw" hidden>✏️ Dessiner</button><span class="pens" id="vpens" hidden><button class="pen on" data-pen="#D0021B" style="background:#D0021B" aria-label="Crayon rouge"></button><button class="pen" data-pen="#1F5FBF" style="background:#1F5FBF" aria-label="Crayon bleu"></button><button class="pen" data-pen="#111111" style="background:#111" aria-label="Crayon noir"></button><button class="btn ghost" id="vundo">↶ Effacer le dernier trait</button></span><button class="btn ghost" id="vphoto" hidden>📷 Photo</button><input type="file" accept="image/*" multiple hidden id="vphotoin"><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div><div class="cam" id="cam" hidden role="dialog" aria-label="Appareil photo"><video id="camv" playsinline muted autoplay></video><div class="camb"><button class="btn ghost" id="camx">Annuler</button><button class="shot" id="camshot" aria-label="Prendre la photo"></button><button class="btn ghost" id="camfile">Photo existante</button></div></div><div class="cpanel" id="npanel" hidden role="dialog" aria-label="Cases à remplir"><div class="cbar"><b>📋 À remplir pour valider</b><button class="btn" id="ndone">Fermer</button></div><p class="sub" style="margin:0;padding:8px 16px">Ces cases bloquent la validation de la fiche. Touchez une ligne pour y aller. Les remarques et les consommables ne bloquent pas.</p><div class="clist" id="nlist"></div></div><div class="cpanel" id="cpanel" hidden role="dialog" aria-label="Consommables"><div class="cbar"><b>🧰 Consommables</b><button class="btn" id="cdone">Terminé</button></div><p class="sub" style="margin:0;padding:8px 16px">Indiquez les quantités avec − et +. Tout est facultatif : ne remplissez que ce qui sert.</p><div class="clist" id="clist"></div></div></div>
 <div class="toast" id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
@@ -921,7 +925,7 @@ function setZoom(z){
   if(vForm)try{localStorage.setItem("mgds-zoom",String(vZoom))}catch(_){}
 }
 function resetTools(){
-  ["vedit","vsave","vnext","vdraw","vpens","vphoto","vzoomg","vconso","cpanel"].forEach(x=>$(x).hidden=true);if(camStream)closeCam();
+  ["vedit","vsave","vnext","vdraw","vpens","vphoto","vzoomg","vconso","cpanel","npanel","vmiss"].forEach(x=>$(x).hidden=true);if(camStream)closeCam();
   vDraw.on=false;$("viewer").classList.remove("drawing");$("vdraw").classList.remove("on");$("vdraw").textContent="✏️ Dessiner";
 }
 // ---------- dessin au stylet ----------
@@ -1104,7 +1108,32 @@ function openConso(){
 // Obligatoire : chaque champ texte d'une ligne (sauf remarques et grands cadres d'observations, et champs posés sur une ligne de cases à cocher),
 // et au moins une case cochée par ligne de cases (par groupe pour les options d'habillage de l'annexe).
 const FORM_TYPES={"Métré":"metre","Préparation":"prepa","Réception":"recep"};
-function showFill(n){const e=$("vfill");e.textContent=n?n+" case"+(n>1?"s":"")+" à remplir":"Fiche complète ✓";e.className=n?"":"ok";$("vnext").hidden=!n||!vForm}
+function showFill(n){const e=$("vfill");e.textContent=n?n+" case"+(n>1?"s":"")+" à remplir":"Fiche complète ✓";e.className=n?"":"ok";$("vnext").hidden=!n||!vForm;$("vmiss").hidden=!n||!vForm;if(!n)$("npanel").hidden=true;else if(!$("npanel").hidden)openMissing()}
+// nom lisible d'une case : « Repère · colonne », sinon le texte juste à sa gauche
+function fieldLabel(f){
+  const P=vPages[f.pi],its=(P.items||[]).filter(t=>t.str.trim()&&!/^[☐.\s…]+$/.test(t.str));
+  const t=f.tab;let parts=[];
+  if(t){const c1=t.h.cols[1]?t.h.cols[1].x:Infinity;
+    const rep=its.filter(i=>i.transform[4]<c1-4&&i.transform[5]<t.h.y-2&&i.transform[5]>=f.cy-6).sort((a,b)=>a.transform[5]-b.transform[5])[0];
+    if(rep)parts.push(rep.str.trim());}
+  // texte à gauche, seulement s'il est dans la même colonne du tableau ; sinon le titre de la colonne
+  const left=its.filter(i=>Math.abs(i.transform[5]-f.cy)<6&&i.transform[4]<f.x-1&&i.transform[4]>f.x-220&&(!t||i.transform[4]>=t.col.x-4)).sort((a,b)=>b.transform[4]-a.transform[4])[0];
+  const lt=left&&left.str.replace(/\.{2,}|…/g,"").replace(/\s*:\s*$/,"").replace(/\s+/g," ").trim();
+  if(lt&&!parts.includes(lt))parts.push(lt);else if(t)parts.push(t.col.s);
+  return [...new Set(parts.filter(Boolean))].join(" · ").slice(0,90)||"Case sans titre";
+}
+function openMissing(){
+  if(!vForm)return;const list=$("nlist");list.innerHTML="";const seen=new Set(),items=[];
+  vForm.fields.forEach(f=>{if(!f.el.classList.contains("need"))return;const k=f.cb?"g"+f.group:f.name;if(seen.has(k))return;seen.add(k);items.push(f)});
+  items.sort((a,b)=>a.pi-b.pi||b.cy-a.cy||a.x-b.x);
+  let lastPi=-1;
+  items.forEach(f=>{if(f.pi!==lastPi){const h=document.createElement("h4");h.className="chead";h.textContent="Page "+(f.pi+1);list.appendChild(h);lastPi=f.pi}
+    const b=document.createElement("button");b.type="button";b.className="nitem";
+    const s1=document.createElement("span");s1.textContent=fieldLabel(f);const s2=document.createElement("small");s2.textContent=f.cb?"cocher une case":"à écrire";b.append(s1,s2);
+    b.onclick=()=>{if(matchMedia("(max-width:900px)").matches)$("npanel").hidden=true;f.el.scrollIntoView({block:"center",behavior:"smooth"});f.el.classList.add("flash");setTimeout(()=>{f.el.classList.remove("flash");if(!f.cb)f.el.focus({preventScroll:true})},1200)};
+    list.appendChild(b)});
+  $("cpanel").hidden=true;$("npanel").hidden=false;
+}
 const pct=(v,t)=>(v/t*100).toFixed(3)+"%",cqw=(v,t)=>(v/t*100).toFixed(3)+"cqw";
 async function startFill(){
   if(!vPdf||!vPages.length)return;$("vedit").hidden=true;
@@ -1233,11 +1262,8 @@ async function shrink(f){
 }
 // photo prise pendant le remplissage du métré : nouvelle page à la fin de la fiche, dessinable comme les autres
 async function photoPage(b,name){
-  const doc=await PDFLib.PDFDocument.load(await vBlob.arrayBuffer()),bytes=new Uint8Array(await b.arrayBuffer());
-  const e=/png/.test(b.type)?await doc.embedPng(bytes):await doc.embedJpg(bytes),font=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
-  const W=841.89,H=595.28,pg=doc.addPage([W,H]),mw=W-72,mh=H-90,k=Math.min(mw/e.width,mh/e.height);
-  pg.drawText(clean("Photo du metre · "+name.replace(/\.\w+$/,"")),{x:36,y:H-40,size:13,font});
-  pg.drawImage(e,{x:36+(mw-e.width*k)/2,y:36+(mh-e.height*k)/2,width:e.width*k,height:e.height*k});
+  const doc=await PDFLib.PDFDocument.load(await vBlob.arrayBuffer());
+  await addImgPage(doc,b,name);
   vBlob=new File([await doc.save()],vName||vDoc.name,{type:"application/pdf"});
   const pdf=await pdfjsLib.getDocument({data:await vBlob.arrayBuffer()}).promise;vPdf=pdf;
   const page=await pdf.getPage(pdf.numPages),v0=page.getViewport({scale:1}),bw=vPages[0]?vPages[0].c.width:1600,vp=page.getViewport({scale:bw/v0.width});
@@ -1249,21 +1275,31 @@ async function photoPage(b,name){
   vForm.photoPages=[...(vForm.photoPages||[]),vPages.length-1];vForm.dirty=true;
   box.scrollIntoView({block:"center",behavior:"smooth"});
 }
+// toutes les photos du métré dans UN seul document « Photos metre.pdf » (une page par photo), pour ne pas encombrer la fiche
+async function addImgPage(doc,b,title){
+  const bytes=new Uint8Array(await b.arrayBuffer()),e=/png/.test(b.type)?await doc.embedPng(bytes):await doc.embedJpg(bytes),font=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+  const W=841.89,H=595.28,pg=doc.addPage([W,H]),mw=W-72,mh=H-90,k=Math.min(mw/e.width,mh/e.height);
+  pg.drawText(clean(title),{x:36,y:H-40,size:13,font});
+  pg.drawImage(e,{x:36+(mw-e.width*k)/2,y:36+(mh-e.height*k)/2,width:e.width*k,height:e.height*k});
+}
 async function addPhotos(files){
   const id=openId;if(!id||!assets||!files.length)return;let ok=0,inMetre=0;
+  const inM=!!(vForm&&vDoc&&vDoc.type==="Métré");
   for(const f0 of files){
     toast("Enregistrement de la photo…");
-    try{const b=await shrink(f0),j=jobs.get(id)||{},n=(j.docs||[]).filter(x=>x.type==="Photo"&&x.metre).length+1;
-      const name="Photo metre "+today().split("-").reverse().slice(0,2).join("-")+" n"+n+(b.type==="image/png"?".png":".jpg");
-      const r=await assets.upload(new File([b],name,{type:b.type||"image/jpeg"}),{type:b.type||"image/jpeg"});
-      const inM=!!(vForm&&vDoc&&vDoc.type==="Métré"&&openId===id);
-      const j2=jobs.get(id)||{},docs=[...(j2.docs||[]),{id:r.id,name,type:"Photo",size:r.sizeBytes,at:today(),by:me||"",traite:true,metre:true,...(inM?{inMetre:true}:{})}];
+    try{const b=await shrink(f0),j=jobs.get(id)||{},alb=(j.docs||[]).find(x=>x.type==="Photo"&&x.album);
+      const doc=alb?await PDFLib.PDFDocument.load(await (await fetch("/_blob/"+alb.id)).arrayBuffer()):await PDFLib.PDFDocument.create();
+      const n=doc.getPageCount()+1,title="Photo du metre n°"+n+" · "+fr(today());
+      await addImgPage(doc,b,title);
+      const r=await assets.upload(new File([await doc.save()],"Photos metre.pdf",{type:"application/pdf"}),{type:"application/pdf"});
+      const j2=jobs.get(id)||{},docs=(j2.docs||[]).map(x=>({...x})),rec={id:r.id,name:"Photos metre.pdf",type:"Photo",size:r.sizeBytes,at:today(),by:me||"",traite:true,metre:true,album:true,n};
+      const i=docs.findIndex(x=>x.type==="Photo"&&x.album);if(i>=0)docs[i]=rec;else docs.push(rec);
       jobs.set(id,{...j2,docs});await save(id,{docs});ok++;
-      if(inM){try{await photoPage(b,name);inMetre++}catch(_){}}
+      if(inM&&openId===id){try{await photoPage(b,title);inMetre++}catch(_){}}
     }catch(e){toast(e&&e.code==="quota_or_state"?"Plus de place pour les documents : prévenez Steven.":"La photo n'a pas pu être enregistrée. Réessayez.")}
   }
   if(ok&&inMetre){renderSheet();toast(inMetre>1?inMetre+" photos ajoutées à la fin du métré : vous pouvez dessiner dessus. Pensez à « Enregistrer ».":"Photo ajoutée à la fin du métré : vous pouvez dessiner dessus. Pensez à « Enregistrer ».");return}
-  if(ok){renderSheet();toast(ok>1?ok+" photos rangées dans les documents du chantier.":"Photo rangée dans les documents du chantier.");setTimeout(()=>joinPrepa(id),2500)}
+  if(ok){renderSheet();toast("Photo ajoutée au fichier « Photos metre » du chantier.")}
 }
 // Ajoute à la fin de la fiche de préparation (celle des poseurs) les pages dessinées du métré et les photos du métré.
 // Les pages ajoutées la fois précédente sont remplacées (nombre gardé dans « annexe »).
@@ -1294,7 +1330,7 @@ async function doJoin(id){
   const j=jobs.get(id)||{},docs=j.docs||[];
   const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name));
   const prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
-  const photos=docs.filter(x=>x.type==="Photo"&&x.metre&&!x.inMetre),pages=[...new Set([...((metre&&metre.encre)||[]),...((metre&&metre.photos)||[])])].sort((a,b)=>a-b);
+  const photos=docs.filter(x=>x.type==="Photo"&&x.metre&&!x.inMetre&&!x.album),pages=[...new Set([...((metre&&metre.encre)||[]),...((metre&&metre.photos)||[])])].sort((a,b)=>a-b);
   const sum=(metre&&metre.conso)||[];
   if(!photos.length&&!pages.length&&!sum.length)return;
   if(!prep){toast("Pas de fiche de préparation dans ce chantier : le métré reste dans les documents.");return}
@@ -1350,8 +1386,10 @@ async function doJoin(id){
 }
 // barre d'outils du visualiseur : zoom, dessin, photo
 $("viewer").addEventListener("click",e=>{
-  const t=e.target.closest("#vzin,#vzout,#vdraw,#vundo,[data-pen],#vconso,[data-conso],#cdone");if(!t)return;
-  if(t.id==="vconso"||t.dataset.conso){if(vDraw.on)setDraw(false);openConso();return}
+  const t=e.target.closest("#vzin,#vzout,#vdraw,#vundo,[data-pen],#vconso,[data-conso],#cdone,#vmiss,#ndone");if(!t)return;
+  if(t.id==="vmiss"){if(vDraw.on)setDraw(false);openMissing();return}
+  if(t.id==="ndone"){$("npanel").hidden=true;return}
+  if(t.id==="vconso"||t.dataset.conso){if(vDraw.on)setDraw(false);$("npanel").hidden=true;openConso();return}
   if(t.id==="cdone"){$("cpanel").hidden=true;return}
   if(t.id==="vzin")setZoom(ZOOMS.find(z=>z>vZoom+.01)||vZoom);
   else if(t.id==="vzout")setZoom([...ZOOMS].reverse().find(z=>z<vZoom-.01)||vZoom);
