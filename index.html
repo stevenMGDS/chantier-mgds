@@ -1209,6 +1209,7 @@ async function saveFill(){
     const nd={...d0,id:r.id,size:r.sizeBytes,at:today(),by:me||"",traite:false,rempli:{reste:vForm.reste,total:vForm.total,le:today()}};
     if(inked.size)nd.encre=[...inked].sort((a,b)=>a-b);
     if(d0.type==="Métré"&&cTables.length)nd.conso=consoSummary();
+    if(vForm.photoPages&&vForm.photoPages.length){nd.photos=[...new Set([...(d0.photos||[]),...vForm.photoPages])].sort((a,b)=>a-b);vForm.photoPages=[]}
     const newInk=vPages.some(P=>P.strokes&&P.strokes.length);
     vPages.forEach(P=>{if(P.strokes){P.done.push(...P.strokes);P.strokes=[]}});vDraw.stack=[];
     if(i>=0)docs[i]=nd;else docs.push(nd);
@@ -1230,17 +1231,38 @@ async function shrink(f){
     c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(url);
     const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.82));c.width=0;return b||f}catch(_){return f}
 }
+// photo prise pendant le remplissage du métré : nouvelle page à la fin de la fiche, dessinable comme les autres
+async function photoPage(b,name){
+  const doc=await PDFLib.PDFDocument.load(await vBlob.arrayBuffer()),bytes=new Uint8Array(await b.arrayBuffer());
+  const e=/png/.test(b.type)?await doc.embedPng(bytes):await doc.embedJpg(bytes),font=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+  const W=841.89,H=595.28,pg=doc.addPage([W,H]),mw=W-72,mh=H-90,k=Math.min(mw/e.width,mh/e.height);
+  pg.drawText(clean("Photo du metre · "+name.replace(/\.\w+$/,"")),{x:36,y:H-40,size:13,font});
+  pg.drawImage(e,{x:36+(mw-e.width*k)/2,y:36+(mh-e.height*k)/2,width:e.width*k,height:e.height*k});
+  vBlob=new File([await doc.save()],vName||vDoc.name,{type:"application/pdf"});
+  const pdf=await pdfjsLib.getDocument({data:await vBlob.arrayBuffer()}).promise;vPdf=pdf;
+  const page=await pdf.getPage(pdf.numPages),v0=page.getViewport({scale:1}),bw=vPages[0]?vPages[0].c.width:1600,vp=page.getViewport({scale:bw/v0.width});
+  const box=document.createElement("div");box.className="pg";box.style.width=vPages[0]?vPages[0].box.style.width:Math.round(fitW()*vZoom)+"px";
+  const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;box.appendChild(c);$("vpages").appendChild(box);
+  await page.render({canvasContext:c.getContext("2d"),viewport:vp,annotationMode:pdfjsLib.AnnotationMode.DISABLE}).promise;
+  const ink=document.createElement("canvas");ink.className="ink";ink.width=Math.min(1600,c.width);ink.height=Math.round(ink.width*v0.height/v0.width);box.appendChild(ink);
+  const P={page,box,c,vp,w0:v0.width,h0:v0.height,ink,strokes:[],done:[],items:[],labels:[]};vPages.push(P);
+  vForm.photoPages=[...(vForm.photoPages||[]),vPages.length-1];vForm.dirty=true;
+  box.scrollIntoView({block:"center",behavior:"smooth"});
+}
 async function addPhotos(files){
-  const id=openId;if(!id||!assets||!files.length)return;let ok=0;
+  const id=openId;if(!id||!assets||!files.length)return;let ok=0,inMetre=0;
   for(const f0 of files){
     toast("Enregistrement de la photo…");
     try{const b=await shrink(f0),j=jobs.get(id)||{},n=(j.docs||[]).filter(x=>x.type==="Photo"&&x.metre).length+1;
       const name="Photo metre "+today().split("-").reverse().slice(0,2).join("-")+" n"+n+(b.type==="image/png"?".png":".jpg");
       const r=await assets.upload(new File([b],name,{type:b.type||"image/jpeg"}),{type:b.type||"image/jpeg"});
-      const j2=jobs.get(id)||{},docs=[...(j2.docs||[]),{id:r.id,name,type:"Photo",size:r.sizeBytes,at:today(),by:me||"",traite:true,metre:true}];
+      const inM=!!(vForm&&vDoc&&vDoc.type==="Métré"&&openId===id);
+      const j2=jobs.get(id)||{},docs=[...(j2.docs||[]),{id:r.id,name,type:"Photo",size:r.sizeBytes,at:today(),by:me||"",traite:true,metre:true,...(inM?{inMetre:true}:{})}];
       jobs.set(id,{...j2,docs});await save(id,{docs});ok++;
+      if(inM){try{await photoPage(b,name);inMetre++}catch(_){}}
     }catch(e){toast(e&&e.code==="quota_or_state"?"Plus de place pour les documents : prévenez Steven.":"La photo n'a pas pu être enregistrée. Réessayez.")}
   }
+  if(ok&&inMetre){renderSheet();toast(inMetre>1?inMetre+" photos ajoutées à la fin du métré : vous pouvez dessiner dessus. Pensez à « Enregistrer ».":"Photo ajoutée à la fin du métré : vous pouvez dessiner dessus. Pensez à « Enregistrer ».");return}
   if(ok){renderSheet();toast(ok>1?ok+" photos rangées dans les documents du chantier.":"Photo rangée dans les documents du chantier.");setTimeout(()=>joinPrepa(id),2500)}
 }
 // Ajoute à la fin de la fiche de préparation (celle des poseurs) les pages dessinées du métré et les photos du métré.
@@ -1272,7 +1294,7 @@ async function doJoin(id){
   const j=jobs.get(id)||{},docs=j.docs||[];
   const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name));
   const prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
-  const photos=docs.filter(x=>x.type==="Photo"&&x.metre),pages=(metre&&metre.encre)||[];
+  const photos=docs.filter(x=>x.type==="Photo"&&x.metre&&!x.inMetre),pages=[...new Set([...((metre&&metre.encre)||[]),...((metre&&metre.photos)||[])])].sort((a,b)=>a-b);
   const sum=(metre&&metre.conso)||[];
   if(!photos.length&&!pages.length&&!sum.length)return;
   if(!prep){toast("Pas de fiche de préparation dans ce chantier : le métré reste dans les documents.");return}
@@ -1310,7 +1332,7 @@ async function doJoin(id){
       c.width=vp.width;c.height=vp.height;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);
       await page.render({canvasContext:x,viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
       const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.85));c.width=0;
-      imgs.push({t:"Croquis du metre · page "+(n+1),b:new Uint8Array(await b.arrayBuffer()),png:false})}
+      imgs.push({t:((metre.photos||[]).includes(n)?"Photo du metre · page ":"Croquis du metre · page ")+(n+1),b:new Uint8Array(await b.arrayBuffer()),png:false})}
   }
   for(const p of photos){const r=await fetch("/_blob/"+p.id);if(!r.ok)continue;const b=await r.blob();
     imgs.push({t:"Photo du metre · "+clean(p.name).replace(/\.\w+$/,""),b:new Uint8Array(await b.arrayBuffer()),png:/png/.test(b.type)||/\.png$/i.test(p.name)})}
