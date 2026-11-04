@@ -5,8 +5,10 @@
   python3 -I outil/stock_import.py envoie <inventaire.xlsx> <AAAA-MM-JJ>  crée les articles absents et enregistre
                                                                          la quantité comptée ce jour-là (inventaire)
 
-Colonnes attendues (ligne 1) : DÉSIGNATION, QTÉ, FORMAT, Fournisseur, P.U. H.T. (le reste est ignoré).
-Un article déjà présent (même nom) n'est pas recréé : seul son comptage est ajouté.
+Fichier « Inventaire Stock valorisé » (serveur MGDS > CLIENTS) : feuilles « Pose - … » (stock pose), « Atelier - … »,
+« Joints - … », « Accessoires - … », « Profilés - … » (stock atelier ; barres comptées à la barre, avec leur localisation
+D 1, D 2… en emplacement). Un ancien fichier à une seule feuille est lu comme l'inventaire pose.
+Un article déjà présent (même stock, réf., nom, coloris, longueur, emplacement) n'est pas recréé : seul son comptage est ajouté.
 Accès : l'hôte Supabase est authentifié par le proxy de l'environnement « MGDS Supabase ».
 """
 import json, re, sys, urllib.request
@@ -58,21 +60,96 @@ def nombre(v):
         return 0.0
 
 
-def lire(xlsx):
-    ws = openpyxl.load_workbook(xlsx, data_only=True).active
+def txt(v):
+    return str(v).strip() if v not in (None, "") else ""
+
+
+def place(v):
+    """« D21 » / « D 21 » → « D 21 » ; vide ou 0 → None."""
+    t = txt(v).upper()
+    if t in ("", "0", "NONE"):
+        return None
+    m = re.fullmatch(r"([A-Z]+)\s*(\d+)", t)
+    return f"{m.group(1)} {m.group(2)}" if m else t
+
+
+def feuille_pose(ws):
     out = []
     for r in ws.iter_rows(min_row=2, values_only=True):
-        nom = str(r[0] or "").strip()
+        nom = txt(r[0])
         if not nom or nom.upper().startswith("TOTAL"):
             continue
-        fmt = str(r[2]).strip() if r[2] not in (None, "") else "unité"
+        fmt = txt(r[2]) or "unité"
         if re.fullmatch(r"\d+", fmt):  # « 500 » = boîte de 500
             fmt = f"Boîte de {fmt}"
-        four = str(r[3] or "").strip()
-        out.append({"nom": nom, "famille": famille(nom), "coloris": coloris(nom), "unite": fmt,
-                    "fournisseur": None if four in ("", "?") else four,
-                    "pu": nombre(r[4]) or None, "qte": nombre(r[1])})
+        four = txt(r[3])
+        out.append({"stock": "pose", "nom": nom, "famille": famille(nom), "coloris": coloris(nom), "unite": fmt,
+                    "fournisseur": None if four in ("", "?") else four, "pu": nombre(r[4]) or None, "qte": nombre(r[1])})
     return out
+
+
+def feuille_atelier(ws, fam, cols):
+    """cols : index (ref, nom, qte, unite, fournisseur ou None, pu)."""
+    out = []
+    for r in ws.iter_rows(min_row=2, values_only=True):
+        ref, nom = txt(r[cols[0]]), txt(r[cols[1]])
+        if (not nom and not ref) or nom.upper().startswith("TOTAL") or ref.upper().startswith("TOTAL"):
+            continue
+        four = txt(r[cols[4]]) if cols[4] is not None else ("Technal" if ref.startswith("T") else "")
+        out.append({"stock": "atelier", "ref": ref or None, "nom": nom or f"Article {ref}", "famille": fam,
+                    "coloris": coloris(nom), "unite": txt(r[cols[3]]) or "unité", "fournisseur": four.title() if four.isupper() else (four or None),
+                    "pu": nombre(r[cols[5]]) or None, "qte": nombre(r[cols[2]])})
+    return out
+
+
+def feuille_profils(ws):
+    """Une ligne par référence + coloris + longueur + emplacement ; quantité = nombre de barres."""
+    lignes = {}
+    for r in ws.iter_rows(min_row=2, values_only=True):
+        ref, nom = txt(r[0]), txt(r[1])
+        if not nom and not ref:
+            continue
+        col = " ".join(x for x in (txt(r[2]), txt(r[3]).lower()) if x) or None
+        if col and re.fullmatch(r"\d{4}( .*)?", col):
+            col = "RAL " + col
+        lg, nbar, ml = nombre(r[5]), nombre(r[4]), nombre(r[7])
+        tole = nom.lower().startswith("tôle") or nom.lower().startswith("tole")
+        if tole:
+            q, unite = (nbar or ml), "tôle"
+        elif lg:
+            q, unite = (ml / lg if ml else 0), "barre"
+        else:
+            q, unite = ml, "m"
+        k = (ref, nom.lower(), col, lg if not tole else None, place(r[6]))
+        if k not in lignes:
+            lignes[k] = {"stock": "atelier", "ref": ref or None, "nom": (nom[0].upper() + nom[1:]) if nom else f"Profilé {ref}",
+                         "famille": "Tôles" if tole else "Barres", "coloris": col, "unite": unite,
+                         "longueur": lg if (lg and not tole) else None, "emplacement": place(r[6]),
+                         "fournisseur": "Technal" if ref.startswith("T") else None, "pu": nombre(r[8]) or None, "qte": 0.0}
+        lignes[k]["qte"] += q
+    return list(lignes.values())
+
+
+def lire(xlsx):
+    wb = openpyxl.load_workbook(xlsx, data_only=True)
+    noms = {re.sub(r"\s+", " ", n.strip().lower()): n for n in wb.sheetnames}
+    trouve = lambda debut: next((wb[v] for k, v in noms.items() if k.startswith(debut)), None)
+    if not trouve("pose -"):  # ancien fichier à une seule feuille (inventaire pose)
+        return feuille_pose(wb.active)
+    out = feuille_pose(trouve("pose -"))
+    if trouve("atelier -"):
+        out += feuille_atelier(trouve("atelier -"), "Consommables atelier", (0, 1, 2, 3, 4, 5))
+    if trouve("joints -"):
+        out += feuille_atelier(trouve("joints -"), "Joints", (0, 1, 2, 3, None, 4))
+    if trouve("accessoires -"):
+        out += feuille_atelier(trouve("accessoires -"), "Accessoires", (0, 1, 2, 3, None, 4))
+    if trouve("profilés -") or trouve("profiles -"):
+        out += feuille_profils(trouve("profilés -") or trouve("profiles -"))
+    return out
+
+
+def cle(a):
+    return (a.get("stock", "pose"), a.get("ref") or "", a["nom"], a.get("coloris") or "", a.get("longueur") or 0, a.get("emplacement") or "")
 
 
 def req(method, path, body=None, extra=None):
@@ -83,16 +160,28 @@ def req(method, path, body=None, extra=None):
         return json.loads(t) if t else None
 
 
+CHAMPS = ("stock", "ref", "nom", "famille", "coloris", "unite", "longueur", "emplacement", "fournisseur", "pu")
+
+
 def envoie(xlsx, jour):
     lignes = lire(xlsx)
-    existants = {a["nom"]: a["id"] for a in req("GET", "/rest/v1/stock_articles?select=id,nom")}
-    neufs = [{k: l[k] for k in ("nom", "famille", "coloris", "unite", "fournisseur", "pu")} for l in lignes if l["nom"] not in existants]
-    if neufs:
-        for a in req("POST", "/rest/v1/stock_articles", neufs, {"Prefer": "return=representation"}):
-            existants[a["nom"]] = a["id"]
-    mvts = [{"article": existants[l["nom"]], "type": "inventaire", "qte": l["qte"], "le": f"{jour}T18:00:00+02:00",
-             "note": f"Inventaire du {jour[8:10]}/{jour[5:7]}/{jour[:4]}"} for l in lignes]
-    req("POST", "/rest/v1/stock_mouvements", mvts, {"Prefer": "return=minimal"})
+    existants = {cle(a): a["id"] for a in req("GET", "/rest/v1/stock_articles?select=id," + ",".join(CHAMPS))}
+    neufs, vus = [], set()
+    for l in lignes:
+        if cle(l) in existants or cle(l) in vus:
+            continue
+        vus.add(cle(l))
+        neufs.append({k: l.get(k) for k in CHAMPS})
+    for i in range(0, len(neufs), 500):
+        for a in req("POST", "/rest/v1/stock_articles", neufs[i:i + 500], {"Prefer": "return=representation"}):
+            existants[cle(a)] = a["id"]
+    qte = {}
+    for l in lignes:  # lignes identiques : quantités additionnées
+        qte[existants[cle(l)]] = qte.get(existants[cle(l)], 0) + l["qte"]
+    mvts = [{"article": i, "type": "inventaire", "qte": round(q, 3), "le": f"{jour}T18:00:00+02:00",
+             "note": f"Inventaire du {jour[8:10]}/{jour[5:7]}/{jour[:4]}"} for i, q in qte.items()]
+    for i in range(0, len(mvts), 500):
+        req("POST", "/rest/v1/stock_mouvements", mvts[i:i + 500], {"Prefer": "return=minimal"})
     print(f"{len(neufs)} article(s) créé(s), {len(mvts)} comptage(s) enregistré(s)")
 
 

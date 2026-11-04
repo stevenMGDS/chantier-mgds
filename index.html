@@ -242,6 +242,7 @@ textarea{min-height:64px;resize:vertical}
 .stkrow{display:flex;align-items:center;gap:10px;text-align:left;width:100%;min-height:52px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
 .stkrow:hover{border-color:var(--accent)}.stkn{flex:1;min-width:0;display:flex;flex-direction:column}.stkn small,.stkq small{color:var(--muted);font-size:12px;font-weight:400}
 .stkq{text-align:right;font:600 15px var(--f-mono);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;flex:none}.stkq.r{color:var(--s-rouge)}.stkq.o{color:var(--s-orange)}
+.stktags{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}.stkpl{font:600 12px var(--f-mono);padding:0 7px;border-radius:9px;background:var(--t-orange);color:var(--ink)}
 .stkcol{align-self:flex-start;display:inline-block;font:500 12px var(--f-body);padding:0 7px;border-radius:9px;background:var(--t-bleu);color:var(--ink);vertical-align:1px}
 .dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;background:var(--s-gris)}.dot.r{background:var(--s-rouge)}.dot.o{background:var(--s-orange)}.dot.v{background:var(--s-vert)}
 .spanel{position:fixed;z-index:60}.stkbig{font:700 28px var(--f-mono)}.stkbig.r{color:var(--s-rouge)}.stkbig.o{color:var(--s-orange)}
@@ -1286,7 +1287,7 @@ function stkEtat(a){const n=stkLvl(a),s=a.seuil;if(n<=0&&(s!=null||n<0))return"r
 const STK_ETAT={r:"À commander",o:"Bientôt",v:"Suffisant",g:"Pas de seuil"};
 const stkU=(a,n)=>{const u=a.unite||"unité";return(n>1&&!/s$|x$|\d/.test(u)&&!/ de /i.test(u))?u+"s":u};
 const stkQ=(a,n)=>`${nb(n)} ${esc(stkU(a,Math.abs(n)))}${a.contenance&&a.detail?` <span class="sub">≈ ${nb(n*a.contenance)} ${esc(a.detail)}</span>`:""}`;
-const stkName=a=>esc(a.nom)+(a.coloris?` <span class="stkcol">${esc(a.coloris)}</span>`:"");
+const stkName=a=>esc(a.nom)+(a.longueur?` <span class="sub">${nb(a.longueur)} m</span>`:"")+(a.coloris||a.emplacement?`<span class="stktags">${a.coloris?`<span class="stkcol">${esc(a.coloris)}</span>`:""}${a.emplacement?`<span class="stkpl" title="Emplacement">📍 ${esc(a.emplacement)}</span>`:""}</span>`:"");
 async function stkLoad(){
   const sb=window.sbClient;
   const [A,N,M]=await Promise.all([sb.from("stock_articles").select("*").order("famille").order("nom"),
@@ -1321,13 +1322,13 @@ function stkDraw(){
   const A=stk.arts.filter(a=>a.actif!==false),q=nrm(stk.q);
   const cnt={r:0,o:0,v:0,g:0};A.forEach(a=>cnt[stkEtat(a)]++);
   const fams=[...new Set(A.map(a=>a.famille))];
-  const vis=A.filter(a=>(!stk.fam||(stk.fam==="!"?stkEtat(a)==="r"||stkEtat(a)==="o":a.famille===stk.fam))&&(!q||nrm([a.nom,a.coloris,a.fournisseur].join(" ")).includes(q)));
+  const vis=A.filter(a=>(!stk.fam||(stk.fam==="!"?stkEtat(a)==="r"||stkEtat(a)==="o":a.famille===stk.fam))&&(!q||nrm([a.nom,a.coloris,a.fournisseur,a.ref,a.emplacement].join(" ")).includes(q)));
   const lastInv=A.map(a=>stk.inv.get(a.id)).filter(Boolean).sort().pop();
   let h=`<div class="stkhead"><div class="stats">
       <button class="stat r" data-sf="!" aria-pressed="${stk.fam==="!"}"><b>${cnt.r}</b><span>à commander</span></button>
       <button class="stat o" data-sf="!" aria-pressed="false"><b>${cnt.o}</b><span>bientôt</span></button>
       <button class="stat" data-sf="" aria-pressed="${!stk.fam}"><b>${A.length}</b><span>articles${lastInv?" · inventaire du "+fr(lastInv.slice(0,10)):""}</span></button></div>
-    <div class="tools"><input type="search" id="stk-q" placeholder="Chercher un article, un coloris…" value="${esc(stk.q)}" aria-label="Chercher un article">
+    <div class="tools"><input type="search" id="stk-q" placeholder="Chercher un article, une réf., un coloris, un emplacement…" value="${esc(stk.q)}" aria-label="Chercher un article">
       ${canWrite?`<button class="btn" id="stk-inv">📋 Faire l'inventaire</button><button class="btn ghost" id="stk-add">＋ Nouvel article</button>`:""}</div>
     <div class="tools stkfam"><button class="chip" data-sf="" aria-pressed="${!stk.fam}">Tout</button>${fams.map(f=>`<button class="chip" data-sf="${esc(f)}" aria-pressed="${stk.fam===f}">${esc(f)}</button>`).join("")}</div>
     ${cnt.g===A.length&&A.length?`<p class="sub">Aucun seuil d'alerte n'est encore fixé : touchez un article pour lui donner un seuil, ou fixez-les tous d'un coup dans « Faire l'inventaire ».</p>`:""}</div>`;
@@ -1389,6 +1390,8 @@ async function stkSheet(id){
     <label class="clab">Stock<select class="cin" id="sp-stock" ${ro}>${Object.entries(STK_WHICH).map(([k,l])=>`<option value="${k}" ${(a.stock||"pose")===k?"selected":""}>${l}</option>`).join("")}</select></label>
     <label class="clab">Nom<input class="cin" id="sp-nom" value="${esc(a.nom)}" ${ro}></label>
     <label class="clab">Référence fabricant<input class="cin" id="sp-ref" value="${esc(a.ref||"")}" placeholder="ex. réf. profilé Technal" ${ro}></label>
+    <label class="clab">Emplacement<input class="cin" id="sp-pl" value="${esc(a.emplacement||"")}" placeholder="ex. D 5 (barres debout n° 5)" ${ro}></label>
+    <label class="clab">Longueur de barre (m)<input class="cin" id="sp-lg" inputmode="decimal" value="${a.longueur!=null?nb(a.longueur):""}" placeholder="barres seulement" ${ro}></label>
     <label class="clab">Famille<input class="cin" id="sp-fam" list="sp-fams" value="${esc(a.famille)}" ${ro}><datalist id="sp-fams">${fams.map(f=>`<option value="${esc(f)}">`).join("")}</datalist></label>
     <label class="clab">Coloris<input class="cin" id="sp-col" value="${esc(a.coloris||"")}" placeholder="ex. gris alu, RAL 7016" ${ro}></label>
     <label class="clab">Fournisseur<input class="cin" id="sp-four" value="${esc(a.fournisseur||"")}" ${ro}></label>
@@ -1412,7 +1415,7 @@ async function stkSheet(id){
       toast({inventaire:"Comptage enregistré.",livraison:"Livraison enregistrée.",sortie:"Sortie enregistrée.",retour:"Retour enregistré."}[t]);await stkLoad();stkDraw();stkSheet(a.id)}}
   if(canWrite)$("sp-save").onclick=async()=>{
     const nom=$("sp-nom").value.trim();if(!nom){toast("Donnez un nom à l'article.");return}
-    const row={stock:$("sp-stock").value,ref:$("sp-ref").value.trim()||null,nom,famille:$("sp-fam").value.trim()||"Divers",coloris:$("sp-col").value.trim()||null,fournisseur:$("sp-four").value.trim()||null,unite:$("sp-u").value.trim()||"unité",
+    const row={stock:$("sp-stock").value,ref:$("sp-ref").value.trim()||null,emplacement:$("sp-pl").value.trim().toUpperCase()||null,longueur:stkNum($("sp-lg").value),nom,famille:$("sp-fam").value.trim()||"Divers",coloris:$("sp-col").value.trim()||null,fournisseur:$("sp-four").value.trim()||null,unite:$("sp-u").value.trim()||"unité",
       seuil:stkNum($("sp-seuil").value),reassort:stkNum($("sp-re").value),detail:$("sp-det").value.trim()||null,contenance:stkNum($("sp-cont").value),pu:stkNum($("sp-pu").value)};
     if($("sp-off"))row.actif=!$("sp-off").checked;
     $("sp-save").disabled=true;
@@ -1428,7 +1431,7 @@ function stkInventaire(){
   const L=stkPanel("📋 Inventaire · "+STK_WHICH[stk.which]),A=stk.arts.filter(a=>a.actif!==false);let fam=null,h=`<p class="cinfo">Tapez la quantité comptée pour chaque article. Laissez vide ce que vous n'avez pas compté. Vous pouvez aussi fixer le seuil d'alerte. Rien n'est enregistré avant le bouton en bas.</p>
     <input class="cin" id="inv-q" type="search" placeholder="Chercher un article…" aria-label="Chercher un article">`;
   A.forEach(a=>{if(a.famille!==fam){fam=a.famille;h+=`<div class="chead" data-fh="${esc(fam)}">${esc(fam)}</div>`}
-    h+=`<div class="invrow" data-k="${esc(nrm([a.nom,a.coloris].join(" ")))}" data-fam="${esc(fam)}"><span class="stkn">${stkName(a)}<small>en stock : ${nb(stkLvl(a))} ${esc(stkU(a,stkLvl(a)))}</small></span>
+    h+=`<div class="invrow" data-k="${esc(nrm([a.nom,a.coloris,a.ref,a.emplacement].join(" ")))}" data-fam="${esc(fam)}"><span class="stkn">${stkName(a)}<small>en stock : ${nb(stkLvl(a))} ${esc(stkU(a,stkLvl(a)))}</small></span>
       <input class="cin" data-inv="${a.id}" inputmode="decimal" placeholder="compté" aria-label="Quantité comptée ${esc(a.nom)}"><input class="cin" data-seuil="${a.id}" inputmode="decimal" placeholder="seuil" value="${a.seuil!=null?nb(a.seuil):""}" aria-label="Seuil ${esc(a.nom)}"></div>`});
   h+=`<button class="btn cadd2" id="inv-ok">Enregistrer l'inventaire</button>`;
   L.innerHTML=h;

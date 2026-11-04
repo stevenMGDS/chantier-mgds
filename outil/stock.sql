@@ -21,6 +21,8 @@ create table if not exists public.stock_articles (
   contenance numeric,                       -- combien de « detail » dans une « unite » (ex. 12 cartouches par carton)
   fournisseur text,
   ref text,                                 -- référence fabricant (profilés, accessoires atelier)
+  emplacement text,                         -- zone de rangement (ex. D 5 = barres debout n° 5, M3-2 = mezzanine rangée 3 travée 2)
+  longueur numeric,                         -- barres : longueur en m (une ligne par référence + coloris + longueur)
   seuil numeric,                            -- en dessous : à commander
   reassort numeric,                         -- quantité commandée d'habitude
   pu numeric,                               -- prix unitaire HT (déboursé), visible des éditeurs seulement dans l'appli
@@ -30,6 +32,8 @@ create table if not exists public.stock_articles (
 );
 
 alter table public.stock_articles add column if not exists stock text not null default 'pose' check (stock in ('pose','atelier'));
+alter table public.stock_articles add column if not exists emplacement text;
+alter table public.stock_articles add column if not exists longueur numeric;
 create index if not exists stock_articles_stock on public.stock_articles (stock, famille);
 
 create table if not exists public.stock_mouvements (
