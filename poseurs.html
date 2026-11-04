@@ -305,13 +305,8 @@ async function signed(paths){
   const{data}=await sb.storage.from("photos").createSignedUrls(paths,3600);
   return Object.fromEntries((data||[]).filter(x=>x.signedUrl).map(x=>[x.path,x.signedUrl]));
 }
-// ouvrir une fiche PDF dans le lecteur du téléphone
-document.addEventListener("click",async e=>{const b=e.target.closest("[data-doc]");if(!b)return;
-  const w=window.open("","_blank");
-  const{data,error}=await sb.storage.from("documents").createSignedUrl(b.dataset.doc,900);
-  if(error||!data){if(w)w.close();toast("Cette fiche ne peut pas s'ouvrir pour le moment.");return}
-  if(w)w.location.href=data.signedUrl;else location.href=data.signedUrl;
-});
+// ouvrir une fiche en lecture dans l'appli (certains ordinateurs téléchargeaient le PDF au lieu de l'afficher)
+document.addEventListener("click",e=>{const b=e.target.closest("[data-doc]");if(!b)return;openFill(b.dataset.doc,false)});
 
 // photos : réduites (1600 px, JPEG) avant l'envoi pour rester dans l'espace gratuit
 async function shrink(file){
@@ -378,13 +373,14 @@ async function withAddress(blob,j){
 }
 function showFill(n){const e=$("vfill");e.textContent=n?n+" case"+(n>1?"s":"")+" à remplir":"Fiche complète ✓";e.className=n?"":"ok";$("vnext").hidden=!n||!vForm}
 function closeViewer(){$("viewer").hidden=true;$("vpages").innerHTML="";vForm=null;vPdf=null;vPages=[]}
-async function openFill(docId){
+async function openFill(docId,edit=true){
   const j=chantiers.get(openId)||{},d=(j.docs||[]).find(x=>x.id===docId);if(!d)return;
   vDoc=d;vJob=openId;vForm=null;vPages=[];const pg=$("vpages");$("vname").textContent=FICHE_L[d.type]||d.name;
   pg.innerHTML='<p class="sub">Ouverture de la fiche…</p>';pg.style.alignItems="";$("viewer").hidden=false;["vedit","vsave","vnext"].forEach(x=>$(x).hidden=true);$("vfill").textContent="";
   history.pushState({viewer:1},"");
   try{
     const{data,error}=await sb.storage.from("documents").download(d.id);if(error)throw error;
+    if(!/pdf/.test(data.type)&&!/\.pdf$/i.test(d.name)){pg.innerHTML="";const im=new Image();im.alt=d.name;im.style.maxWidth="100%";im.src=URL.createObjectURL(data);pg.appendChild(im);return}
     vBlob=await withAddress(data,j);
     pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
     const pdf=await pdfjsLib.getDocument({data:await vBlob.arrayBuffer()}).promise;pg.innerHTML="";vPdf=pdf;
@@ -397,6 +393,7 @@ async function openFill(docId){
       await page.render({canvasContext:c.getContext("2d"),viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
       vPages.push({page,box,c,css:w/v0.width,vp});
     }
+    if(!edit){if(FILL_ON&&FILLABLE[d.type]&&(role==="poseur"||role==="editeur"))$("vedit").hidden=false;return}
     await startFill();
   }catch(e){console.error(e);pg.innerHTML='<p class="sub">Cette fiche ne peut pas s\'ouvrir pour le moment.</p>'}
 }
