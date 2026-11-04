@@ -492,6 +492,13 @@ document.addEventListener("click",e=>{
 });
 
 // ---------- heures ----------
+// ligne hors planning (SAV, chantier pas dans l'appli, dépôt…) : chantier vide, la tâche est écrite au début de la remarque
+// format : « [SAV] Dupont Saran · remarque »
+const TACHES=["SAV","Autre chantier","Dépôt / atelier","Autre tâche"];
+function hSplit(note){const m=/^\[([^\]]+)\]\s*([^·]*?)\s*(?:·\s*([\s\S]*))?$/.exec(note||"");return m?{t:m[1],p:m[2].trim(),r:(m[3]||"").trim()}:{t:"",p:"",r:note||""}}
+function hLab(h){if(h.chantier)return jobShort(h.chantier);const x=hSplit(h.note);return x.t?(x.t==="Chantier"?x.p:x.t+(x.p?" · "+x.p:"")):"Dépôt / autre"}
+const hLabLong=h=>h.chantier?jobName(h.chantier):hLab(h);
+const hRem=h=>h.chantier?(h.note||""):hSplit(h.note).r;
 async function vHeures(v){
   const days=weekDays(),hs=(await loadHeures(days[0],days[6])).filter(h=>h.poseur===me);
   const tot=hs.reduce((s,h)=>s+(+h.heures||0),0),t=today();
@@ -504,7 +511,7 @@ async function vHeures(v){
   v._heures=hs;
 }
 function lineH(h){return`<button class="hline${h.valide_le?" ok":""}" data-hedit="${h.id}">
-  <span><b>${esc(h.chantier?jobShort(h.chantier):"Dépôt / autre")}</b><br><span class="sub">${h.debut?h.debut.slice(0,5)+" – "+(h.fin||"").slice(0,5):""}${h.pause_min?" · pause "+h.pause_min+" min":""}${h.note?" · "+esc(h.note):""}</span></span>
+  <span><b>${esc(hLab(h))}</b><br><span class="sub">${h.debut?h.debut.slice(0,5)+" – "+(h.fin||"").slice(0,5):""}${h.pause_min?" · pause "+h.pause_min+" min":""}${hRem(h)?" · "+esc(hRem(h)):""}</span></span>
   <span class="h">${hfmt(+h.heures)}${h.valide_le?"<br><span class=\"tag\">validé ✓</span>":""}</span></button>`}
 document.addEventListener("click",e=>{
   const a=e.target.closest("[data-hadd]");if(a){formHeures({jour:a.dataset.hadd,chantier:a.dataset.hjob||null});return}
@@ -515,23 +522,40 @@ async function formHeures(h){
   if(h.valide_le&&role!=="editeur"){toast("Ligne validée par Marine : demandez-lui pour la corriger.");return}
   const pl=role==="poseur"?await loadPlanning(h.jour,h.jour):[];
   let last={};try{last=JSON.parse(localStorage.getItem("poseurs.dernier")||"{}")}catch(_){}
-  const dft={debut:h.debut?h.debut.slice(0,5):last.debut||"08:00",fin:h.fin?h.fin.slice(0,5):last.fin||"17:00",pause:h.id?h.pause_min:(last.pause??60)};
-  const planned=pl.map(p=>p.chantier),job=h.chantier!==undefined&&h.chantier!==null?h.chantier:(h.id?"":planned[0]||"");
-  const ids=[...new Set([...planned,...[...chantiers.keys()].sort((a,b)=>jobName(a).localeCompare(jobName(b)))])];
+  // 2e ligne de la journée : elle commence par défaut à l'heure de fin de la ligne précédente
+  const same=h.id?[]:(($("view")._heures)||[]).filter(x=>x.jour===h.jour&&x.poseur===me&&x.fin).sort((a,b)=>a.fin<b.fin?1:-1);
+  const prevFin=same[0]?same[0].fin.slice(0,5):null;
+  const dft={debut:h.debut?h.debut.slice(0,5):prevFin||last.debut||"08:00",fin:h.fin?h.fin.slice(0,5):(prevFin?"":last.fin)||"17:00",pause:h.id?h.pause_min:(prevFin?0:(last.pause??60))};
+  if(prevFin&&!h.fin){const[a,b]=prevFin.split(":").map(Number),t=Math.min(23*60+45,a*60+b+120);dft.fin=String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0")}
+  const planned=pl.map(p=>p.chantier).filter(Boolean),libs=[...new Set(pl.filter(p=>!p.chantier&&p.libelle).map(p=>p.libelle))];
+  const used=new Set(same.map(x=>x.chantier).filter(Boolean));
+  const H=h.id?hSplit(h.note):{t:"",p:"",r:""};
+  const job=h.chantier?h.chantier:H.t?(H.t==="Chantier"?"lib:"+H.p:"t:"+H.t):(h.id?"t:Dépôt / atelier":(planned.find(i=>!used.has(i))||(same.length?"":planned[0]||(libs[0]?"lib:"+libs[0]:""))));
+  const others=[...chantiers.keys()].filter(i=>!planned.includes(i)).sort((a,b)=>jobName(a).localeCompare(jobName(b)));
+  const opt=(v,t)=>`<option value="${esc(v)}" ${v===job?"selected":""}>${esc(t)}</option>`;
+  const jobOpts=`<option value="" ${job===""?"selected":""}>Choisir…</option>`
+    +(planned.length||libs.length?`<optgroup label="Prévu ce jour-là">${planned.map(i=>opt(i,jobName(i))).join("")}${libs.map(l=>opt("lib:"+l,l)).join("")}</optgroup>`:"")
+    +(others.length?`<optgroup label="Mes autres chantiers">${others.map(i=>opt(i,jobName(i))).join("")}</optgroup>`:"")
+    +`<optgroup label="Hors planning">${TACHES.map(t=>opt("t:"+t,t==="Autre chantier"?"Autre chantier (pas dans la liste)":t)).join("")}</optgroup>`;
   const m=modal(`<h2>${h.id?"Modifier":"Ajouter"} des heures</h2>
    ${role==="editeur"&&h.id?`<div class="sub">${esc(nameOf(h.poseur))}</div>`:""}
    <label class="fld">Jour<input type="date" name="jour" value="${esc(h.jour)}" required></label>
-   <label class="fld">Chantier<select name="chantier"><option value="">Dépôt / autre</option>${ids.map(i=>`<option value="${esc(i)}" ${i===job?"selected":""}>${esc(jobName(i))}${planned.includes(i)?" (prévu)":""}</option>`).join("")}</select></label>
+   <label class="fld">Chantier ou tâche<select name="chantier">${jobOpts}</select></label>
+   <label class="fld" id="hprec" hidden><span id="hprecl">Lequel ?</span><input type="text" name="prec" value="${esc(H.t&&H.t!=="Chantier"?H.p:"")}" placeholder="ex. Dupont, Saran"></label>
+   ${same.length?`<p class="sub" style="margin:4px 0 0">Vous avez déjà ${same.length} ligne${same.length>1?"s":""} ce jour-là : cette ligne s'ajoute (ex. fin d'un autre chantier, SAV).</p>`:""}
    <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Arrivée</div>${hmSel("debut",dft.debut)}
    <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Départ</div>${hmSel("fin",dft.fin)}
    <label class="fld">Pause<select name="pause">${[0,15,30,45,60,75,90,120].map(n=>`<option value="${n}" ${n==dft.pause?"selected":""}>${n?n+" min":"aucune"}</option>`).join("")}</select></label>
-   <label class="fld">Remarque (facultatif)<input type="text" name="note" value="${esc(h.note||"")}" placeholder="ex. trajet, dépôt, intempéries"></label>
+   <label class="fld">Remarque (facultatif)<input type="text" name="note" value="${esc(h.id?hRem(h):"")}" placeholder="ex. trajet, intempéries, réglage"></label>
    <div class="tot"><span>Heures travaillées</span><b id="hcalc">–</b></div>
    <div class="acts">${h.id&&(mine||role==="editeur")?`<button class="btn danger" data-del>Supprimer</button>`:""}<button class="btn ghost" data-x>Annuler</button><button class="btn" data-ok>Enregistrer</button></div>`);
   const f=k=>m.querySelector(`[name=${k}]`);
   const hm=k=>f(k+"_h").value+":"+f(k+"_m").value;
   const calc=()=>{const a=tmin(hm("debut")),b=tmin(hm("fin"));if(a==null||b==null)return null;let d=b-a;if(d<0)d+=1440;d-=+f("pause").value;return d>0?Math.round(d/60*100)/100:null};
   const upd=()=>{const n=calc();m.querySelector("#hcalc").textContent=n==null?"–":hfmt(n)};
+  const prec=()=>{const v=f("chantier").value,t=v.startsWith("t:")?v.slice(2):"";m.querySelector("#hprec").hidden=!t;
+    m.querySelector("#hprecl").textContent=t==="SAV"?"SAV chez qui ? (client, ville)":t==="Autre chantier"?"Quel chantier ? (client, ville)":t==="Dépôt / atelier"?"Quoi ? (facultatif)":"Quelle tâche ?"};
+  f("chantier").addEventListener("change",prec);prec();
   m.addEventListener("input",upd);m.addEventListener("change",upd);upd();
   m.querySelector("[data-x]").onclick=()=>m.close();
   m.querySelector("[data-del]")?.addEventListener("click",async ev=>{const btn=ev.currentTarget;
@@ -541,7 +565,12 @@ async function formHeures(h){
   m.querySelector("[data-ok]").onclick=async ev=>{
     const n=calc();if(!f("jour").value){toast("Indiquez le jour.");return}
     if(n==null||n>16){toast("Vérifiez l'heure d'arrivée, de départ et la pause.");return}
-    const row={jour:f("jour").value,chantier:f("chantier").value||null,debut:hm("debut"),fin:hm("fin"),pause_min:+f("pause").value,heures:n,note:f("note").value.trim()||null};
+    const v=f("chantier").value,rem=f("note").value.trim(),pr=f("prec").value.trim().replace(/[·\[\]]/g," ").trim();
+    if(!v){toast("Choisissez le chantier ou la tâche.");return}
+    const tag=v.startsWith("t:")?v.slice(2):v.startsWith("lib:")?"Chantier":"";
+    if(tag&&tag!=="Dépôt / atelier"&&!pr&&tag!=="Chantier"){toast(tag==="SAV"?"Indiquez chez qui était le SAV.":"Précisez le chantier ou la tâche.");f("prec").focus();return}
+    const note=tag?`[${tag}] ${tag==="Chantier"?v.slice(4):pr}`.trim()+(rem?" · "+rem:""):(rem||null);
+    const row={jour:f("jour").value,chantier:tag?null:v,debut:hm("debut"),fin:hm("fin"),pause_min:+f("pause").value,heures:n,note};
     ev.currentTarget.disabled=true;
     const r=h.id?await sb.from("heures").update(row).eq("id",h.id):await sb.from("heures").insert(row);
     ev.currentTarget.disabled=false;
@@ -644,7 +673,7 @@ async function vGHeures(v){
    <div class="links"><button class="btn" data-export>Télécharger pour Excel</button>${nv?`<button class="btn ghost" data-valall>Valider les ${nv} ligne${nv>1?"s":""} affichée${nv>1?"s":""}</button>`:""}</div>
    ${ps.length?ps.map(pid=>{const L=hs.filter(h=>h.poseur===pid),tot=L.reduce((s,h)=>s+(+h.heures||0),0);
      return`<h3>${esc(nameOf(pid))} · ${hfmt(tot)}</h3>${L.length?`<div class="gridwrap"><table class="h"><thead><tr><th>Jour</th><th>Chantier</th><th>Arrivée</th><th>Départ</th><th class="n">Pause</th><th class="n">Heures</th><th>Remarque</th><th></th></tr></thead><tbody>
-      ${L.map(h=>`<tr><td>${esc(dayLabel(h.jour))}</td><td>${esc(h.chantier?jobShort(h.chantier):"Dépôt / autre")}</td><td>${(h.debut||"").slice(0,5)}</td><td>${(h.fin||"").slice(0,5)}</td><td class="n">${h.pause_min||0}</td><td class="n">${hfmt(+h.heures)}</td><td>${esc(h.note||"")}</td>
+      ${L.map(h=>`<tr><td>${esc(dayLabel(h.jour))}</td><td>${esc(hLab(h))}</td><td>${(h.debut||"").slice(0,5)}</td><td>${(h.fin||"").slice(0,5)}</td><td class="n">${h.pause_min||0}</td><td class="n">${hfmt(+h.heures)}</td><td>${esc(h.note||"")}</td>
         <td>${h.valide_le?'<span class="tag">validé ✓</span>':'<span class="tag o">à valider</span>'} <button class="btn ghost small" data-hedit="${h.id}">Modifier</button></td></tr>`).join("")}
       <tr class="sum"><td colspan="5">Total</td><td class="n">${hfmt(tot)}</td><td colspan="2"></td></tr></tbody></table></div>`:`<p class="none">Aucune heure saisie.</p>`}`}).join("")
    :`<div class="empty">Aucun poseur n'a encore d'accès.</div>`}`;
@@ -660,7 +689,7 @@ document.addEventListener("click",async e=>{
     const cell=s=>{s=String(s??"");return/[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
     const rows=[["Poseur","Date","Jour","Chantier","Arrivée","Départ","Pause (min)","Heures","Remarque","Validé"]]
       .concat(hs.slice().sort((x,y)=>nameOf(x.poseur).localeCompare(nameOf(y.poseur))||x.jour.localeCompare(y.jour))
-      .map(h=>[nameOf(h.poseur),h.jour.split("-").reverse().join("/"),JOURS[(parse(h.jour).getDay()+6)%7],h.chantier?jobName(h.chantier):"Dépôt / autre",(h.debut||"").slice(0,5),(h.fin||"").slice(0,5),h.pause_min||0,String(h.heures).replace(".",","),h.note||"",h.valide_le?"oui":"non"]));
+      .map(h=>[nameOf(h.poseur),h.jour.split("-").reverse().join("/"),JOURS[(parse(h.jour).getDay()+6)%7],hLabLong(h),(h.debut||"").slice(0,5),(h.fin||"").slice(0,5),h.pause_min||0,String(h.heures).replace(".",","),hRem(h),h.valide_le?"oui":"non"]));
     const blob=new Blob(["﻿"+rows.map(r=>r.map(cell).join(";")).join("\r\n")],{type:"text/csv;charset=utf-8"});
     const l=document.createElement("a");l.href=URL.createObjectURL(blob);l.download=`heures-poseurs-${a}-au-${b}.csv`;document.body.appendChild(l);l.click();setTimeout(()=>{URL.revokeObjectURL(l.href);l.remove()},1000);
   }
