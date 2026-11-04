@@ -225,6 +225,16 @@ textarea{min-height:64px;resize:vertical}
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
 .thumbs a{display:block;aspect-ratio:1;border-radius:6px;overflow:hidden;background:var(--sunk);border:1px solid var(--line)}
 .thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+.cpanel .ccard{border:1.5px solid var(--accent)}
+.ccam{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ccambtn{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:64px;font-size:17px;text-align:center}.ccambtn small{font-weight:400;font-size:13px;opacity:.85}
+.ccamg{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}.ccamgal{cursor:pointer}.ccamseg .chip{min-height:36px;padding:4px 12px;font-size:14px}.ccamseg .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.ctab{border-collapse:collapse;font-size:14px;width:100%}.ctab td,.ctab th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left}
+.stk{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));align-items:start}
+.stkcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}.stkcard h3{margin:0}
+.stkcard .fld{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}.stkcard select,.stkcard input[type=text]{font:16px var(--f-body);padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.stkch{border-top:1px solid var(--line);padding-top:8px;display:grid;gap:6px}.stkch h4{margin:0}
+.thumbs a{position:relative}.thumbs .tag{position:absolute;left:4px;bottom:4px;font:600 11px var(--f-body);padding:1px 6px;border-radius:8px;color:#fff;background:#C2410C}.thumbs .tag.in{background:#15803D}
 @media (prefers-reduced-motion:no-preference){.row,.stat,.box{transition:border-color .15s,background .15s}}
 </style>
 
@@ -235,7 +245,7 @@ textarea{min-height:64px;resize:vertical}
   </header>
   <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button></nav>
   <div id="tab-planning" hidden></div>
-  <div id="tab-stock" hidden><div class="empty">Le suivi du stock arrive bientôt : on le prépare ensemble (entrées, sorties par chantier d'après les photos des poseurs, alertes de réassort).</div></div>
+  <div id="tab-stock" hidden></div>
   <div id="tab-chantiers">
   <div class="stats" id="stats"></div>
   <div class="tools">
@@ -709,6 +719,7 @@ function showTab(t){
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
   for(const k of ["chantiers","planning","stock"])$("tab-"+k).hidden=k!==t;
   if(t==="planning"&&!$("tab-planning").firstChild)$("tab-planning").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`;
+  if(t==="stock")loadStock();
   try{history.replaceState(null,"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
 }
 if(window.sbClient){$("tabs").hidden=false;$("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b)showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
@@ -1108,6 +1119,7 @@ const cleanDots=s=>(s||"").replace(/\.{2,}|…/g,"").replace(/\s+/g," ").trim();
 function openConso(){
   const list=$("clist");list.innerHTML="";
   const mk=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
+  consoPhotoCard(list,mk);
   const bindText=(f,ph,num)=>{const i=mk("input","cin");i.type="text";i.value=f.el.value;i.placeholder=ph;if(num)i.inputMode="decimal";
     i.addEventListener("input",()=>{f.el.value=i.value;f.el.dispatchEvent(new Event("input"))});return i};
   const bindChip=(f,label)=>{const b=mk("button","chip"+(f.el.checked?" on":""),label);b.type="button";b.setAttribute("aria-pressed",f.el.checked);
@@ -1158,6 +1170,123 @@ function openConso(){
   }));
   if(vDoc&&vDoc.type==="Préparation"){const b=mk("button","btn cadd2","＋ Ajouter une ligne");b.type="button";b.dataset.consadd="1";list.appendChild(b)}
   $("cpanel").hidden=false;list.scrollTop=0;
+}
+// ---------- photos des consommables : sorties / retours au stock, relues par Claude ----------
+// Les poseurs (ou le bureau) photographient ce qui sort du stock pour un chantier et ce qui y revient.
+// Claude relit chaque photo et écrit dans photos.releve un JSON : {"articles":[{"a":"Silicone","fiche":"Silicone","q":4,"u":"cartouche","c":"blanc"}],"txt":"…"}
+// La fenêtre Consommables reprend ce relevé dans la fiche (Chargé, chargé en plus), l'onglet Stock fait le bilan par chantier.
+const CONSO_CAT={conso_sortie:"Sortie du stock",conso_retour:"Retour au stock"};
+const nrm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+function parseReleve(s){if(!s)return null;try{const o=JSON.parse(s);if(o&&Array.isArray(o.articles))return o}catch(e){}return{articles:[],txt:String(s)}}
+async function consoPhotos(chantier){
+  const sb=window.sbClient;if(!sb)return[];
+  let r=sb.from("photos").select("id,chantier,categorie,chemin,note,pris_le,poseur,traite,releve").in("categorie",Object.keys(CONSO_CAT)).order("pris_le",{ascending:false});
+  r=chantier?r.eq("chantier",chantier):r.limit(400);
+  const{data,error}=await r;if(error)throw error;return data||[];
+}
+// bilan par article : sorti, remis, consommé
+function consoBilan(rows){
+  const m=new Map();
+  rows.forEach(p=>{const R=parseReleve(p.releve);if(!R)return;R.articles.forEach(x=>{
+    const lab=[x.a,x.c].filter(Boolean).join(" "),k=nrm(lab)+"|"+nrm(x.u);if(!m.has(k))m.set(k,{a:x.a||"",fiche:x.fiche||"",c:x.c||"",u:x.u||"",sorti:0,remis:0});
+    const o=m.get(k),q=+String(x.q).replace(",",".")||0;if(p.categorie==="conso_sortie")o.sorti+=q;else o.remis+=q;if(x.fiche)o.fiche=x.fiche})});
+  return[...m.values()].sort((a,b)=>a.a.localeCompare(b.a));
+}
+const nb=v=>String(Math.round(v*100)/100).replace(".",",");
+async function sendConsoPhotos(chantier,cat,files,note){
+  const sb=window.sbClient,{data:{user:u}}=await sb.auth.getUser();let ok=0;
+  for(const [n,f] of files.entries()){
+    toast(`Envoi de la photo ${n+1} sur ${files.length}…`);
+    const b=await shrink(f),chemin=`${u.id}/${chantier}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const up=await sb.storage.from("photos").upload(chemin,b,{contentType:"image/jpeg",upsert:false});if(up.error)continue;
+    const ins=await sb.from("photos").insert({chantier,categorie:cat,chemin,note:note||null});
+    if(ins.error){await sb.storage.from("photos").remove([chemin]);continue}ok++}
+  toast(ok===files.length?(ok>1?ok+" photos envoyées":"Photo envoyée")+" : Claude va relever les articles et les reporter dans la fiche et le stock.":ok+" photo(s) envoyée(s) sur "+files.length+". Réessayez pour les autres.");
+  return ok;
+}
+// deux gros boutons « appareil photo » (sortie / retour) ; onSent après l'envoi
+function consoCamera(getChantier,onSent,noteEl){
+  const box=document.createElement("div");box.className="ccam";
+  Object.entries(CONSO_CAT).forEach(([cat,lab])=>{
+    const l=document.createElement("label");l.className="btn ccambtn";l.innerHTML=(cat==="conso_sortie"?"📷 Sortie du stock<small>ce que j'emporte</small>":"📷 Retour au stock<small>ce que je rapporte</small>");
+    const i=document.createElement("input");i.type="file";i.accept="image/*";i.setAttribute("capture","environment");i.hidden=true;l.appendChild(i);
+    i.onchange=async()=>{const files=[...i.files];i.value="";const c=getChantier();if(!files.length)return;if(!c){toast("Choisissez d'abord le chantier.");return}
+      const note=noteEl?noteEl.value.trim():"";const n=await sendConsoPhotos(c,cat,files,note);if(n&&noteEl)noteEl.value="";if(n&&onSent)onSent()};
+    box.appendChild(l)});
+  const g=document.createElement("label");g.className="sub ccamgal";g.innerHTML="ou <u>choisir dans la galerie</u> comme :";
+  const gi=document.createElement("input");gi.type="file";gi.accept="image/*";gi.multiple=true;gi.hidden=true;g.appendChild(gi);
+  gi.onchange=async()=>{const files=[...gi.files];gi.value="";const c=getChantier();if(!files.length)return;if(!c){toast("Choisissez d'abord le chantier.");return}
+    const cat=confirmCat();if(!cat)return;const n=await sendConsoPhotos(c,cat,files,noteEl?noteEl.value.trim():"");if(n&&onSent)onSent()};
+  const confirmCat=()=>box.dataset.cat||"conso_sortie";
+  const seg=document.createElement("div");seg.className="chips ccamseg";
+  Object.entries(CONSO_CAT).forEach(([cat,lab])=>{const b=document.createElement("button");b.type="button";b.className="chip"+(cat==="conso_sortie"?" on":"");b.textContent=lab;
+    b.onclick=()=>{box.dataset.cat=cat;seg.querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b))};seg.appendChild(b)});
+  const gw=document.createElement("div");gw.className="ccamg";gw.append(g,seg);
+  const w=document.createElement("div");w.append(box,gw);return w;
+}
+// lignes de la fiche ↔ articles relevés par Claude
+function consoRowsOf(){
+  const out=[];cTables.forEach(T=>T.rows.forEach(R=>{if(R.head)return;const t=cleanDots((R.cell.art||"").split("☐")[0]);if(t)out.push({t,R})}));return out;
+}
+function matchRow(rows,x){
+  const f=nrm(x.fiche),a=nrm(x.a);
+  return rows.find(r=>f&&nrm(r.t)===f)||rows.find(r=>a&&(nrm(r.t)===a||nrm(r.t).startsWith(a+" ")||a.startsWith(nrm(r.t)+" ")))||rows.find(r=>a&&nrm(r.t).split(" ")[0]===a.split(" ")[0]&&a.split(" ")[0].length>3);
+}
+function applyBilan(B){
+  const rows=consoRowsOf(),num=s=>parseFloat(String(s||"").replace(/[^\d,.-]/g,"").replace(",","."))||0;let n=0;const by=new Map();
+  B.forEach(x=>{if(!x.sorti)return;const r=matchRow(rows,x);if(!r)return;if(!by.has(r))by.set(r,0);by.set(r,by.get(r)+x.sorti)});
+  for(const [r,sorti] of by){const R=r.R;let did=false;
+    R.fs.filter(x=>x.r==="chg"&&x.f.cb&&!x.f.el.checked).forEach(x=>{x.f.el.checked=true;x.f.el.dispatchEvent(new Event("change"));did=true});
+    const pre=R.fs.find(x=>x.r==="qty"&&x.f.lock),plus=R.fs.find(x=>x.r==="chg"&&!x.f.cb&&/^plus_/.test(x.f.name)),qty=R.fs.find(x=>x.r==="qty"&&!x.f.lock&&!x.f.cb);
+    if(pre&&plus){const d=sorti-num(pre.f.el.value);const v=d>0?"+"+nb(d):"";if(plus.f.el.value!==v){plus.f.el.value=v;plus.f.el.dispatchEvent(new Event("input"));did=true}}
+    else if(qty&&!qty.f.el.value.trim()){qty.f.el.value=nb(sorti);qty.f.el.dispatchEvent(new Event("input"));did=true}
+    if(did)n++}
+  return n;
+}
+function consoPhotoCard(list,mk){
+  const id=openId;if(!window.sbClient||!id||id==="__new")return;
+  const card=mk("div","crow ccard");card.appendChild(mk("b",null,"📷 Photos des consommables"));
+  card.appendChild(mk("div","cinfo","Photographiez ce qui sort du stock pour ce chantier, puis ce qui y revient. Claude relève les articles et les reporte dans cette fiche et dans le stock."));
+  card.appendChild(consoCamera(()=>id,()=>fill()));
+  const res=mk("div","cres");card.appendChild(res);list.appendChild(card);
+  const fill=async()=>{let P;try{P=await consoPhotos(id)}catch(e){res.textContent="";return}
+    if(openId!==id)return;res.innerHTML="";
+    const wait=P.filter(p=>!p.traite).length,B=consoBilan(P);
+    if(!P.length){res.appendChild(mk("div","cinfo","Aucune photo de consommables pour ce chantier."));return}
+    res.appendChild(mk("div","cinfo",P.length+" photo"+(P.length>1?"s":"")+(wait?" · "+wait+" en attente de lecture par Claude":" · toutes relues")));
+    if(B.length){const t=mk("table","ctab");t.innerHTML="<tr><th>Article</th><th>Sorti</th><th>Remis</th><th>Utilisé</th></tr>"+B.map(x=>`<tr><td>${esc([x.a,x.c].filter(Boolean).join(" "))}</td><td>${nb(x.sorti)}</td><td>${nb(x.remis)}</td><td><b>${nb(x.sorti-x.remis)}</b> ${esc(x.u)}</td></tr>`).join("");res.appendChild(t);
+      if(vForm&&B.some(x=>x.sorti)){const b=mk("button","btn","✓ Reporter dans la fiche");b.type="button";
+        b.onclick=()=>{const n=applyBilan(B);if(n){if(vForm)vForm.dirty=true;openConso();toast(n+" ligne"+(n>1?"s":"")+" mise"+(n>1?"s":"")+" à jour d'après les photos. Pensez à « Enregistrer ».")}else toast("Rien à reporter : la fiche est déjà à jour ou les articles ne figurent pas dans le tableau.")};res.appendChild(b)}}};
+  fill();
+}
+// ---------- onglet Stock ----------
+let stockSel="";
+async function loadStock(){
+  const el=$("tab-stock");if(!window.sbClient)return;
+  if(!jobs.size&&(loadStock.n=(loadStock.n||0)+1)<20){el.innerHTML=`<span class="sub">Chargement…</span>`;setTimeout(()=>{if(!$("tab-stock").hidden)loadStock()},700);return}
+  const live=[...jobs.entries()].map(([id,j])=>({id,...j})).filter(j=>!done(j)).sort((a,b)=>String(a.client).localeCompare(b.client));
+  const nameOf=id=>{const j=jobs.get(id);return j?(j.client||id)+(j.ville?" · "+j.ville:""):id};
+  el.innerHTML=`<section class="stk"><div class="stkcard"><h3>📷 Photographier des consommables</h3>
+    <label class="fld">Chantier<select id="stk-ch"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
+    <div id="stk-cam"></div><label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label></div>
+    <div class="stkcard" id="stk-list"><span class="sub">Chargement…</span></div></section>`;
+  $("stk-ch").onchange=e=>{stockSel=e.target.value};
+  $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>loadStockList(nameOf),$("stk-note")));
+  loadStockList(nameOf);
+}
+async function loadStockList(nameOf){
+  const box=$("stk-list");let P;
+  try{P=await consoPhotos()}catch(e){box.innerHTML=`<span class="sub">Impossible de charger les photos pour le moment.</span>`;return}
+  if(!P.length){box.innerHTML=`<h3>Entrées et sorties par chantier</h3><span class="sub">Aucune photo de consommables pour l'instant.</span>`;return}
+  const urls=Object.fromEntries((((await window.sbClient.storage.from("photos").createSignedUrls(P.map(p=>p.chemin),3600)).data)||[]).map(x=>[x.path,x.signedUrl]));
+  const wait=P.filter(p=>!p.traite),by=new Map();P.forEach(p=>{if(!by.has(p.chantier))by.set(p.chantier,[]);by.get(p.chantier).push(p)});
+  const th=p=>`<a href="${esc(urls[p.chemin]||"#")}" target="_blank" rel="noopener" title="${esc(CONSO_CAT[p.categorie]+" · "+fr(p.pris_le.slice(0,10))+(p.note?" · "+p.note:""))}"><img loading="lazy" src="${esc(urls[p.chemin]||"")}" alt="${esc(CONSO_CAT[p.categorie])}"><span class="tag ${p.categorie==="conso_sortie"?"out":"in"}">${p.categorie==="conso_sortie"?"Sortie":"Retour"}</span></a>`;
+  let h=`<h3>Entrées et sorties par chantier</h3>`;
+  if(wait.length)h+=`<p class="sub">${wait.length} photo${wait.length>1?"s":""} en attente de lecture par Claude.</p>`;
+  for(const [c,L] of by){const B=consoBilan(L);
+    h+=`<div class="stkch"><h4>${esc(nameOf(c))}</h4>${B.length?`<table class="ctab"><tr><th>Article</th><th>Sorti</th><th>Remis</th><th>Utilisé</th></tr>${B.map(x=>`<tr><td>${esc([x.a,x.c].filter(Boolean).join(" "))}</td><td>${nb(x.sorti)}</td><td>${nb(x.remis)}</td><td><b>${nb(x.sorti-x.remis)}</b> ${esc(x.u)}</td></tr>`).join("")}</table>`:`<span class="sub">Pas encore relu par Claude.</span>`}
+      <div class="thumbs">${L.map(th).join("")}</div></div>`}
+  box.innerHTML=h;
 }
 // « + » : une ligne libre de plus en bas du tableau des consommables (la fiche est enregistrée puis rouverte)
 let consAdding=false;
