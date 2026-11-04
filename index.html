@@ -235,6 +235,19 @@ textarea{min-height:64px;resize:vertical}
 .stkcard .fld{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}.stkcard select,.stkcard input[type=text]{font:16px var(--f-body);padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
 .stkch{border-top:1px solid var(--line);padding-top:8px;display:grid;gap:6px}.stkch h4{margin:0}
 .thumbs a{position:relative}.thumbs .tag{position:absolute;left:4px;bottom:4px;font:600 11px var(--f-body);padding:1px 6px;border-radius:8px;color:#fff;background:#C2410C}.thumbs .tag.in{background:#15803D}
+.stkwhich{display:flex;gap:8px;margin:4px 0 10px}.stkwhich .chip{font:600 16px var(--f-body);padding:8px 16px}
+.stkhead .stats{margin:4px 0 8px}.stkfam{gap:6px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}.stkfam .chip{flex:none}.stkfam .chip{font-size:13px;padding:4px 10px}
+.stkniv{margin-bottom:14px}.stkfh{margin:8px 0 2px;font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.04em;color:var(--accent)}
+.stkrows{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:6px}
+.stkrow{display:flex;align-items:center;gap:10px;text-align:left;width:100%;min-height:52px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
+.stkrow:hover{border-color:var(--accent)}.stkn{flex:1;min-width:0;display:flex;flex-direction:column}.stkn small,.stkq small{color:var(--muted);font-size:12px;font-weight:400}
+.stkq{text-align:right;font:600 15px var(--f-mono);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;flex:none}.stkq.r{color:var(--s-rouge)}.stkq.o{color:var(--s-orange)}
+.stktags{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}.stkpl{font:600 12px var(--f-mono);padding:0 7px;border-radius:9px;background:var(--t-orange);color:var(--ink)}
+.stkcol{align-self:flex-start;display:inline-block;font:500 12px var(--f-body);padding:0 7px;border-radius:9px;background:var(--t-bleu);color:var(--ink);vertical-align:1px}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;background:var(--s-gris)}.dot.r{background:var(--s-rouge)}.dot.o{background:var(--s-orange)}.dot.v{background:var(--s-vert)}
+.spanel{position:fixed;z-index:60}.stkbig{font:700 28px var(--f-mono)}.stkbig.r{color:var(--s-rouge)}.stkbig.o{color:var(--s-orange)}
+.stkform{display:flex;flex-direction:column;gap:8px;margin-top:8px}.stkform .clab{display:flex;flex-direction:column;gap:2px}
+.invrow{display:grid;grid-template-columns:1fr 84px 72px;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding:4px 0}.invrow .cin{min-width:0;text-align:center}
 @media (prefers-reduced-motion:no-preference){.row,.stat,.box{transition:border-color .15s,background .15s}}
 </style>
 
@@ -1260,19 +1273,180 @@ function consoPhotoCard(list,mk){
   fill();
 }
 // ---------- onglet Stock ----------
-let stockSel="";
+// Niveau du stock (tables stock_articles / stock_mouvements / vue stock_niveaux, voir outil/stock.sql),
+// alertes sous le seuil, liste « À commander » par fournisseur, inventaire sur tablette,
+// puis les photos de sorties / retours (relues par Claude, qui les reporte aussi dans le stock).
+let stockSel="",stk={arts:[],all:[],niv:new Map(),mv:[],q:"",fam:"",ok:null,which:(()=>{try{return localStorage.getItem("stk-which")||"pose"}catch(e){return"pose"}})()};
+// deux stocks distincts : pose (consommables de pose) et atelier (barres, accessoires de fabrication, consommables atelier)
+const STK_WHICH={pose:"Stock pose",atelier:"Stock atelier"};
+const STK_TYPES={inventaire:"Comptage",livraison:"Livraison",sortie:"Sortie",retour:"Retour",correction:"Correction"};
+const stkNum=s=>{const v=parseFloat(String(s??"").replace(/\s/g,"").replace(",","."));return isFinite(v)?v:null};
+const stkLvl=a=>stk.niv.get(a.id)??0;
+// rouge : à commander (ou épuisé) · orange : bientôt · vert : bon · gris : pas de seuil
+function stkEtat(a){const n=stkLvl(a),s=a.seuil;if(n<=0&&(s!=null||n<0))return"r";if(s==null)return"g";if(n<=s)return"r";if(n<=s*1.5)return"o";return"v"}
+const STK_ETAT={r:"À commander",o:"Bientôt",v:"Suffisant",g:"Pas de seuil"};
+const stkU=(a,n)=>{const u=a.unite||"unité";return(n>1&&!/s$|x$|\d/.test(u)&&!/ de /i.test(u))?u+"s":u};
+const stkQ=(a,n)=>`${nb(n)} ${esc(stkU(a,Math.abs(n)))}${a.contenance&&a.detail?` <span class="sub">≈ ${nb(n*a.contenance)} ${esc(a.detail)}</span>`:""}`;
+const stkName=a=>esc(a.nom)+(a.longueur?` <span class="sub">${nb(a.longueur)} m</span>`:"")+(a.coloris||a.emplacement?`<span class="stktags">${a.coloris?`<span class="stkcol">${esc(a.coloris)}</span>`:""}${a.emplacement?`<span class="stkpl" title="Emplacement">📍 ${esc(a.emplacement)}</span>`:""}</span>`:"");
+async function stkLoad(){
+  const sb=window.sbClient;
+  const [A,N,M]=await Promise.all([sb.from("stock_articles").select("*").order("famille").order("nom"),
+    sb.from("stock_niveaux").select("id,niveau,inventaire_le"),
+    sb.from("stock_mouvements").select("id,article,type,qte,chantier,photo,note,le,par").order("le",{ascending:false}).limit(60)]);
+  const e=A.error||N.error||M.error;if(e){stk.ok=false;throw e}
+  stk.all=(A.data||[]).sort((x,y)=>String(x.famille).localeCompare(y.famille,"fr")||String(x.nom).localeCompare(y.nom,"fr"));stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);stk.niv=new Map((N.data||[]).map(x=>[x.id,+x.niveau]));stk.inv=new Map((N.data||[]).map(x=>[x.id,x.inventaire_le]));stk.mv=M.data||[];stk.ok=true;
+}
 async function loadStock(){
   const el=$("tab-stock");if(!window.sbClient)return;
   if(!jobs.size&&(loadStock.n=(loadStock.n||0)+1)<20){el.innerHTML=`<span class="sub">Chargement…</span>`;setTimeout(()=>{if(!$("tab-stock").hidden)loadStock()},700);return}
   const live=[...jobs.entries()].map(([id,j])=>({id,...j})).filter(j=>!done(j)).sort((a,b)=>String(a.client).localeCompare(b.client));
   const nameOf=id=>{const j=jobs.get(id);return j?(j.client||id)+(j.ville?" · "+j.ville:""):id};
-  el.innerHTML=`<section class="stk"><div class="stkcard"><h3>📷 Photographier des consommables</h3>
+  stkLoad.live=live;stkLoad.nameOf=nameOf;
+  el.innerHTML=`<div class="chips stkwhich" role="tablist">${Object.entries(STK_WHICH).map(([k,l])=>`<button class="chip" role="tab" data-which="${k}" aria-pressed="${stk.which===k}">${k==="pose"?"🧰 ":"🏭 "}${l}</button>`).join("")}</div>
+    <div id="stk-top"><span class="sub">Chargement du stock…</span></div>
+    <section class="stk"><div class="stkcard" id="stk-cmd"></div><div class="stkcard stkpose"><h3>📷 Photographier des consommables</h3>
     <label class="fld">Chantier<select id="stk-ch"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
     <div id="stk-cam"></div><label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label></div>
-    <div class="stkcard" id="stk-list"><span class="sub">Chargement…</span></div></section>`;
+    <div class="stkcard stkpose" id="stk-list"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>`;
+  const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
+  el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw()});
   $("stk-ch").onchange=e=>{stockSel=e.target.value};
-  $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>loadStockList(nameOf),$("stk-note")));
-  loadStockList(nameOf);
+  $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>{loadStockList(nameOf);stkRefresh()},$("stk-note")));
+  loadStockList(nameOf);stkRefresh();
+}
+async function stkRefresh(){
+  try{await stkLoad()}catch(e){$("stk-top").innerHTML=`<div class="stkcard"><h3>Niveau du stock</h3><span class="sub">Le stock n'est pas encore installé dans la base. Les photos de sorties et de retours fonctionnent déjà ci-dessous.</span></div>`;$("stk-cmd").hidden=$("stk-mv").hidden=true;return}
+  stkDraw();
+}
+function stkDraw(){
+  const A=stk.arts.filter(a=>a.actif!==false),q=nrm(stk.q);
+  const cnt={r:0,o:0,v:0,g:0};A.forEach(a=>cnt[stkEtat(a)]++);
+  const fams=[...new Set(A.map(a=>a.famille))];
+  const vis=A.filter(a=>(!stk.fam||(stk.fam==="!"?stkEtat(a)==="r"||stkEtat(a)==="o":a.famille===stk.fam))&&(!q||nrm([a.nom,a.coloris,a.fournisseur,a.ref,a.emplacement].join(" ")).includes(q)));
+  const lastInv=A.map(a=>stk.inv.get(a.id)).filter(Boolean).sort().pop();
+  let h=`<div class="stkhead"><div class="stats">
+      <button class="stat r" data-sf="!" aria-pressed="${stk.fam==="!"}"><b>${cnt.r}</b><span>à commander</span></button>
+      <button class="stat o" data-sf="!" aria-pressed="false"><b>${cnt.o}</b><span>bientôt</span></button>
+      <button class="stat" data-sf="" aria-pressed="${!stk.fam}"><b>${A.length}</b><span>articles${lastInv?" · inventaire du "+fr(lastInv.slice(0,10)):""}</span></button></div>
+    <div class="tools"><input type="search" id="stk-q" placeholder="Chercher un article, une réf., un coloris, un emplacement…" value="${esc(stk.q)}" aria-label="Chercher un article">
+      ${canWrite?`<button class="btn" id="stk-inv">📋 Faire l'inventaire</button><button class="btn ghost" id="stk-add">＋ Nouvel article</button>`:""}</div>
+    <div class="tools stkfam"><button class="chip" data-sf="" aria-pressed="${!stk.fam}">Tout</button>${fams.map(f=>`<button class="chip" data-sf="${esc(f)}" aria-pressed="${stk.fam===f}">${esc(f)}</button>`).join("")}</div>
+    ${cnt.g===A.length&&A.length?`<p class="sub">Aucun seuil d'alerte n'est encore fixé : touchez un article pour lui donner un seuil, ou fixez-les tous d'un coup dans « Faire l'inventaire ».</p>`:""}</div>`;
+  h+=`<div class="stkcard stkniv"><h3>${STK_WHICH[stk.which]} : niveau</h3>`;
+  if(!vis.length)h+=`<span class="sub">${A.length?"Aucun article ne correspond.":stk.which==="atelier"?"Aucun article dans le stock atelier pour l'instant (barres, accessoires de fabrication, consommables atelier). Ajoutez-les avec « Nouvel article », ou envoyez l'inventaire atelier à Claude.":"Aucun article pour l'instant."}</span>`;
+  let fam=null;
+  vis.forEach(a=>{if(a.famille!==fam){if(fam!==null)h+=`</div>`;fam=a.famille;h+=`<h4 class="stkfh">${esc(fam)}</h4><div class="stkrows">`}
+    const e=stkEtat(a),n=stkLvl(a);
+    h+=`<button class="stkrow" data-art="${a.id}"><span class="dot ${e}" title="${STK_ETAT[e]}"></span><span class="stkn">${stkName(a)}${a.ref||a.fournisseur?`<small>${esc([a.ref,a.fournisseur].filter(Boolean).join(" · "))}</small>`:""}</span><span class="stkq ${e}">${stkQ(a,n)}${a.seuil!=null?`<small>seuil ${nb(a.seuil)}</small>`:""}</span></button>`});
+  if(fam!==null)h+=`</div>`;
+  h+=`</div>`;
+  $("stk-top").innerHTML=h;
+  $("stk-top").querySelectorAll("[data-sf]").forEach(b=>b.onclick=()=>{stk.fam=b.dataset.sf;stkDraw()});
+  $("stk-top").querySelectorAll("[data-art]").forEach(b=>b.onclick=()=>stkSheet(+b.dataset.art));
+  const qi=$("stk-q");qi.oninput=()=>{stk.q=qi.value;clearTimeout(stkDraw.t);stkDraw.t=setTimeout(()=>{const p=qi.selectionStart;stkDraw();const n=$("stk-q");n.focus();n.setSelectionRange(p,p)},250)};
+  if($("stk-inv"))$("stk-inv").onclick=stkInventaire;
+  if($("stk-add"))$("stk-add").onclick=()=>stkSheet(null);
+  stkDrawCmd();stkDrawMv();
+}
+// « À commander » : articles rouges et orange, rangés par fournisseur, à copier dans un mail / une commande
+function stkDrawCmd(){
+  const box=$("stk-cmd");box.hidden=false;
+  const L=stk.arts.filter(a=>a.actif!==false&&["r","o"].includes(stkEtat(a)));
+  if(!L.length){box.innerHTML=`<h3>🛒 À commander</h3><span class="sub">${stk.arts.some(a=>a.seuil!=null)?"Rien à commander : tout est au-dessus des seuils.":"La liste se remplira dès que les seuils d'alerte seront fixés."}</span>`;return}
+  const by=new Map();L.forEach(a=>{const f=a.fournisseur||"Fournisseur à préciser";if(!by.has(f))by.set(f,[]);by.get(f).push(a)});
+  const prop=a=>a.reassort!=null?a.reassort:Math.max(0,Math.ceil((a.seuil||0)*2-stkLvl(a)));
+  let h=`<h3>🛒 À commander</h3>`,txt=[];
+  for(const [f,X] of [...by].sort((a,b)=>a[0].localeCompare(b[0]))){
+    h+=`<div class="stkch"><h4>${esc(f)}</h4><table class="ctab"><tr><th>Article</th><th>En stock</th><th>À commander</th></tr>${X.map(a=>`<tr><td><span class="dot ${stkEtat(a)}"></span> ${stkName(a)}</td><td>${nb(stkLvl(a))}</td><td><b>${nb(prop(a))}</b> ${esc(stkU(a,prop(a)))}</td></tr>`).join("")}</table></div>`;
+    txt.push(f+" :\n"+X.map(a=>"- "+a.nom+(a.coloris&&!nrm(a.nom).includes(nrm(a.coloris))?" ("+a.coloris+")":"")+" : "+nb(prop(a))+" "+stkU(a,prop(a))).join("\n"))}
+  h+=`<button class="btn ghost" id="stk-copy">📋 Copier la liste</button><span class="sub">Quantité proposée : la quantité de réassort de l'article, sinon de quoi revenir à deux fois le seuil.</span>`;
+  box.innerHTML=h;
+  $("stk-copy").onclick=async()=>{try{await navigator.clipboard.writeText("Commande consommables MGDS\n\n"+txt.join("\n\n"));toast("Liste copiée : collez-la dans un mail ou une commande.")}catch(e){toast("Copie impossible sur cet appareil.")}};
+}
+function stkDrawMv(){
+  const box=$("stk-mv");box.hidden=false;const by=new Map(stk.arts.map(a=>[a.id,a]));
+  const nInv=stk.mv.some(m=>m.type==="inventaire");
+  const mine=new Set(stk.arts.map(a=>a.id));stk.mvW=stk.mv.filter(m=>mine.has(m.article));
+  box.innerHTML=`<h3>Derniers mouvements</h3>${!stk.mvW.filter(m=>m.type!=="inventaire").length?`<span class="sub">Aucun mouvement pour l'instant.</span>`:`<table class="ctab"><tr><th>Date</th><th>Article</th><th>Mouvement</th></tr>${stk.mvW.filter(m=>m.type!=="inventaire").slice(0,25).map(m=>{const a=by.get(m.article)||{nom:"?"};const s=m.type==="sortie"?-m.qte:m.qte;
+    return `<tr><td class="mono">${fr(m.le.slice(0,10))}</td><td>${stkName(a)}${m.chantier?`<br><small class="sub">${esc(stkLoad.nameOf(m.chantier))}</small>`:""}</td><td>${STK_TYPES[m.type]} <b>${s>0?"+":""}${nb(s)}</b>${m.photo?" 📷":""}</td></tr>`}).join("")}</table>${nInv?`<span class="sub">Les comptages d'inventaire sont visibles dans chaque article.</span>`:""}`}`;
+}
+// fiche d'un article : niveau, mouvement rapide, réglages, historique
+function stkPanel(title){
+  let p=$("spanel");if(!p){p=document.createElement("div");p.id="spanel";p.className="cpanel spanel";p.setAttribute("role","dialog");document.body.appendChild(p)}
+  p.innerHTML=`<div class="cbar"><b>${title}</b><button class="btn" id="sp-x">Fermer</button></div><div class="clist" id="sp-l"></div>`;
+  p.hidden=false;$("sp-x").onclick=()=>{p.hidden=true};return $("sp-l");
+}
+async function stkSheet(id){
+  const a=id==null?{stock:stk.which,nom:"",famille:stk.fam&&stk.fam!=="!"?stk.fam:(stk.which==="atelier"?"Barres":"Divers"),unite:stk.which==="atelier"?"barre":"unité",actif:true}:stk.all.find(x=>x.id===id);if(!a)return;
+  const L=stkPanel(id==null?"＋ Nouvel article":esc(a.nom)),n=stkLvl(a),ro=canWrite?"":"disabled";
+  const fams=[...new Set(stk.arts.map(x=>x.famille).concat(stk.which==="atelier"?["Barres","Accessoires","Consommables atelier"]:["Divers"]))].sort();
+  let h="";
+  if(id!=null){const e=stkEtat(a);
+    h+=`<div class="crow"><div class="stkbig ${e}">${stkQ(a,n)}</div><div class="cinfo"><span class="dot ${e}"></span> ${STK_ETAT[e]}${a.seuil!=null?" · seuil "+nb(a.seuil):""}${stk.inv.get(a.id)?" · compté le "+fr(stk.inv.get(a.id).slice(0,10)):""}</div></div>`;
+    if(canWrite)h+=`<div class="crow ccard"><b>Mouvement</b><div class="chips" id="sp-t">${[["livraison","＋ Livraison"],["sortie","− Sortie"],["retour","↩ Retour"],["inventaire","＝ J'ai compté"]].map(([k,l],i)=>`<button type="button" class="chip ${i?"":"on"}" data-t="${k}">${l}</button>`).join("")}</div>
+      <div class="cline"><input class="cin" id="sp-q" inputmode="decimal" placeholder="Quantité (${esc(a.unite)})" aria-label="Quantité"><select class="cin" id="sp-c" aria-label="Chantier" hidden><option value="">Chantier (facultatif)…</option>${(stkLoad.live||[]).map(j=>`<option value="${esc(j.id)}">${esc(stkLoad.nameOf(j.id))}</option>`).join("")}</select></div>
+      <input class="cin" id="sp-n" placeholder="Remarque (facultatif) : n° de bon, fournisseur…" aria-label="Remarque"><button class="btn" id="sp-ok">Enregistrer le mouvement</button></div>`}
+  h+=`<details class="crow" ${id==null?"open":""}><summary><b>Réglages de l'article</b></summary><div class="stkform">
+    <label class="clab">Stock<select class="cin" id="sp-stock" ${ro}>${Object.entries(STK_WHICH).map(([k,l])=>`<option value="${k}" ${(a.stock||"pose")===k?"selected":""}>${l}</option>`).join("")}</select></label>
+    <label class="clab">Nom<input class="cin" id="sp-nom" value="${esc(a.nom)}" ${ro}></label>
+    <label class="clab">Référence fabricant<input class="cin" id="sp-ref" value="${esc(a.ref||"")}" placeholder="ex. réf. profilé Technal" ${ro}></label>
+    <label class="clab">Emplacement<input class="cin" id="sp-pl" value="${esc(a.emplacement||"")}" placeholder="ex. D 5 (barres debout n° 5)" ${ro}></label>
+    <label class="clab">Longueur de barre (m)<input class="cin" id="sp-lg" inputmode="decimal" value="${a.longueur!=null?nb(a.longueur):""}" placeholder="barres seulement" ${ro}></label>
+    <label class="clab">Famille<input class="cin" id="sp-fam" list="sp-fams" value="${esc(a.famille)}" ${ro}><datalist id="sp-fams">${fams.map(f=>`<option value="${esc(f)}">`).join("")}</datalist></label>
+    <label class="clab">Coloris<input class="cin" id="sp-col" value="${esc(a.coloris||"")}" placeholder="ex. gris alu, RAL 7016" ${ro}></label>
+    <label class="clab">Fournisseur<input class="cin" id="sp-four" value="${esc(a.fournisseur||"")}" ${ro}></label>
+    <label class="clab">Compté en<input class="cin" id="sp-u" value="${esc(a.unite||"")}" placeholder="carton, boîte, rouleau…" ${ro}></label>
+    <label class="clab">Seuil d'alerte<input class="cin" id="sp-seuil" inputmode="decimal" value="${a.seuil!=null?nb(a.seuil):""}" placeholder="en dessous : à commander" ${ro}></label>
+    <label class="clab">Quantité à commander d'habitude<input class="cin" id="sp-re" inputmode="decimal" value="${a.reassort!=null?nb(a.reassort):""}" ${ro}></label>
+    <label class="clab">Sur chantier, compté en<input class="cin" id="sp-det" value="${esc(a.detail||"")}" placeholder="ex. cartouche (si différent)" ${ro}></label>
+    <label class="clab">Combien par ${esc(a.unite||"unité")} ?<input class="cin" id="sp-cont" inputmode="decimal" value="${a.contenance!=null?nb(a.contenance):""}" placeholder="ex. 12 cartouches par carton" ${ro}></label>
+    ${canWrite?`<label class="clab">Prix unitaire HT (€)<input class="cin" id="sp-pu" inputmode="decimal" value="${a.pu!=null?nb(a.pu):""}"></label>`:""}
+    ${canWrite&&id!=null?`<label class="cline"><input type="checkbox" id="sp-off" ${a.actif===false?"checked":""}> Article plus utilisé (masqué)</label>`:""}
+    ${canWrite?`<button class="btn" id="sp-save">${id==null?"Créer l'article":"Enregistrer les réglages"}</button>`:""}</div></details>`;
+  if(id!=null)h+=`<div class="crow"><b>Historique</b><div id="sp-h" class="cinfo">Chargement…</div></div>`;
+  L.innerHTML=h;
+  const sb=window.sbClient;
+  if(id!=null&&canWrite){let t="livraison";
+    $("sp-t").querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{t=b.dataset.t;$("sp-t").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b));$("sp-c").hidden=!["sortie","retour"].includes(t);$("sp-q").placeholder=t==="inventaire"?"Quantité comptée ("+a.unite+")":"Quantité ("+a.unite+")"});
+    $("sp-ok").onclick=async()=>{const v=stkNum($("sp-q").value);if(v==null||v<0||(v===0&&t!=="inventaire")){toast("Indiquez une quantité.");return}
+      $("sp-ok").disabled=true;
+      const{error}=await sb.from("stock_mouvements").insert({article:a.id,type:t,qte:v,chantier:$("sp-c").hidden?null:($("sp-c").value||null),note:$("sp-n").value.trim()||null});
+      if(error){$("sp-ok").disabled=false;toast("Enregistrement impossible. Réessayez.");return}
+      toast({inventaire:"Comptage enregistré.",livraison:"Livraison enregistrée.",sortie:"Sortie enregistrée.",retour:"Retour enregistré."}[t]);await stkLoad();stkDraw();stkSheet(a.id)}}
+  if(canWrite)$("sp-save").onclick=async()=>{
+    const nom=$("sp-nom").value.trim();if(!nom){toast("Donnez un nom à l'article.");return}
+    const row={stock:$("sp-stock").value,ref:$("sp-ref").value.trim()||null,emplacement:$("sp-pl").value.trim().toUpperCase()||null,longueur:stkNum($("sp-lg").value),nom,famille:$("sp-fam").value.trim()||"Divers",coloris:$("sp-col").value.trim()||null,fournisseur:$("sp-four").value.trim()||null,unite:$("sp-u").value.trim()||"unité",
+      seuil:stkNum($("sp-seuil").value),reassort:stkNum($("sp-re").value),detail:$("sp-det").value.trim()||null,contenance:stkNum($("sp-cont").value),pu:stkNum($("sp-pu").value)};
+    if($("sp-off"))row.actif=!$("sp-off").checked;
+    $("sp-save").disabled=true;
+    const r=id==null?await sb.from("stock_articles").insert(row).select("id").single():await sb.from("stock_articles").update(row).eq("id",id).select("id").single();
+    if(r.error){$("sp-save").disabled=false;toast("Enregistrement impossible. Réessayez.");return}
+    toast(id==null?"Article créé.":"Réglages enregistrés.");await stkLoad();stkDraw();stkSheet(r.data.id)};
+  if(id!=null){const{data}=await sb.from("stock_mouvements").select("type,qte,chantier,photo,note,le").eq("article",id).order("le",{ascending:false}).limit(40);
+    const H=$("sp-h");if(!H)return;
+    H.innerHTML=(data||[]).length?`<table class="ctab">${data.map(m=>{const s=m.type==="sortie"?-m.qte:m.qte;return `<tr><td class="mono">${fr(m.le.slice(0,10))}</td><td>${STK_TYPES[m.type]}${m.chantier?" · "+esc(stkLoad.nameOf(m.chantier)):""}${m.note?`<br><small>${esc(m.note)}</small>`:""}</td><td><b>${m.type==="inventaire"?"= "+nb(m.qte):(s>0?"+":"")+nb(s)}</b>${m.photo?" 📷":""}</td></tr>`}).join("")}</table>`:"Aucun mouvement."}
+}
+// inventaire : une ligne par article, on tape ce qu'on compte (vide = pas compté) et on peut fixer le seuil en même temps
+function stkInventaire(){
+  const L=stkPanel("📋 Inventaire · "+STK_WHICH[stk.which]),A=stk.arts.filter(a=>a.actif!==false);let fam=null,h=`<p class="cinfo">Tapez la quantité comptée pour chaque article. Laissez vide ce que vous n'avez pas compté. Vous pouvez aussi fixer le seuil d'alerte. Rien n'est enregistré avant le bouton en bas.</p>
+    <input class="cin" id="inv-q" type="search" placeholder="Chercher un article…" aria-label="Chercher un article">`;
+  A.forEach(a=>{if(a.famille!==fam){fam=a.famille;h+=`<div class="chead" data-fh="${esc(fam)}">${esc(fam)}</div>`}
+    h+=`<div class="invrow" data-k="${esc(nrm([a.nom,a.coloris,a.ref,a.emplacement].join(" ")))}" data-fam="${esc(fam)}"><span class="stkn">${stkName(a)}<small>en stock : ${nb(stkLvl(a))} ${esc(stkU(a,stkLvl(a)))}</small></span>
+      <input class="cin" data-inv="${a.id}" inputmode="decimal" placeholder="compté" aria-label="Quantité comptée ${esc(a.nom)}"><input class="cin" data-seuil="${a.id}" inputmode="decimal" placeholder="seuil" value="${a.seuil!=null?nb(a.seuil):""}" aria-label="Seuil ${esc(a.nom)}"></div>`});
+  h+=`<button class="btn cadd2" id="inv-ok">Enregistrer l'inventaire</button>`;
+  L.innerHTML=h;
+  $("inv-q").oninput=e=>{const q=nrm(e.target.value);const seen=new Set();L.querySelectorAll(".invrow").forEach(r=>{const ok=!q||r.dataset.k.includes(q);r.hidden=!ok;if(ok)seen.add(r.dataset.fam)});L.querySelectorAll("[data-fh]").forEach(x=>x.hidden=!seen.has(x.dataset.fh))};
+  $("inv-ok").onclick=async()=>{
+    const sb=window.sbClient,now=new Date().toISOString(),cnt=[],seuils=[];
+    L.querySelectorAll("[data-inv]").forEach(i=>{const v=stkNum(i.value);if(v!=null&&v>=0)cnt.push({article:+i.dataset.inv,type:"inventaire",qte:v,le:now,note:"Inventaire du "+fr(now.slice(0,10))})});
+    L.querySelectorAll("[data-seuil]").forEach(i=>{const a=stk.arts.find(x=>x.id===+i.dataset.seuil),v=i.value.trim()===""?null:stkNum(i.value);if(a&&v!==a.seuil&&!(v==null&&a.seuil==null))seuils.push([a.id,v])});
+    if(!cnt.length&&!seuils.length){toast("Rien à enregistrer.");return}
+    $("inv-ok").disabled=true;let bad=0;
+    if(cnt.length){const{error}=await sb.from("stock_mouvements").insert(cnt);if(error)bad++}
+    for(const [i,v] of seuils){const{error}=await sb.from("stock_articles").update({seuil:v}).eq("id",i);if(error)bad++}
+    if(bad){$("inv-ok").disabled=false;toast("Une partie n'a pas pu être enregistrée. Réessayez.");return}
+    toast((cnt.length?cnt.length+" comptage"+(cnt.length>1?"s":""):"")+(cnt.length&&seuils.length?" et ":"")+(seuils.length?seuils.length+" seuil"+(seuils.length>1?"s":""):"")+" enregistré"+((cnt.length+seuils.length)>1?"s":"")+".");
+    $("spanel").hidden=true;await stkLoad();stkDraw()};
 }
 async function loadStockList(nameOf){
   const box=$("stk-list");let P;
