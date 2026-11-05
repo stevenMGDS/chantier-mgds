@@ -163,6 +163,13 @@ const downloads={
   }
 };
 
+// ---------- direction : table fermée à tous sauf Steven (voir outil/direction.sql) ----------
+window.dirDb={
+  ok:()=>(profil&&profil.email||"").toLowerCase()==="s.gallais@mgds.fr",
+  async list(){const {data,error}=await sb.from("direction").select("id,data");if(error)throw error;return data},
+  async put(id,d){const {error}=await sb.from("direction").upsert({id,data:d,maj_le:new Date().toISOString()});if(error)throw error},
+  async del(id){const {error}=await sb.from("direction").delete().eq("id",id);if(error)throw error},
+};
 const services={db,user,assets,downloads};
 window.claude={use:async name=>{await ready;return services[name]||null}};
 })();
