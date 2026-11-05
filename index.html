@@ -216,6 +216,15 @@ textarea{min-height:64px;resize:vertical}
 .ctl li.alerte{background:var(--t-rouge)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;z-index:30;font-size:15px}
 .who-by{font-size:12px;color:var(--muted);margin-left:6px}
+.dtop{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0 12px}.dtop select{width:auto;margin-left:auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
+.kpi{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 14px}.kpi b{display:block;font:600 24px var(--f-mono);font-variant-numeric:tabular-nums}.kpi span{font-size:14px;color:var(--muted)}.kpi.o b{color:var(--s-orange)}.kpi.r b{color:var(--s-rouge)}
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.tbl table{border-collapse:collapse;width:100%;font-size:14px}.tbl th{font:600 13px var(--f-body);text-align:left;color:var(--muted);background:var(--sunk);white-space:nowrap}.tbl th,.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}.tbl tr:last-child td{border-bottom:0}
+.tbl .n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}.tbl select{min-width:190px}.tbl input[type=number]{font:14px var(--f-mono);width:7.5em;text-align:right;border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:var(--surface);color:var(--ink)}
+.tbl .des{min-width:220px}.up{color:var(--s-rouge);font-weight:600}.dn{color:var(--s-vert);font-weight:600}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.chart{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}.chart h3{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+.hb{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:14px;margin-bottom:8px}.hb i{grid-column:1/-1;height:9px;border-radius:2px;background:var(--accent);display:block;min-width:2px}.hb b{font:500 13px var(--f-mono)}
 .tabs{display:flex;gap:4px;margin:0 0 14px;border-bottom:1px solid var(--line)}
 .tabs button{font:600 15px var(--f-body);padding:10px 16px;border:0;background:none;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;margin-bottom:-1px}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
@@ -256,9 +265,10 @@ textarea{min-height:64px;resize:vertical}
     <h1>Chantiers MGDS<small id="sum">Chargement des chantiers…</small></h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="newBtn" hidden>Nouveau chantier</button></div>
   </header>
-  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button></nav>
+  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button><button role="tab" data-tab="direction" id="tabDir" aria-selected="false" hidden>Direction</button></nav>
   <div id="tab-planning" hidden></div>
   <div id="tab-stock" hidden></div>
+  <section id="tab-direction" hidden aria-label="Direction"></section>
   <div id="tab-chantiers">
   <div class="stats" id="stats"></div>
   <div class="tools">
@@ -440,6 +450,13 @@ const downloads={
   }
 };
 
+// ---------- direction : table fermée à tous sauf Steven (voir outil/direction.sql) ----------
+window.dirDb={
+  ok:()=>(profil&&profil.email||"").toLowerCase()==="s.gallais@mgds.fr",
+  async list(){const {data,error}=await sb.from("direction").select("id,data");if(error)throw error;return data},
+  async put(id,d){const {error}=await sb.from("direction").upsert({id,data:d,maj_le:new Date().toISOString()});if(error)throw error},
+  async del(id){const {error}=await sb.from("direction").delete().eq("id",id);if(error)throw error},
+};
 const services={db,user,assets,downloads};
 window.claude={use:async name=>{await ready;return services[name]||null}};
 })();
@@ -728,11 +745,12 @@ async function renderSheet(){
 }
 // ---- onglets (version en ligne seulement) ----
 function showTab(t){
-  if(!["chantiers","planning","stock"].includes(t))t="chantiers";
+  if(!["chantiers","planning","stock","direction"].includes(t)||(t==="direction"&&$("tabDir").hidden))t="chantiers";
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
-  for(const k of ["chantiers","planning","stock"])$("tab-"+k).hidden=k!==t;
+  for(const k of ["chantiers","planning","stock","direction"])$("tab-"+k).hidden=k!==t;
   if(t==="planning"&&!$("tab-planning").firstChild)$("tab-planning").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`;
   if(t==="stock")loadStock();
+  if(t==="direction")renderDir();
   try{history.replaceState(null,"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
 }
 if(window.sbClient){$("tabs").hidden=false;$("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b)showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
@@ -2311,6 +2329,62 @@ $("vphotoin").addEventListener("change",e=>{const fs=[...e.target.files];e.targe
 // iPad / iPhone : pas de zoom automatique de toute la page quand on touche une case
 if(/iP(ad|hone|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)){const m=document.querySelector('meta[name="viewport"]');if(m&&!/maximum-scale/.test(m.content))m.content+=", maximum-scale=1"}
 
+// ---------- direction (Steven seul : la table « direction » est fermée aux autres par la base) ----------
+// direction/fac_* : {kind:"facture",four,num,date,lignes:[{ref,des,fam,qte,pu,ht,aff,doute}]} ; aff = "stock" | "fg" | n° de chantier
+// direction/prev_<chantier> : {kind:"prevu",achat} ; direction/tarifs : {kind:"tarifs",items:{"four|ref":pu}}
+let dirDocs=new Map(),dirTab="affecter",dirMois="",dirAll=false,dirWait=false;
+const eur=n=>Math.round(n||0).toLocaleString("fr-FR")+" €",eur2=n=>(n||0).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
+const dirLines=()=>[...dirDocs].filter(([,d])=>d.kind==="facture").flatMap(([fid,f])=>(f.lignes||[]).map((l,i)=>({...l,fid,i,four:f.four||"?",num:f.num||"",date:f.date||""}))).sort((a,b)=>a.date.localeCompare(b.date)||a.fid.localeCompare(b.fid)||a.i-b.i);
+const affLab=a=>a==="stock"?"Stock":a==="fg"?"Frais généraux":jobs.has(a)?jobs.get(a).client:a;
+const toSort=l=>!l.aff||!!l.doute;
+function prixEcarts(all){const tar=(dirDocs.get("tarifs")||{}).items||{},last={},out=[];
+  all.forEach(l=>{if(!l.ref||!l.pu)return;const k=l.four+"|"+l.ref,r=tar[k]??last[k];
+    if(r&&Math.abs(l.pu/r-1)>=.02)out.push({...l,prixRef:r,src:tar[k]!=null?"tarif":"achat précédent",ec:l.pu/r-1,sur:(l.pu-r)*(l.qte||0)});last[k]=l.pu});return out}
+function bars(rows){if(!rows.length)return'<p class="sub">Pas de données.</p>';const m=Math.max(...rows.map(r=>Math.abs(r[1])),1);return rows.map(([t,v])=>`<div class="hb"><span>${esc(t)}</span><b>${eur(v)}</b><i style="width:${Math.abs(v)/m*100}%"></i></div>`).join("")}
+function sumBy(ls,f){const m={};ls.forEach(l=>{const k=f(l);m[k]=(m[k]||0)+(l.ht||0)});return Object.entries(m)}
+function renderDir(){
+  if($("tab-direction").hidden)return;
+  const a=document.activeElement;if(a&&$("tab-direction").contains(a)&&a.tagName==="INPUT"){dirWait=true;return}
+  const all=dirLines(),mois=[...new Set(all.map(l=>l.date.slice(0,7)).filter(Boolean))].sort().reverse();
+  const ls=dirMois?all.filter(l=>l.date.startsWith(dirMois)):all;
+  const ecs=prixEcarts(all).filter(e=>!dirMois||e.date.startsWith(dirMois));
+  const total=ls.reduce((s,l)=>s+(l.ht||0),0),stock=ls.filter(l=>l.aff==="stock").reduce((s,l)=>s+(l.ht||0),0),todo=ls.filter(toSort),sur=ecs.filter(e=>e.sur>0).reduce((s,e)=>s+e.sur,0);
+  const head=`<div class="dtop">${[["affecter","À affecter ("+todo.length+")"],["debourses","Déboursés"],["prix","Prix d'achat ("+ecs.length+")"],["analyses","Analyses"]].map(([k,t])=>`<button class="chip" data-dirtab="${k}" aria-pressed="${dirTab===k}">${t}</button>`).join("")}
+   <select id="dirMois" aria-label="Période"><option value="">Toute la période</option>${mois.map(m=>`<option value="${m}" ${m===dirMois?"selected":""}>${m.slice(5)}/${m.slice(0,4)}</option>`).join("")}</select></div>
+   <div class="kpis"><div class="kpi"><b>${eur(total)}</b><span>Achats HT</span></div><div class="kpi"><b>${eur(stock)}</b><span>Entrés en stock</span></div><div class="kpi ${todo.length?"o":""}"><b>${todo.length}</b><span>Lignes à affecter</span></div><div class="kpi ${sur>0?"r":""}"><b>${eur(sur)}</b><span>Surcoût des hausses de prix</span></div></div>`;
+  let body="";
+  if(!all.length)body=`<div class="empty">Aucune facture pour l'instant. Envoie l'export Cense à Claude : il chargera et affectera les lignes ici.</div>`;
+  else if(dirTab==="affecter"){
+    const rows=dirAll?ls:todo;
+    const jl=[...jobs.entries()].sort((x,y)=>String(x[1].client).localeCompare(y[1].client));
+    body=`<div class="tools"><button class="chip" id="dirAll" aria-pressed="${dirAll}">Toutes les lignes</button></div>`+(rows.length?`<div class="tbl"><table><thead><tr><th>Date</th><th>Fournisseur</th><th>Désignation</th><th class="n">Qté</th><th class="n">PU HT</th><th class="n">Total HT</th><th>Affectation</th></tr></thead><tbody>${rows.map(l=>`<tr><td class="n">${fr(l.date)}</td><td>${esc(l.four)}<br><span class="mono">${esc(l.num)}</span></td><td class="des">${esc(l.des)}${l.ref?`<br><span class="mono">${esc(l.ref)}</span>`:""}${l.doute?`<br><span class="flag o">${esc(l.doute)}</span>`:""}</td><td class="n">${esc(l.qte??"")}</td><td class="n">${eur2(l.pu)}</td><td class="n">${eur2(l.ht)}</td><td><select data-aff="${esc(l.fid)}" data-i="${l.i}" aria-label="Affectation"><option value="">À affecter</option><option value="stock" ${l.aff==="stock"?"selected":""}>Stock</option><option value="fg" ${l.aff==="fg"?"selected":""}>Frais généraux</option>${jl.map(([id,j])=>`<option value="${esc(id)}" ${l.aff===id?"selected":""}>${esc(j.client)} · ${esc(id)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Tout est affecté.</div>`);
+  }else if(dirTab==="debourses"){
+    const reel=Object.fromEntries(sumBy(all.filter(l=>jobs.has(l.aff)),l=>l.aff));
+    const rows=[...jobs.entries()].map(([id,j])=>({id,j,pv:(dirDocs.get("prev_"+id)||{}).achat,re:reel[id]||0})).filter(r=>!done(r.j)||r.re||r.pv).map(r=>({...r,ec:r.pv?r.re-r.pv:null})).sort((x,y)=>(y.ec??-1e12)-(x.ec??-1e12));
+    body=`<p class="sub">Achats affectés aux chantiers, hors main-d'œuvre et sorties de stock.</p><div class="tbl"><table><thead><tr><th>Chantier</th><th class="n">Prévu HT</th><th class="n">Réel HT</th><th class="n">Écart</th><th class="des">Consommé</th></tr></thead><tbody>${rows.map(r=>{const p=r.pv?r.re/r.pv*100:0;return`<tr><td><b>${esc(r.j.client)}</b><br><span class="mono">${esc(r.id)}</span></td><td class="n"><input type="number" min="0" step="1" data-prev="${esc(r.id)}" value="${r.pv??""}" aria-label="Déboursé prévu ${esc(r.j.client)}"></td><td class="n">${eur(r.re)}</td><td class="n ${r.ec>0?"up":r.ec<0?"dn":""}">${r.ec==null?"":(r.ec>0?"+":"")+eur(r.ec)}</td><td class="des">${r.pv?`<div class="hb" style="margin:0"><span class="sub">${Math.round(p)} %</span><b></b><i style="width:${Math.min(p,100)}%;background:var(${p>100?"--s-rouge":"--s-vert"})"></i></div>`:""}</td></tr>`}).join("")}</tbody></table></div>`;
+  }else if(dirTab==="prix"){
+    const rows=[...ecs].sort((x,y)=>y.sur-x.sur);
+    body=rows.length?`<div class="tbl"><table><thead><tr><th>Date</th><th>Fournisseur</th><th>Article</th><th class="n">Référence</th><th class="n">Facturé</th><th class="n">Écart</th><th class="n">Impact</th><th>Comparé à</th></tr></thead><tbody>${rows.map(e=>`<tr><td class="n">${fr(e.date)}</td><td>${esc(e.four)}</td><td class="des">${esc(e.des)}<br><span class="mono">${esc(e.ref)}</span></td><td class="n">${eur2(e.prixRef)}</td><td class="n">${eur2(e.pu)}</td><td class="n ${e.ec>0?"up":"dn"}">${e.ec>0?"+":""}${(e.ec*100).toFixed(1).replace(".",",")} %</td><td class="n">${eur(e.sur)}</td><td class="sub">${e.src}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Aucun écart de prix de 2 % ou plus.</div>`;
+  }else{
+    const desc=r=>r.sort((x,y)=>y[1]-x[1]);
+    body=`<div class="charts"><div class="chart"><h3>Par fournisseur</h3>${bars(desc(sumBy(ls,l=>l.four)).slice(0,10))}</div><div class="chart"><h3>Par famille</h3>${bars(desc(sumBy(ls,l=>l.fam||"Non classé")).slice(0,10))}</div><div class="chart"><h3>Par destination</h3>${bars(desc(sumBy(ls,l=>l.aff==="stock"||l.aff==="fg"?affLab(l.aff):l.aff?"Chantiers":"À affecter")))}</div><div class="chart"><h3>Par mois</h3>${bars(sumBy(all,l=>l.date.slice(0,7)||"?").sort((x,y)=>x[0].localeCompare(y[0])).slice(-12).map(([m,v])=>[m.slice(5)+"/"+m.slice(0,4),v]))}</div></div>`;
+  }
+  $("tab-direction").innerHTML=head+body;
+}
+async function dirPut(id,d){try{await dirDb.put(id,d)}catch(_){toast("Enregistrement impossible, réessayez.")}}
+$("tab-direction").addEventListener("click",e=>{const b=e.target.closest("[data-dirtab],#dirAll");if(!b)return;if(b.id==="dirAll")dirAll=!dirAll;else dirTab=b.dataset.dirtab;renderDir()});
+$("tab-direction").addEventListener("change",e=>{const t=e.target;
+  if(t.id==="dirMois"){dirMois=t.value;renderDir();return}
+  if(t.dataset.aff!==undefined){const fid=t.dataset.aff,f=dirDocs.get(fid);if(!f)return;const lignes=f.lignes.map(x=>({...x})),l=lignes[+t.dataset.i];l.aff=t.value;delete l.doute;
+    dirDocs.set(fid,{...f,lignes});renderDir();dirPut(fid,{...f,lignes});return}
+  if(t.dataset.prev!==undefined){const id=t.dataset.prev,did="prev_"+id,v=t.value===""?null:Math.max(0,+t.value);
+    if(v===null){dirDocs.delete(did);dirDb.del(did).catch(()=>toast("Enregistrement impossible, réessayez."))}else{const d={kind:"prevu",achat:v};dirDocs.set(did,d);dirPut(did,d)}
+    t.blur();renderDir()}
+});
+$("tab-direction").addEventListener("focusout",()=>{if(dirWait){dirWait=false;setTimeout(renderDir,50)}});
+
+async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=>[x.id,x.data]));$("tabDir").hidden=false}catch(_){}}
+
 // ---------- démarrage ----------
 (async()=>{
   db=await claude.use("db");
@@ -2320,8 +2394,9 @@ if(/iP(ad|hone|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&
   assets=canWrite||canFill?await claude.use("assets"):null;
   downloads=await claude.use("downloads");
   $("newBtn").hidden=!canWrite;
+  if(window.dirDb&&dirDb.ok())await loadDir();
   db.collection("chantiers").onSnapshot(snap=>{
-    jobs=new Map(snap.docs.map(d=>[d.id,d.data()]));render();
+    jobs=new Map(snap.docs.map(d=>[d.id,d.data()]));render();renderDir();
     if(openId&&openId!=="__new"){
       if(document.activeElement&&$("sheet").contains(document.activeElement)&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))pendingSheet=true;
       else renderSheet();
