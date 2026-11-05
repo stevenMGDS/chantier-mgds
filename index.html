@@ -198,6 +198,9 @@ textarea{min-height:64px;resize:vertical}
 .viewer .fld.plus,.cpanel .qty.plus .cin{color:#C2410C;font-weight:700}.cpanel .qty.plus .clab{color:#C2410C}
 .cpanel .cpre{color:#0B3D91;font-weight:700;align-self:center}
 .viewer .habwhite{position:absolute;z-index:1;background:#fff;pointer-events:none}
+.viewer .consx{position:absolute;z-index:3;background:#fff;color:#111;font-family:Helvetica,Arial,sans-serif;white-space:nowrap;overflow:hidden;line-height:1.3;pointer-events:none;display:flex;align-items:center}.viewer .consx.del{color:#888;font-style:italic;padding-left:4px}
+.cpanel .ctop{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.cpanel .ctop b{flex:1;min-width:8em}.cpanel .ctop .cin{flex:1}.cpanel .ctool{min-height:40px;padding:6px 10px;font-size:14px}.cpanel .corig{flex-basis:100%;font-size:13px;color:var(--muted)}
+.cpanel .crow.cdel b{text-decoration:line-through;color:var(--muted)}
 .cpanel .nitem{display:flex;justify-content:space-between;gap:10px;align-items:center;text-align:left;width:100%;font:15px var(--f-body);min-height:48px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);cursor:pointer}.cpanel .nitem small{color:var(--muted);flex:none}
 .viewer .fld.flash{animation:flash 1s ease 2}@keyframes flash{50%{box-shadow:0 0 0 8px rgba(232,89,12,.6)}}
 .viewer input.fld[type=checkbox]{appearance:none;-webkit-appearance:none;cursor:pointer;padding:0;min-width:14px;min-height:14px;border-width:2px;background:#fff}
@@ -1083,8 +1086,12 @@ function buildConso(fields){
         .sort((a,b2)=>b2.transform[5]-a.transform[5]||a.transform[4]-b2.transform[4]).map(t=>t.str).join(" ").replace(/\s+/g," ").trim()};
       const cell={};cols.forEach(c=>cell[role(c.s)]=(cell[role(c.s)]?cell[role(c.s)]+" ":"")+txt(c));
       const fs=b.fs.map(f=>({f,r:role(colOf(f.x).s)}));
-      return{cell,fs,head:hasChg&&!fs.some(x=>x.f.cb&&x.r==="chg")&&!fs.some(x=>x.r==="art")}});
+      return{cell,fs,y0:b[0],y1:b[1],T,head:hasChg&&!fs.some(x=>x.f.cb&&x.r==="chg")&&!fs.some(x=>x.r==="art")}});
     T.rows=rows;cTables.push(T);
+    // lignes pré-remplies renommées ou supprimées (champ consx_ posé sur la ligne à l'enregistrement)
+    rows.forEach(R=>{if(R.head)return;R.orig=cleanDots((R.cell.art||"").split("☐")[0]);if(!R.orig)return;
+      const X=(P.consX||[]).find(X=>{const cy=(X.rect[1]+X.rect[3])/2,cx=Math.min(X.rect[0],X.rect[2]);return cy>R.y0-4&&cy<R.y1+4&&cx<(cols[1]?cols[1].x:P.w0)-4});
+      if(!X)return;R.xName=X.name;R.xSaved=X.v;if(X.v.startsWith(CONSX_DEL))R.del=true;else if(X.v.trim())R.ren=X.v.trim();consApply(R)});
     // bouton posé sur la page, au-dessus du tableau
     const btn=document.createElement("button");btn.type="button";btn.className="btn cbtn";btn.textContent="🧰 Remplir les consommables";btn.dataset.conso="1";
     Object.assign(btn.style,{right:pct(Math.max(30,P.w0-cols[cols.length-1].x-60),P.w0),top:pct(P.h0-T.h.y-17,P.h0)});P.box.appendChild(btn);
@@ -1093,16 +1100,59 @@ function buildConso(fields){
 }
 function consoSummary(){
   const out=[];
-  cTables.forEach(T=>T.rows.forEach(R=>{if(R.head)return;
+  cTables.forEach(T=>T.rows.forEach(R=>{if(R.head||R.del)return;
     const segs=(R.cell.art||"").split("☐").map(cleanDots),artF=R.fs.find(x=>x.r==="art"&&!x.f.cb&&!segs[0]);
-    const a=segs[0]||(artF&&artF.f.el.value.trim());if(!a)return;
+    const a0=segs[0]||(artF&&artF.f.el.value.trim());if(!a0)return;const a=R.ren||a0;
     const val=r=>R.fs.filter(x=>x.r===r&&!x.f.cb).map(x=>x.f.el.value.trim()).filter(Boolean).join(" ");
     const pick=(r,lab)=>R.fs.filter(x=>x.r===r&&x.f.cb).sort((x,y)=>y.f.cy-x.f.cy||x.f.x-y.f.x).map((x,k)=>x.f.el.checked?lab[k+1]:"").filter(Boolean);
     const colTxt=(R.cell.col||"").split("☐").map(cleanDots),colPick=pick("col",colTxt).filter(c=>!/^autre/i.test(c));
-    const isCol=/silicone|mastic/i.test(a),c=isCol?[val("col")||colPick.join(", ")||(colTxt.length===1?colTxt[0]:"")].filter(Boolean).join(""):"",q=val("qty"),o=pick("art",segs).join(", ");
-    const d=/^habillage/i.test(a)?(vHab&&vHab.cons?(vHab.lines||[]).map(l=>l.replace(/ — /g," ")).join(" · "):val("need")):/^vis\b/i.test(a)?["rem","need","col"].map(val).find(v=>v.split(" · ").some(x=>VIS_RE.test(x)))||"":"";
+    const isCol=/silicone|mastic/i.test(a0),c=isCol?[val("col")||colPick.join(", ")||(colTxt.length===1?colTxt[0]:"")].filter(Boolean).join(""):"",q=val("qty"),o=pick("art",segs).join(", ");
+    const d=/^habillage/i.test(a0)?(vHab&&vHab.cons?(vHab.lines||[]).map(l=>l.replace(/ — /g," ")).join(" · "):val("need")):/^vis\b/i.test(a0)?["rem","need","col"].map(val).find(v=>v.split(" · ").some(x=>VIS_RE.test(x)))||"":"";
     if(q||c||o||d)out.push({a,q,c,o,d})}));
   return out;
+}
+// lignes pré-remplies renommées / supprimées dans la fenêtre Consommables :
+// renommée : le nouveau nom recouvre l'intitulé imprimé ; supprimée : la ligne est effacée (« Ligne supprimée : … » en gris).
+// Enregistré dans le PDF par un champ en lecture seule consx_<page>_<y> posé sur la ligne ; consoSummary ignore une ligne supprimée.
+const CONSX_DEL="Ligne supprimée : ";
+function consGeo(R){
+  const T=R.T,P=vPages[T.pi],cols=T.h.cols,c1=cols[1]?cols[1].x:P.w0/2,x0=cols[0].x-3,x1=P.w0-cols[0].x+3;
+  const bands=[R,R.habPair].filter(Boolean),top=t=>t.transform[5]+(Math.abs(t.transform[3])||8)*.8;
+  const its=P.items.filter(t=>{const y=t.transform[5];return t.str.trim()&&bands.some(b=>y>b.y0-1&&y<b.y1+1)});
+  const lab=its.filter(t=>t.transform[4]<c1-4&&t.str.trim()!=="☐"&&R.y0-1<t.transform[5]&&t.transform[5]<R.y1+1);
+  const cbx=R.fs.filter(x=>x.r==="art"&&x.f.cb).map(x=>x.f.x).sort((a,b)=>a-b)[0];
+  const size=+Math.min(9,Math.max(6,lab.length?Math.abs(lab[0].transform[0])||8:8)).toFixed(1);
+  const ly0=lab.length?Math.min(...lab.map(t=>t.transform[5]))-2.5:R.y1-size-3,ly1=lab.length?Math.max(...lab.map(top))+1.5:R.y1;
+  const lx1=Math.min(cbx!=null?cbx-1:c1-5,c1-5);
+  const ys=bands.flatMap(b=>[b.y0,b.y1]).concat(its.map(t=>t.transform[5]-2.5),its.map(top)),ry0=Math.min(...ys)-.5,ry1=Math.max(...ys)+.5;
+  return{size,lab:{x:x0,y:ly0,w:lx1-x0,h:ly1-ly0},row:{x:x0,y:ry0,w:x1-x0,h:ry1-ry0}};
+}
+function consApply(R){
+  const P=vPages[R.T.pi];if(R.mk){R.mk.remove();R.mk=null}
+  [R,R.habPair].filter(Boolean).forEach(B=>B.fs.forEach(x=>{const e=x.f.cb?x.f.el.closest("label"):x.f.el;if(!e)return;if(R.del)e.style.visibility="hidden";else if(!x.f.habHidden)e.style.visibility=""}));
+  if(/^habillage/i.test(R.orig||"")&&vHab&&vHab.cons)vHab.cons.el.style.visibility=R.del?"hidden":"";
+  if(!R.del&&!R.ren)return;
+  const g=consGeo(R),r=R.del?g.row:g.lab,d=document.createElement("div");d.className="consx"+(R.del?" del":"");
+  habPlace(d,P,r.x,r.y,r.w,r.h);d.style.fontSize=cqw(g.size,P.w0);d.textContent=R.del?CONSX_DEL+R.orig:R.ren;P.box.appendChild(d);R.mk=d;
+}
+// supprimer : les cases de la ligne sont vidées (gardées en mémoire pour « Rétablir » avant l'enregistrement)
+function consDel(R,on){
+  const fs=[R,R.habPair].filter(Boolean).flatMap(B=>B.fs).filter(x=>!x.f.habHidden||!R.habPair);
+  if(on){R.prev=fs.map(x=>[x.f,x.f.cb?x.f.el.checked:x.f.el.value]);fs.forEach(x=>{if(x.f.cb){if(x.f.el.checked){x.f.el.checked=false;x.f.el.dispatchEvent(new Event("change"))}}else if(x.f.el.value&&!x.f.lock){x.f.el.value="";x.f.el.dispatchEvent(new Event("input"))}});R.del=true}
+  else{R.del=false;(R.prev||[]).forEach(([f,v])=>{if(f.cb){if(f.el.checked!==v){f.el.checked=v;f.el.dispatchEvent(new Event("change"))}}else if(f.el.value!==v){f.el.value=v;f.el.dispatchEvent(new Event("input"))}});R.prev=null}
+  consApply(R);if(vForm)vForm.dirty=true;
+}
+function consXSave(doc,form,font){
+  const white=PDFLib.rgb(1,1,1);let n=0;
+  cTables.forEach(T=>T.rows.forEach(R=>{if(R.head||!R.orig)return;
+    const want=R.del?CONSX_DEL+R.orig:(R.ren||"");if(want===(R.xSaved||""))return;
+    const name=R.xName||"consx_"+T.pi+"_"+Math.round(R.y1);try{form.removeField(form.getField(name))}catch(_){}n++;
+    if(want){const g=consGeo(R),r=R.del?g.row:g.lab,tf=form.createTextField(name);
+      tf.addToPage(doc.getPage(T.pi),{x:r.x,y:r.y,width:r.w,height:r.h,borderWidth:0,backgroundColor:white,font});
+      if(R.del)tf.acroField.setDefaultAppearance("0.5 0.5 0.5 rg /Helv "+g.size+" Tf");
+      tf.setFontSize(g.size);tf.setText(clean(want).replace(/[^\x20-\x7E\xA0-\xFF€]/g,""));tf.enableReadOnly()}
+    R.xName=name;R.xSaved=want}));
+  if(n)doc.getPages().forEach(pg=>{const a=pg.node.Annots();if(!a)return;for(let i=a.size()-1;i>=0;i--){const r=a.get(i);if(r instanceof PDFLib.PDFRef&&!doc.context.lookup(r))a.remove(i)}});
 }
 // vis : type + longueur + quantité, écrits dans la case Remarque de la ligne (ex. « SFS blanche 92 mm : 50 · Vis béton 80 mm : 20 »)
 const VIS={"SFS blanche":[72,92,112,132,152,182,212],"SFS noire":[72,92,112,132,152,182,212],"Vis béton":[60,80,100,120,150],"Vis bois":[30,40,50,60,70,80,100,120],"Vis acier tête ronde":[13,16,19,25,32,38,50],"Vis acier tête fraisée":[13,16,19,25,32,38,50]};
@@ -1160,7 +1210,19 @@ function openConso(){
     if(R.head){if(segs[0])list.appendChild(mk("h4","chead",segs[0]));return}
     const card=mk("div","crow"),top=mk("div","ctop");
     const artF=R.fs.find(x=>x.r==="art"&&!x.f.cb);
-    if(segs[0])top.appendChild(mk("b",null,segs[0]));else if(artF)top.appendChild(bindText(artF.f,"Article à ajouter"));else top.appendChild(mk("b",null,"Autre article"));
+    // ligne pré-remplie : renommer ou supprimer (repris dans le PDF à l'enregistrement)
+    const redraw=()=>{const sc=list.scrollTop;openConso();list.scrollTop=sc};
+    if(R.orig&&R.del){card.classList.add("cdel");const u=mk("button","btn ghost ctool","↺ Rétablir");u.type="button";
+      u.onclick=()=>{consDel(R,false);redraw()};top.append(mk("b",null,R.orig),u);card.append(top,mk("div","cinfo","Ligne supprimée : elle sera effacée de la fiche et ne sera pas reprise dans la préparation."));list.appendChild(card);return}
+    if(R.orig){const b=mk("b",null,R.ren||R.orig),ed=mk("button","btn ghost ctool","✏️ Renommer"),dl=mk("button","btn ghost ctool","🗑 Supprimer");ed.type=dl.type="button";
+      ed.setAttribute("aria-label","Renommer "+R.orig);dl.setAttribute("aria-label","Supprimer la ligne "+R.orig);
+      const orig=mk("div","corig",R.ren?"Nom d'origine : "+R.orig:"");orig.hidden=!R.ren;
+      ed.onclick=()=>{const i=mk("input","cin");i.type="text";i.value=R.ren||R.orig;i.setAttribute("aria-label","Nouveau nom de la ligne");
+        i.addEventListener("input",()=>{const v=i.value.replace(/\s+/g," ").trim();R.ren=v&&v!==R.orig?v:null;orig.textContent=R.ren?"Nom d'origine : "+R.orig:"";orig.hidden=!R.ren;consApply(R);if(vForm)vForm.dirty=true});
+        i.addEventListener("keydown",e=>{if(e.key==="Enter")i.blur()});b.replaceWith(i);ed.remove();i.focus();i.select()};
+      dl.onclick=()=>{consDel(R,true);redraw()};
+      top.append(b,ed,dl,orig)}
+    else if(artF)top.appendChild(bindText(artF.f,"Article à ajouter"));else top.appendChild(mk("b",null,"Autre article"));
     card.appendChild(top);
     // coloris seulement pour le silicone et les mastics (demande de Steven) ; listes déroulantes pour les vis
     const title=segs[0]||"",isCol=/silicone|mastic/i.test(title),isVis=/^vis\b/i.test(title);
@@ -1257,7 +1319,7 @@ function consoCamera(getChantier,onSent,noteEl){
 }
 // lignes de la fiche ↔ articles relevés par Claude
 function consoRowsOf(){
-  const out=[];cTables.forEach(T=>T.rows.forEach(R=>{if(R.head)return;const t=cleanDots((R.cell.art||"").split("☐")[0]);if(t)out.push({t,R})}));return out;
+  const out=[];cTables.forEach(T=>T.rows.forEach(R=>{if(R.head||R.del)return;const t=R.ren||cleanDots((R.cell.art||"").split("☐")[0]);if(t)out.push({t,R})}));return out;
 }
 function matchRow(rows,x){
   const f=nrm(x.fiche),a=nrm(x.a);
@@ -1524,6 +1586,10 @@ function setupHab(fields){
         P.box.appendChild(el);vHab.sel.push({pi,k,el,x,y,w:W,h:H});
       });
       vHab.pages.push({pi,reps});
+      // coloris d'habillage : facultatif, sauf si au moins un habillage est choisi sur ce croquis (hors « — »)
+      const colF=fields.find(f=>f.pi===pi&&!f.cb&&/^col_/.test(f.name));
+      if(colF){const sels=vHab.sel.filter(s=>s.pi===pi);colF.habCol=()=>{const on=sels.some(s=>s.el.value);colF.req=on;colF.free=!on;colF.el.classList.toggle("opt",!on)};
+        sels.forEach(s=>s.el.addEventListener("change",()=>{colF.habCol();if(vForm)vForm.upd()}))}
       // options : Cornière, Tôle pliée, Couvre-joint, Tapée (en double), Bavette, Mousse + compribande, Silicone retirées ;
       // ajout de « Création de rejingot », « Délignage des cochonnets » et « Modification du sol intérieur » (oui / non obligatoire)
       fields.forEach(f=>{const m=/^opt_\d+_(\d+)$/.exec(f.name);if(!m||f.pi!==pi)return;f.free=true;
@@ -1574,23 +1640,49 @@ function setupHab(fields){
     const colC=T.h.cols.find(c=>/^Coloris/.test(c.s)),x0=colC?colC.x-3:nf.f.x,x1=nf.f.x+fw(nf.f),top=nf.f.top;let bot=top-fh(nf.f);
     const hide=[nf.f],R2=T.rows[k+1];
     if(R2&&!R2.head&&!cleanDots(R2.cell.art)&&R2.fs.every(x=>x.f.cb?!x.f.el.checked:!x.f.el.value.trim())){
-      R2.fs.forEach(x=>hide.push(x.f));R2.habTaken=true;
+      R2.fs.forEach(x=>hide.push(x.f));R2.habTaken=true;R.habPair=R2;
       const b2=R2.fs.filter(x=>!x.f.cb).map(x=>x.f.top-fh(x.f));if(b2.length)bot=Math.min(bot,...b2)}
     if(/ ml( ·|$)/.test(nf.f.el.value))nf.f.el.value="";
     hide.forEach(f=>{f.free=true;f.habHidden=true;(f.cb?f.el.closest("label"):f.el).style.visibility="hidden"});
     const el=document.createElement("button");el.type="button";el.className="habcons";habPlace(el,P,x0,bot,x1-x0,top-bot);
     el.style.fontSize=`max(11px, ${cqw(7,P.w0)})`;el.title="Couleurs des habillages";el.onclick=openConso;P.box.appendChild(el);
     ((P.habVals||{})["habconso_"+T.pi]||"").split("\n").forEach(l=>{const m=/^(\S+) — [\d,]+ ml(?: — (.+))?$/.exec(l.trim());if(m&&m[2])vHab.col[m[1]]=m[2]});
-    vHab.cons={pi:T.pi,x0,x1,top,bot,el,def:cleanDots((R.cell.col||"").split("☐")[0])};
+    vHab.cons={pi:T.pi,x0,x1,top,bot,el,R,def:cleanDots((R.cell.col||"").split("☐")[0])};if(R.del)consApply(R);
   }));
   habUpdate(true);
+}
+// « Pose tunnel » : case ajoutée par l'appli dans le groupe « Type de pose » de chaque menuiserie (page 1), après « Dépose totale » ;
+// fiches déjà créées comprises. Elle compte comme une réponse du groupe et est écrite dans le PDF à l'enregistrement (posex_<page>_<y>).
+const POSE_TUN="Pose tunnel";
+function setupPose(fields){
+  vPages.forEach((P,pi)=>{
+    const its=P.items||[],hd=its.find(t=>/^Type de pose/.test(t.str.trim()));if(!hd)return;
+    const hx=hd.transform[4],hy=hd.transform[5],nx=its.filter(t=>Math.abs(t.transform[5]-hy)<3&&t.transform[4]>hx+20&&t.str.trim()).map(t=>t.transform[4]).sort((a,b)=>a-b)[0]||hx+130;
+    its.filter(t=>t.str.trim()==="Dépose totale"&&t.transform[5]<hy&&Math.abs(t.transform[4]-hx)<20).forEach(t=>{
+      const ty=t.transform[5],line=fields.filter(f=>f.cb&&f.pi===pi&&Math.abs(f.cy-(ty+12))<6&&f.x>=hx-5&&f.x<nx);if(!line.length)return;
+      const g=line[0].group,name="posex_"+pi+"_"+Math.round(ty),old=fields.find(f=>f.name===name);
+      if(old){old.group=g;old.poseX=true;return}
+      const size=Math.min(7.5,Math.abs(t.transform[0])||7),x=t.transform[4]+t.width+5,y=ty-1,lw=POSE_TUN.length*size*.5;
+      if(x+11+lw>nx-2)return;
+      const lab=document.createElement("div");lab.className="optlab";habPlace(lab,P,x+11,ty-1.5,lw+8,size*1.4);lab.style.fontSize=cqw(size,P.w0);lab.textContent=POSE_TUN;
+      const hit=document.createElement("label");hit.className="hit";Object.assign(hit.style,{left:pct(x+4,P.w0),top:pct(P.h0-y-4,P.h0),width:cqw(14,P.w0),height:cqw(14,P.w0)});
+      const el=document.createElement("input");el.type="checkbox";el.className="fld";Object.assign(el.style,{width:cqw(8,P.w0),height:cqw(8,P.w0)});el.setAttribute("aria-label",POSE_TUN);
+      hit.appendChild(el);P.box.append(lab,hit);
+      fields.push({name,cb:true,multi:false,el,pi,cy:y+4,x,top:y+8,group:g,poseX:true,newPose:{x,y,size}})})});
+}
+function poseSave(doc,form,font){
+  vForm.fields.filter(f=>f.newPose&&!f.saved).forEach(f=>{const t=f.newPose,pg=doc.getPage(f.pi);
+    let cb;try{cb=form.getCheckBox(f.name)}catch(_){cb=form.createCheckBox(f.name);
+      cb.addToPage(pg,{x:t.x,y:t.y,width:8,height:8,borderWidth:.8,borderColor:PDFLib.rgb(.35,.35,.35),backgroundColor:PDFLib.rgb(1,1,1)});
+      pg.drawText(POSE_TUN,{x:t.x+11,y:t.y+1.5,size:t.size,font,color:PDFLib.rgb(.1,.1,.1)})}
+    f.el.checked?cb.check():cb.uncheck();f.saved=true});
 }
 // une menuiserie de la page 1 du métré : type de pose, sens, cote de commande, coloris (pour la fiche découverte)
 function metreRowInfo(r){
   try{
     const P=vPages[r.pi],fs=vForm.fields.filter(f=>f.pi===r.pi),its=P.items,ty=t=>t.transform[5],tx=t=>t.transform[4];
-    const lab=f=>{let t=its.find(t=>Math.abs(ty(t)+2.5-f.cy)<5&&tx(t)>f.x+5&&tx(t)<f.x+18&&t.str.trim()&&t.str.trim()!=="☐");
-      if(!t)t=its.filter(t=>Math.abs(ty(t)+2.5-(f.cy-9.5))<4&&tx(t)<f.x&&t.str.trim()&&t.str.trim()!=="☐").sort((a,b)=>tx(b)-tx(a))[0];return t?t.str.trim():""};
+    const lab=f=>{if(f.poseX||/^posex_/.test(f.name))return POSE_TUN;let t=its.find(t=>Math.abs(ty(t)+2.5-f.cy)<5&&tx(t)>f.x+5&&tx(t)<f.x+18&&t.str.trim()&&t.str.trim()!=="☐");
+      if(!t)t=its.filter(t=>Math.abs(ty(t)+2.5-(f.cy-9.5))<4&&tx(t)<f.x&&t.str.trim()&&t.str.trim()!=="☐"&&t.str.trim()!==POSE_TUN).sort((a,b)=>tx(b)-tx(a))[0];return t?t.str.trim():""};
     const on=(y0,y1,x0)=>fs.filter(f=>f.cb&&f.el.checked&&f.cy>y0&&f.cy<y1&&f.x>=x0).map(lab).filter(Boolean);
     const pose=on(r.y+14,r.y+42,500),sens=on(r.y-4,r.y+9,410).filter(s=>/^(TD|TG|fixe)$/i.test(s));
     const cf=fs.find(f=>!f.cb&&f.x>=630&&f.cy>r.y+12&&f.cy<r.y+44),cde=cf?cf.el.value.trim():"";
@@ -1677,7 +1769,7 @@ function habSave(doc,form,font){
       if(f.newOpt.pre)pg.drawText(f.newOpt.pre[0],{x:f.newOpt.pre[1],y:f.newOpt.y+2,size:7.5,font,color:PDFLib.rgb(.1,.1,.1)});f.el.checked?cb.check():cb.uncheck();f.saved=true})});
   if(vHab.cons){const C=vHab.cons,n=Math.max(1,(vHab.lines||[]).length),h=C.top-C.bot;
     const tf=field("habconso_"+C.pi,C.pi,C.x0,C.bot,C.x1-C.x0,h,+Math.max(4,Math.min(8,(h-2)/n/1.2)).toFixed(1));
-    tf.enableMultiline();tf.setText(clean((vHab.lines||[]).join("\n")));tf.enableReadOnly()}
+    tf.enableMultiline();tf.setText(C.R&&C.R.del?"":clean((vHab.lines||[]).join("\n")));tf.enableReadOnly()}
   // retire des pages les renvois vers les cases supprimées
   doc.getPages().forEach(pg=>{const a=pg.node.Annots();if(!a)return;for(let i=a.size()-1;i>=0;i--){const r=a.get(i);if(r instanceof PDFLib.PDFRef&&!doc.context.lookup(r))a.remove(i)}});
 }
@@ -1801,7 +1893,7 @@ async function startFill(){
   let z=0;try{z=+localStorage.getItem("mgds-zoom")||0}catch(_){}
   if(!z){const want=matchMedia("(pointer:coarse)").matches?1300:900;z=Math.min(2.5,Math.max(1,want/fitW()));z=ZOOMS.reduce((a,b)=>Math.abs(b-z)<Math.abs(a-z)?b:a)}
   for(const [pi,P] of vPages.entries()){
-    const {w0,h0}=P;P.habVals={};
+    const {w0,h0}=P;P.habVals={};P.consX=[];
     const anns=(await P.page.getAnnotations({intent:"display"})).filter(a=>a.subtype==="Widget"&&a.fieldName&&(a.fieldType==="Tx"||(a.fieldType==="Btn"&&a.checkBox)));
     const vpc=P.page.getViewport({scale:1});
     await P.page.render({canvasContext:P.c.getContext("2d"),viewport:P.vp,annotationMode:pdfjsLib.AnnotationMode.DISABLE}).promise;
@@ -1819,6 +1911,7 @@ async function startFill(){
         if(a.fieldValue){const t=document.createElement("div");t.className="fldro";t.textContent=a.fieldValue;Object.assign(t.style,{left:pct(L,w0),top:pct(T,h0),width:pct(W,w0),fontSize:cqw(8,w0),fontWeight:/^client_nom/.test(a.fieldName)?"700":"400"});P.box.appendChild(t)}
         continue}
       if(/^hab(res|conso)?_/.test(a.fieldName)){P.habVals[a.fieldName]=a.fieldValue||"";continue}
+      if(/^consx_/.test(a.fieldName)){P.consX.push({name:a.fieldName,v:a.fieldValue||"",rect:a.rect});continue}
       if(/^habp_/.test(a.fieldName)){if(a.fieldValue){const t=document.createElement("div");t.className="fldro habp";t.textContent=a.fieldValue;Object.assign(t.style,{left:pct(L,w0),top:pct(T,h0),width:pct(W,w0),fontSize:`max(10px, ${cqw(6,w0)})`});P.box.appendChild(t)}continue}
       if(a.fieldType==="Btn"){
         // case à cocher : zone de toucher agrandie autour de la petite case du PDF
@@ -1859,6 +1952,7 @@ async function startFill(){
   rest.forEach((f,k)=>{const g=rest.slice(0,k).reverse().find(o=>near(f,o));
     const cut=g&&vPages[f.pi].labels.some(t=>Math.abs(t.y-f.cy)<7&&t.x>g.x&&t.x<f.x);
     f.group=g&&!cut?g.group:"g"+(++gn)});
+  if(vDoc.type==="Métré")try{setupPose(fields)}catch(_){}
   // texte obligatoire, sauf remarques, grands cadres, et petit champ collé juste après une case (« autre : … », nombre de grilles, remarque d'un contrôle)
   classify(fields);
   // fiche découverte : le tableau des menuiseries et les quantités préconisées viennent du métré (pas de ressaisie)
@@ -1886,7 +1980,7 @@ async function startFill(){
   if(vDoc.type==="Préparation"&&cTables.length){const T=cTables[cTables.length-1],P=vPages[T.pi],ys=T.rows.flatMap(R=>R.fs.map(x=>x.f.cy));
     if(ys.length){const b=document.createElement("button");b.type="button";b.className="btn cbtn cadd";b.textContent="＋ Ajouter une ligne";b.dataset.consadd="1";
       Object.assign(b.style,{right:pct(37,P.w0),top:pct(P.h0-Math.min(...ys)+15,P.h0)});P.box.appendChild(b)}}
-  try{setupHab(fields);fields.forEach(f=>{if(f.free&&!f.cb){f.req=false}});vForm.upd()}catch(_){vHab=null}
+  try{setupHab(fields);fields.forEach(f=>{if(f.free&&!f.cb){f.req=false}});fields.forEach(f=>{if(f.habCol)f.habCol()});vForm.upd()}catch(_){vHab=null}
   if(vDoc.type==="Préparation")try{setupPrepX(fields);vForm.upd()}catch(_){vPrepX=null}else vPrepX=null;
   $("vsave").hidden=false;$("vdraw").hidden=false;$("vphoto").hidden=vDoc.type!=="Métré";vDraw.stack=[];
   toast("Touchez une case pour la remplir. Les cases en jaune sont obligatoires. « Dessiner » pour tracer au stylet.");
@@ -1911,6 +2005,8 @@ async function saveFill(){
       tf.addToPage(doc.getPage(f.synth.pi),{x:x1,y:y1,width:x2-x1,height:y2-y1,borderWidth:0,font});tf.setFontSize(10);
       tf.setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF\n€œŒ’‘“”–—…]/g,""))}catch(_){}}}
     try{habSave(doc,form,font)}catch(_){}
+    try{poseSave(doc,form,font)}catch(_){}
+    try{consXSave(doc,form,font)}catch(_){}
     try{prepXSave(doc,form,font)}catch(_){}
     vPages.forEach((P,pi)=>(P.wipe||[]).forEach(r=>{try{doc.getPage(pi).drawRectangle({x:r.x,y:r.y,width:r.w,height:r.h,color:PDFLib.rgb(1,1,1)})}catch(_){}}));
     form.updateFieldAppearances(font);
