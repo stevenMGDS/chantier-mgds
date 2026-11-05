@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """Recopie le planning Excel de Marine (PLANNING_2026.xlsx, réunion du jeudi) dans la table planning de l'appli.
 
-Usage : python3 -I sync_planning.py "<chemin du .xlsx>" [--depuis AAAA-MM-JJ] [--essai]
+Usage : python3 -I sync_planning.py "<chemin du .xlsx ou .csv>" [--depuis AAAA-MM-JJ] [--essai] [--export FICHIER.csv]
 - Lit les onglets d'années (2026, 2027…) : colonnes « ÉQUIPE 1 », « ÉQUIPE 2 », « ÉQUIPE 3 » repérées par leur en-tête.
 - Chaque case non vide devient une ligne par personne de l'équipe ; si le texte correspond à un chantier de l'appli,
   la ligne est rattachée au chantier (fiches visibles), sinon le texte est gardé tel quel (libellé).
 - Remplace, à partir de --depuis (aujourd'hui par défaut), toutes les lignes source='excel' (les ajouts faits à la main
   dans l'appli sont conservés). L'Excel fait foi (consigne de Steven du 03/11/2026).
 Accès : l'hôte Supabase est authentifié par le proxy de l'environnement « MGDS Supabase ».
+
+En deux étapes (une tâche planifiée ne peut pas avoir à la fois le Mac et l'environnement « MGDS Supabase ») :
+1) sur le Mac : python3 -I sync_planning.py "<chemin du .xlsx>" --export planning.csv [--depuis AAAA-MM-JJ]
+   lit l'Excel et écrit un CSV séparé par « ; » (en-tête jour;equipe;texte, jour en AAAA-MM-JJ),
+   puis s'arrête SANS aucun appel réseau ;
+2) dans l'environnement « MGDS Supabase » : python3 -I sync_planning.py planning.csv [--depuis AAAA-MM-JJ] [--essai]
+   un fichier d'entrée en .csv remplace l'Excel (filtre --depuis appliqué), la suite est identique.
 """
-import datetime, json, re, sys, unicodedata, urllib.request
+import csv, datetime, json, re, sys, unicodedata, urllib.request
 import openpyxl
 
 URL = "https://azgvzgenfykvlkuwevty.supabase.co/rest/v1"
@@ -94,6 +101,25 @@ def lire(xlsx, depuis):
     return out
 
 
+def lire_csv(fichier, depuis):
+    out = []
+    with open(fichier, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f, delimiter=";"):
+            jour = datetime.date.fromisoformat(r["jour"])
+            if jour >= depuis:
+                out.append((jour, r["equipe"], r["texte"]))
+    return out
+
+
+def exporter(lignes, fichier):
+    with open(fichier, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f, delimiter=";")
+        w.writerow(["jour", "equipe", "texte"])
+        for jour, eq, t in lignes:
+            w.writerow([jour.isoformat(), eq, t])
+    print(f"{len(lignes)} cases exportées dans {fichier}")
+
+
 def main():
     args = sys.argv[1:]
     xlsx = args[0]
@@ -101,11 +127,15 @@ def main():
     if "--depuis" in args:
         depuis = datetime.date.fromisoformat(args[args.index("--depuis") + 1])
     essai = "--essai" in args
+    if "--export" in args:  # étape 1 : Excel -> CSV, sans réseau
+        exporter(lire(xlsx, depuis), args[args.index("--export") + 1])
+        return
+    entree = lire_csv(xlsx, depuis) if xlsx.lower().endswith(".csv") else lire(xlsx, depuis)
     profils = {p["email"]: p["id"] for p in req("GET", "/profils?select=id,email")}
     chantiers = req("GET", "/chantiers?select=id,client:data->>client")
     keys = mots_cles(chantiers)
     rows, libres = [], {}
-    for jour, eq, t in lire(xlsx, depuis):
+    for jour, eq, t in entree:
         p = plain(t)
         cid = next((v for k, v in keys if re.search(r"\b" + re.escape(k) + r"\b", p)), None)
         note = "À l'atelier" if p.startswith("ATELIER") and cid else None
