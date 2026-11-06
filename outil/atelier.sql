@@ -173,3 +173,42 @@ update public.profils set role = 'atelier', nom = 'Christophe' where email = 'at
 drop policy if exists "docs stock déposés par l'atelier" on storage.objects;
 create policy "docs stock déposés par l'atelier" on storage.objects for insert to authenticated
   with check (bucket_id = 'documents' and public.est_atelier() and (storage.foldername(name))[1] = 'stock');
+
+-- ===== réservations du stock atelier pour une commande atelier (06/11/2026) =====
+-- Chutes, barres, accessoires mis de côté pour une fabrication : ils restent à leur emplacement ; la commande atelier
+-- imprime la fiche des éléments réservés (triée par emplacement). Le disponible du stock = niveau − réservé.
+-- Au moment de les prendre : « Sorti » enregistre la sortie du stock et lève la réservation.
+create table if not exists public.stock_reservations (
+  id bigint generated always as identity primary key,
+  article bigint not null references public.stock_articles(id) on delete cascade,
+  commande text not null references public.atelier(id) on delete cascade,
+  qte numeric not null check (qte > 0),
+  note text,
+  le timestamptz not null default now(),
+  par uuid default auth.uid()
+);
+create index if not exists stock_resa_article on public.stock_reservations (article);
+create index if not exists stock_resa_commande on public.stock_reservations (commande);
+alter table public.stock_reservations enable row level security;
+drop policy if exists "réservations lues" on public.stock_reservations;
+create policy "réservations lues" on public.stock_reservations for select to authenticated using (not public.est_poseur());
+-- seul Christophe (rôle atelier) réserve, sort ou retire une réservation (Steven, 06/11/2026)
+drop policy if exists "réservations gérées" on public.stock_reservations;
+create policy "réservations gérées" on public.stock_reservations for all to authenticated
+  using (public.est_atelier()) with check (public.est_atelier());
+
+-- pas de double réservation : un élément une seule fois par commande (les quantités s'ajoutent),
+-- et jamais plus de réservé que ce qu'il y a en stock, toutes commandes confondues
+create unique index if not exists stock_resa_unique on public.stock_reservations (article, commande);
+create or replace function public.stock_resa_controle() returns trigger language plpgsql security definer set search_path = public as
+$$ declare dispo numeric; deja numeric;
+begin
+  select coalesce(niveau, 0) into dispo from stock_niveaux where id = new.article;
+  select coalesce(sum(qte), 0) into deja from stock_reservations where article = new.article and id is distinct from new.id;
+  if deja + new.qte > coalesce(dispo, 0) then
+    raise exception 'réservation au-delà du stock : % en stock, % déjà réservé', coalesce(dispo, 0), deja;
+  end if;
+  return new;
+end $$;
+drop trigger if exists stock_resa_controle on public.stock_reservations;
+create trigger stock_resa_controle before insert or update on public.stock_reservations for each row execute function public.stock_resa_controle();
