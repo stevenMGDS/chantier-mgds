@@ -168,3 +168,8 @@ create policy "mouvements saisis par l'atelier" on public.stock_mouvements for i
 
 -- ===== compte de Christophe (invité le 06/11/2026) =====
 update public.profils set role = 'atelier', nom = 'Christophe' where email = 'atelier@mgds.fr';
+
+-- ===== dossiers du stock : Christophe dépose aussi des dossiers dans l'onglet Stock (documents/stock/…) =====
+drop policy if exists "docs stock déposés par l'atelier" on storage.objects;
+create policy "docs stock déposés par l'atelier" on storage.objects for insert to authenticated
+  with check (bucket_id = 'documents' and public.est_atelier() and (storage.foldername(name))[1] = 'stock');

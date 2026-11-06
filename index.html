@@ -249,6 +249,9 @@ textarea{min-height:64px;resize:vertical}
 .thumbs a{position:relative}.thumbs .tag{position:absolute;left:4px;bottom:4px;font:600 11px var(--f-body);padding:1px 6px;border-radius:8px;color:#fff;background:#C2410C}.thumbs .tag.in{background:#15803D}
 .stkwhich{display:flex;gap:8px;margin:4px 0 10px}.stkwhich .chip{font:600 16px var(--f-body);padding:8px 16px}
 .stkhead .stats{margin:4px 0 8px}.stkfam{gap:6px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}.stkfam .chip{flex:none}.stkfam .chip{font-size:13px;padding:4px 10px}
+.stkdir details{background:var(--sunk);border-radius:6px;padding:6px 10px}.stkdir summary{cursor:pointer;font-weight:600;display:flex;gap:8px;align-items:center}.stkdir summary small{font-weight:400;color:var(--muted);margin-left:auto}
+.stkdir .docs li{background:var(--surface)}.stkdir .docs a{overflow-wrap:anywhere;color:var(--ink)}.stkdir .dsub{font-size:13px;color:var(--muted)}
+.stkdirbtns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px}
 .stkniv{margin-bottom:14px}.stkfh{margin:8px 0 2px;font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.04em;color:var(--accent)}
 .stkrows{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:6px}
 .stkrow{display:flex;align-items:center;gap:10px;text-align:left;width:100%;min-height:52px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
@@ -1399,15 +1402,15 @@ async function loadStock(){
   stkLoad.live=live;stkLoad.nameOf=nameOf;
   el.innerHTML=`<div class="chips stkwhich" role="tablist">${Object.entries(STK_WHICH).map(([k,l])=>`<button class="chip" role="tab" data-which="${k}" aria-pressed="${stk.which===k}">${k==="pose"?"🧰 ":"🏭 "}${l}</button>`).join("")}<a class="chip" href="plan-stock.html" style="text-decoration:none">🗺️ Plan 3D du stock</a></div>
     <div id="stk-top"><span class="sub">Chargement du stock…</span></div>
-    <section class="stk"><div class="stkcard" id="stk-cmd"></div><div class="stkcard stkpose"><h3>📷 Photographier des consommables</h3>
+    <section class="stk"><div class="stkcard" id="stk-cmd"></div><div class="stkcard stkdir" id="stk-dir"></div><div class="stkcard stkpose"><h3>📷 Photographier des consommables</h3>
     <label class="fld">Chantier<select id="stk-ch"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
     <div id="stk-cam"></div><label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label></div>
     <div class="stkcard stkpose" id="stk-list"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>`;
   const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
-  el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw()});
+  el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw();stkDirs()});
   $("stk-ch").onchange=e=>{stockSel=e.target.value};
   $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>{loadStockList(nameOf);stkRefresh()},$("stk-note")));
-  loadStockList(nameOf);stkRefresh();
+  loadStockList(nameOf);stkRefresh();stkDirs();
 }
 async function stkRefresh(){
   try{await stkLoad()}catch(e){$("stk-top").innerHTML=`<div class="stkcard"><h3>Niveau du stock</h3><span class="sub">Le stock n'est pas encore installé dans la base. Les photos de sorties et de retours fonctionnent déjà ci-dessous.</span></div>`;$("stk-cmd").hidden=$("stk-mv").hidden=true;return}
@@ -1544,6 +1547,77 @@ function stkInventaire(){
     if(bad){$("inv-ok").disabled=false;toast("Une partie n'a pas pu être enregistrée. Réessayez.");return}
     toast((cnt.length?cnt.length+" comptage"+(cnt.length>1?"s":""):"")+(cnt.length&&seuils.length?" et ":"")+(seuils.length?seuils.length+" seuil"+(seuils.length>1?"s":""):"")+" enregistré"+((cnt.length+seuils.length)>1?"s":"")+".");
     $("spanel").hidden=true;await stkLoad();stkDraw()};
+}
+// ---------- dossiers du stock ----------
+// On glisse un dossier entier (inventaire, bons de livraison, catalogues fournisseurs, photos du dépôt…) ou des fichiers :
+// ils sont rangés dans le stockage « documents » sous stock/<pose|atelier>/<dossier>/…, arborescence conservée.
+// Déposer : éditeurs et atelier (Christophe) · supprimer un dossier : éditeurs (voir outil/stock.sql).
+const stkDirW=()=>canWrite||!!(window.mgdsProfil&&mgdsProfil.role==="atelier");
+// clé de stockage : sans accents ni caractères refusés par Supabase, espaces gardés pour rester lisible
+const stkKey=s=>String(s).normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\w .()'-]+/g,"_").replace(/\s+/g," ").trim().slice(0,120)||"_";
+const stkSize=n=>n>=1048576?nb(n/1048576)+" Mo":Math.max(1,Math.round(n/1024))+" ko";
+async function stkDirList(prefix,out=[]){
+  const {data,error}=await window.sbClient.storage.from("documents").list(prefix,{limit:1000,sortBy:{column:"name",order:"asc"}});if(error)throw error;
+  for(const o of data||[]){if(o.name===".emptyFolderPlaceholder")continue;const p=prefix+"/"+o.name;
+    if(o.id==null)await stkDirList(p,out);else out.push({path:p,name:o.name,size:(o.metadata&&o.metadata.size)||0,at:o.created_at||o.updated_at||""})}
+  return out;
+}
+async function stkDirs(){
+  const box=$("stk-dir");if(!box)return;const which=stk.which,root="stock/"+which,W=stkDirW();
+  box.innerHTML=`<h3>📁 Dossiers ${which==="atelier"?"de l'atelier":"du stock pose"}</h3>
+    ${W?`<div class="drop" id="stk-drop">Glissez ici un dossier entier (ou des fichiers) : inventaire, bons de livraison, catalogues, photos du dépôt…
+      <div class="stkdirbtns"><label class="btn ghost" for="stk-dirin">📁 Choisir un dossier</label><label class="btn ghost" for="stk-filein">📄 Choisir des fichiers</label></div>
+      <input type="file" id="stk-dirin" webkitdirectory directory multiple hidden><input type="file" id="stk-filein" multiple hidden>
+      <div class="sub" style="margin-top:4px">Les sous-dossiers sont gardés. 20 Mo maximum par fichier.</div></div>`:""}
+    <div id="stk-dirs"><span class="sub">Chargement…</span></div>`;
+  const dz=$("stk-drop");
+  if(dz){["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("over")}));
+    dz.addEventListener("dragleave",e=>{e.preventDefault();dz.classList.remove("over")});
+    dz.addEventListener("drop",async e=>{e.preventDefault();dz.classList.remove("over");
+      // les entrées doivent être lues tout de suite, avant la moindre attente
+      const ents=[...(e.dataTransfer.items||[])].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+      const files=ents.length?await stkWalk(ents):[...e.dataTransfer.files].map(f=>({f,rel:f.name}));
+      stkDirUpload(files,which)});
+    $("stk-dirin").onchange=e=>{stkDirUpload([...e.target.files].map(f=>({f,rel:f.webkitRelativePath||f.name})),which);e.target.value=""};
+    $("stk-filein").onchange=e=>{stkDirUpload([...e.target.files].map(f=>({f,rel:f.name})),which);e.target.value=""}}
+  let L;try{L=await stkDirList(root)}catch(e){$("stk-dirs").innerHTML=`<span class="sub">Impossible de lire les dossiers pour le moment.</span>`;return}
+  if(stk.which!==which)return;
+  if(!L.length){$("stk-dirs").innerHTML=`<span class="sub">Aucun dossier déposé pour l'instant.</span>`;return}
+  // regroupés par dossier de premier niveau ; les fichiers déposés seuls vont dans « Fichiers »
+  const by=new Map();for(const d of L){const r=d.path.slice(root.length+1),i=r.indexOf("/"),k=i<0?"":r.slice(0,i);if(!by.has(k))by.set(k,[]);by.get(k).push({...d,rel:i<0?r:r.slice(i+1)})}
+  const keys=[...by.keys()].sort((a,b)=>a===""?1:b===""?-1:a.localeCompare(b,"fr"));
+  $("stk-dirs").innerHTML=keys.map(k=>{const F=by.get(k),tot=F.reduce((s,d)=>s+d.size,0);
+    return`<details><summary>📁 ${esc(k||"Fichiers")}<small>${F.length} fichier${F.length>1?"s":""} · ${stkSize(tot)}</small></summary>
+      <ul class="docs">${F.map(d=>{const i=d.rel.lastIndexOf("/");return`<li><span class="dtype">${esc((d.name.split(".").pop()||"").slice(0,5))}</span><span style="min-width:0">${i>0?`<span class="dsub">${esc(d.rel.slice(0,i))}/</span><br>`:""}<a href="#" data-sdoc="${esc(d.path)}">${esc(d.rel.slice(i+1))}</a></span><span class="mono">${d.at?fr(d.at.slice(0,10)):""}</span></li>`}).join("")}</ul>
+      ${canWrite&&k?`<div class="acts" style="margin-top:8px"><button class="btn ghost" data-sdel="${esc(k)}" style="color:var(--s-rouge)">Supprimer ce dossier</button></div>`:""}</details>`}).join("");
+  $("stk-dirs").querySelectorAll("[data-sdoc]").forEach(a=>a.onclick=async e=>{e.preventDefault();const w=window.open("","_blank");
+    const {data}=await window.sbClient.storage.from("documents").createSignedUrl(a.dataset.sdoc,600);
+    if(data&&data.signedUrl){if(w)w.location=data.signedUrl;else location.href=data.signedUrl}else{if(w)w.close();toast("Document introuvable.")}});
+  $("stk-dirs").querySelectorAll("[data-sdel]").forEach(b=>b.onclick=async()=>{const k=b.dataset.sdel,F=by.get(k);
+    if(!confirm("Supprimer le dossier « "+k+" » et ses "+F.length+" fichier(s) ?"))return;
+    const {data,error}=await window.sbClient.storage.from("documents").remove(F.map(d=>d.path));
+    toast(error||!(data||[]).length?"Suppression impossible (droits à installer : outil/stock.sql).":"Dossier « "+k+" » supprimé.");stkDirs()});
+}
+// parcourt un dossier glissé (Chrome, Edge, Safari, Firefox) : renvoie [{f, rel}] avec le chemin relatif
+async function stkWalk(ents){const out=[];
+  const file=en=>new Promise((ok,ko)=>en.file(ok,ko));
+  const read=r=>new Promise((ok,ko)=>r.readEntries(ok,ko));
+  async function go(en,pre){
+    if(en.isFile){try{out.push({f:await file(en),rel:pre+en.name})}catch(e){}}
+    else if(en.isDirectory){const r=en.createReader();let b;do{b=await read(r);for(const x of b)await go(x,pre+en.name+"/")}while(b.length)}}
+  for(const en of ents)await go(en,"");return out}
+async function stkDirUpload(files,which){
+  if(!stkDirW()||!files.length)return;const sb=window.sbClient;
+  files=files.filter(x=>!/(^|\/)(\.|~\$|Thumbs\.db$|desktop\.ini$)/i.test(x.rel));
+  let ok=0,big=0,dup=0,bad=0;
+  for(let n=0;n<files.length;n++){const {f,rel}=files[n];
+    toast("Envoi "+(n+1)+"/"+files.length+" : « "+f.name+" »…");
+    if(f.size>20*1024*1024){big++;continue}
+    const path="stock/"+which+"/"+rel.split("/").filter(Boolean).map(stkKey).join("/");
+    const {error}=await sb.storage.from("documents").upload(path,f,{contentType:f.type||"application/octet-stream",upsert:false});
+    if(!error)ok++;else if(/exist|duplicate/i.test(error.message||""))dup++;else bad++}
+  toast(ok+" fichier"+(ok>1?"s":"")+" déposé"+(ok>1?"s":"")+(dup?" · "+dup+" déjà présent"+(dup>1?"s":""):"")+(big?" · "+big+" de plus de 20 Mo ignoré"+(big>1?"s":""):"")+(bad?" · "+bad+" en échec : réessayez":"")+".");
+  if(stk.which===which)stkDirs();
 }
 async function loadStockList(nameOf){
   const box=$("stk-list");let P;

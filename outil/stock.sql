@@ -83,3 +83,11 @@ create policy "mouvements gérés par les éditeurs" on public.stock_mouvements 
   using (public.est_editeur()) with check (public.est_editeur());
 
 grant select on public.stock_niveaux to authenticated;
+
+-- ===== dossiers du stock (06/11/2026) =====
+-- Onglet Stock > Dossiers : on y glisse un dossier entier (inventaire, bons de livraison, catalogues, photos du dépôt…),
+-- rangé dans le stockage « documents » sous stock/pose/… ou stock/atelier/… (les éditeurs y déposent déjà via « docs écrits par éditeurs »).
+-- Les éditeurs peuvent supprimer un dossier déposé là, et seulement là.
+drop policy if exists "docs stock supprimés par les éditeurs" on storage.objects;
+create policy "docs stock supprimés par les éditeurs" on storage.objects for delete to authenticated
+  using (bucket_id = 'documents' and public.est_editeur() and (storage.foldername(name))[1] = 'stock');
