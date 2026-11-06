@@ -161,7 +161,10 @@ do $$ begin
     then alter publication supabase_realtime add table public.atelier; end if;
 end $$;
 
--- ===== compte de Christophe =====
--- 1. Supabase > Authentication > Users > Invite user : son adresse e-mail.
--- 2. Puis (remplacer l'adresse) :
--- update public.profils set role = 'atelier', nom = 'Christophe' where email = 'adresse.de.christophe@mgds.fr';
+-- ===== stock : Christophe enregistre les entrées et sorties (pas d'inventaire, pas de réglage des articles ni des prix) =====
+drop policy if exists "mouvements saisis par l'atelier" on public.stock_mouvements;
+create policy "mouvements saisis par l'atelier" on public.stock_mouvements for insert to authenticated
+  with check (public.est_atelier() and type in ('livraison','sortie','retour') and qte > 0 and par = auth.uid());
+
+-- ===== compte de Christophe (invité le 06/11/2026) =====
+update public.profils set role = 'atelier', nom = 'Christophe' where email = 'atelier@mgds.fr';

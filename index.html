@@ -757,7 +757,7 @@ async function renderSheet(){
 }
 // ---- onglets (version en ligne seulement) ----
 function showTab(t){
-  if(window.mgdsProfil&&mgdsProfil.role==="atelier")t="atelier";
+  if(window.mgdsProfil&&mgdsProfil.role==="atelier"&&t!=="stock")t="atelier";
   if(!["chantiers","planning","stock","atelier","direction"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="atelier"&&$("tabAtl").hidden))t="chantiers";
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
   for(const k of ["chantiers","planning","stock","atelier","direction"])$("tab-"+k).hidden=k!==t;
@@ -1468,6 +1468,8 @@ function stkPanel(title){
   p.innerHTML=`<div class="cbar"><b>${title}</b><button class="btn" id="sp-x">Fermer</button></div><div class="clist" id="sp-l"></div>`;
   p.hidden=false;$("sp-x").onclick=()=>{p.hidden=true};return $("sp-l");
 }
+// mouvements (entrées / sorties) : éditeurs, et Christophe (rôle atelier) sans inventaire ni réglages
+const stkMv=()=>canWrite||!!(window.mgdsProfil&&mgdsProfil.role==="atelier");
 async function stkSheet(id){
   const a=id==null?{stock:stk.which,nom:"",famille:stk.fam&&stk.fam!=="!"?stk.fam:(stk.which==="atelier"?"Barres":"Divers"),unite:stk.which==="atelier"?"barre":"unité",actif:true}:stk.all.find(x=>x.id===id);if(!a)return;
   const L=stkPanel(id==null?"＋ Nouvel article":esc(a.nom)),n=stkLvl(a),ro=canWrite?"":"disabled";
@@ -1475,7 +1477,7 @@ async function stkSheet(id){
   let h="";
   if(id!=null){const e=stkEtat(a);
     h+=`<div class="crow"><div class="stkbig ${e}">${stkQ(a,n)}</div><div class="cinfo"><span class="dot ${e}"></span> ${STK_ETAT[e]}${a.seuil!=null?" · seuil "+nb(a.seuil):""}${stk.inv.get(a.id)?" · compté le "+fr(stk.inv.get(a.id).slice(0,10)):""}</div></div>`;
-    if(canWrite)h+=`<div class="crow ccard"><b>Mouvement</b><div class="chips" id="sp-t">${[["livraison","＋ Livraison"],["sortie","− Sortie"],["retour","↩ Retour"],["inventaire","＝ J'ai compté"]].map(([k,l],i)=>`<button type="button" class="chip ${i?"":"on"}" data-t="${k}">${l}</button>`).join("")}</div>
+    if(stkMv())h+=`<div class="crow ccard"><b>Mouvement</b><div class="chips" id="sp-t">${[["livraison","＋ Livraison"],["sortie","− Sortie"],["retour","↩ Retour"],["inventaire","＝ J'ai compté"]].filter(x=>canWrite||x[0]!=="inventaire").map(([k,l],i)=>`<button type="button" class="chip ${i?"":"on"}" data-t="${k}">${l}</button>`).join("")}</div>
       <div class="cline"><input class="cin" id="sp-q" inputmode="decimal" placeholder="Quantité (${esc(a.unite)})" aria-label="Quantité"><select class="cin" id="sp-c" aria-label="Chantier" hidden><option value="">Chantier (facultatif)…</option>${(stkLoad.live||[]).map(j=>`<option value="${esc(j.id)}">${esc(stkLoad.nameOf(j.id))}</option>`).join("")}</select></div>
       <input class="cin" id="sp-n" placeholder="Remarque (facultatif) : n° de bon, fournisseur…" aria-label="Remarque"><button class="btn" id="sp-ok">Enregistrer le mouvement</button></div>`}
   h+=`<details class="crow" ${id==null?"open":""}><summary><b>Réglages de l'article</b></summary><div class="stkform">
@@ -1498,7 +1500,7 @@ async function stkSheet(id){
   if(id!=null)h+=`<div class="crow"><b>Historique</b><div id="sp-h" class="cinfo">Chargement…</div></div>`;
   L.innerHTML=h;
   const sb=window.sbClient;
-  if(id!=null&&canWrite){let t="livraison";
+  if(id!=null&&stkMv()){let t="livraison";
     $("sp-t").querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{t=b.dataset.t;$("sp-t").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b));$("sp-c").hidden=!["sortie","retour"].includes(t);$("sp-q").placeholder=t==="inventaire"?"Quantité comptée ("+a.unite+")":"Quantité ("+a.unite+")"});
     $("sp-ok").onclick=async()=>{const v=stkNum($("sp-q").value);if(v==null||v<0||(v===0&&t!=="inventaire")){toast("Indiquez une quantité.");return}
       $("sp-ok").disabled=true;
@@ -2854,7 +2856,9 @@ function atlSubmit(e){e.preventDefault();e.stopPropagation();
   $("tabAtl").hidden=false;
   if(r==="atelier"){
     // Christophe : seulement l'atelier
-    document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.hidden=b.dataset.tab!=="atelier");
+    // Christophe : l'atelier et le stock (entrées / sorties), rien d'autre
+    document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.hidden=!["atelier","stock"].includes(b.dataset.tab));
+    try{if(!localStorage.getItem("stk-which"))stk.which="atelier"}catch(_){stk.which="atelier"}
     $("newBtn").style.display="none";document.querySelector(".top h1").firstChild.textContent="Atelier MGDS";$("sum").style.display="none";
     document.title="Atelier MGDS";showTab("atelier");
   }
