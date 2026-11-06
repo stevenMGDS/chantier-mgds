@@ -2623,10 +2623,11 @@ async function atlLoad(){
   const sb=window.sbClient;if(!sb)return;
   const {data,error}=await sb.from("atelier").select("id,data");
   if(error){atl.ok=false;atlRender();return}
-  atl.ok=true;atl.rows=new Map(data.map(r=>[r.id,r.data]));atlRefresh();
+  atl.ok=true;atl.rows=new Map(data.filter(r=>r.id[0]!=="_").map(r=>[r.id,r.data]));atlRefresh();
   sb.channel("atelier").on("postgres_changes",{event:"*",schema:"public",table:"atelier"},p=>{
-    if(p.eventType==="DELETE")atl.rows.delete(p.old.id);else atl.rows.set(p.new.id,p.new.data);atlRefresh()}).subscribe();
-  document.addEventListener("visibilitychange",async()=>{if(document.hidden)return;const {data}=await sb.from("atelier").select("id,data");if(data){atl.rows=new Map(data.map(r=>[r.id,r.data]));atlRefresh()}});
+    const rid=p.eventType==="DELETE"?p.old.id:p.new.id;if(!rid||rid[0]==="_")return;
+    if(p.eventType==="DELETE")atl.rows.delete(rid);else atl.rows.set(rid,p.new.data);atlRefresh()}).subscribe();
+  document.addEventListener("visibilitychange",async()=>{if(document.hidden)return;const {data}=await sb.from("atelier").select("id,data");if(data){atl.rows=new Map(data.filter(r=>r.id[0]!=="_").map(r=>[r.id,r.data]));atlRefresh()}});
   // la fin prévue glisse avec le temps : on la remet à jour pour l'ARC de la fiche chantier (une fois par jour au plus)
   if(atlCanW())setTimeout(()=>{for(const[id,a]of atl.rows)if(!atlDone(a)&&a.chantier&&atlD(a,"arc")&&atlCalc(a).finSem!==(a.calc||{}).finSem)atlSave(id,{})},4000);
 }
@@ -2765,7 +2766,9 @@ function atlSheet(){
    <div class="acts" style="margin-top:8px"><button class="btn ghost" data-aprint>🖨️ Imprimer l'ARC</button></div>
    <h3>Documents<span class="sub" style="text-transform:none;letter-spacing:0">bons de commande, ARC, plans de débit</span></h3>
    ${W?`<div class="drop" id="atlDrop">Glissez ici les bons de commande (matière, vitrages, volets…) ou <label for="atlFile">choisissez des fichiers</label><input type="file" id="atlFile" multiple hidden accept=".pdf,image/*"></div>`:""}
-   <ul class="docs">${docs||`<li style="grid-template-columns:1fr"><span class="sub">Aucun document pour l'instant.</span></li>`}</ul>
+   <ul class="docs">${docs||`<li style="grid-template-columns:1fr"><span class="sub">Aucun document déposé dans l'appli.</span></li>`}</ul>
+   ${(a.serveur||[]).length?`<h3>Sur le serveur<span class="sub" style="text-transform:none;letter-spacing:0">dossier ${esc(a.src||"ATELIER")} · relu par Claude${a.serveurLe?" le "+fr(a.serveurLe.slice(0,10)):""}</span></h3>
+   <ul class="docs">${a.serveur.map(d=>`<li><span class="dtype">${esc({mat:"Matière",acc:"Accessoires",vitr:"Vitrages",volet:"Volets / stores",arc:"ARC"}[d.t]||"Document")}</span><span style="min-width:0;overflow-wrap:anywhere">${esc(d.n)}</span><span class="mono">${fr(d.d)}</span></li>`).join("")}</ul>`:""}
    ${W?`<div class="acts" style="margin-top:24px"><button class="btn ghost" data-adel style="color:var(--s-rouge)">Supprimer cette commande</button></div>`:""}`;
   const dz=$("atlDrop");if(dz){["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("over")}));["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("over")}));
     dz.addEventListener("drop",e=>atlUpload([...e.dataTransfer.files]));$("atlFile").addEventListener("change",e=>atlUpload([...e.target.files]))}
