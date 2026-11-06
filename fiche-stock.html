@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Règles du stock MGDS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Deux fiches A4 à afficher : stock pose (dépôt) et stock atelier. Imprimées en noir et couleur, lisibles à 2 m. */
+:root{--bg:#E9ECEE;--paper:#FFFFFF;--ink:#1E2428;--muted:#56626B;--line:#C9D1D6;--pose:#1F5FBF;--atl:#C2410C;--bleu:#0B3D91;--rouge:#C8102E;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;--f-body:"Barlow","Helvetica Neue",Arial,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#171B1E}}
+:root[data-theme="dark"]{--bg:#171B1E}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 var(--f-body)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:12px 16px}
+.bar a,.bar button{font:600 15px var(--f-body);border:1.5px solid var(--line);background:#fff;color:var(--ink);padding:8px 16px;border-radius:18px;cursor:pointer;text-decoration:none}
+.page{background:var(--paper);color:var(--ink);width:min(210mm,100% - 32px);margin:0 auto 24px;padding:14mm 14mm 12mm;box-shadow:0 2px 10px rgba(0,0,0,.15);display:flex;flex-direction:column;gap:5mm}
+h1{font:700 40px/1.05 var(--f-display);margin:0;letter-spacing:.01em}
+h1 span{display:inline-block;color:#fff;padding:2px 12px;border-radius:6px;margin-right:8px}
+.pose h1 span{background:var(--pose)}.atl h1 span{background:var(--atl)}
+.lead{font-size:20px;margin:0;color:var(--muted)}
+.rule{font:700 26px/1.2 var(--f-display);border:3px solid var(--ink);border-radius:8px;padding:8px 12px;text-align:center}
+ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4.5mm}
+li{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start}
+li b.n{font:700 26px/44px var(--f-display);width:44px;height:44px;border-radius:50%;text-align:center;color:#fff}
+.pose li b.n{background:var(--pose)}.atl li b.n{background:var(--atl)}
+li h2{font:700 26px/1.15 var(--f-display);margin:0 0 2px}
+li p{margin:0;font-size:19px}
+.bleu{color:var(--bleu);font-weight:700}.rouge{color:var(--rouge);font-weight:700}
+.tips{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
+.tip{border:1.5px solid var(--line);border-radius:8px;padding:8px 10px}
+.tip h3{font:700 20px var(--f-display);margin:0 0 4px;text-transform:uppercase;letter-spacing:.03em}
+.tip ul{margin:0;padding-left:18px}.tip li{display:list-item;font-size:18px}
+.ok h3{color:#15803D}.ko h3{color:var(--rouge)}
+.label{font:500 26px var(--f-mono);border:2px dashed var(--ink);border-radius:6px;padding:10px 14px;text-align:center;letter-spacing:.02em}
+.label small{display:block;font:500 13px var(--f-body);color:var(--muted);letter-spacing:0;margin-top:4px}
+.foot{margin-top:auto;font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:6px}
+@media (max-width:560px){.page{padding:18px 16px}.tips{grid-template-columns:1fr}h1{font-size:28px}}
+@media print{
+  @page{size:A4;margin:0}
+  body{background:#fff}.bar{display:none}
+  .page{width:210mm;height:297mm;margin:0;box-shadow:none;page-break-after:always;break-after:page}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<div class="bar"><a href="index.html">← Retour à l'appli</a><button onclick="print()">🖨️ Imprimer les deux fiches</button></div>
+
+<section class="page pose">
+  <h1><span>STOCK POSE</span>Ce qui sort, ce qui revient</h1>
+  <p class="lead">Consommables de pose. Tout est lié au chantier.</p>
+  <div class="rule">Pas de photo = pas de mouvement.<br>Tout ce qui sort ou revient passe par une photo.</div>
+  <ol>
+    <li><b class="n">1</b><div><h2>Lire la fiche Préparation du chantier</h2><p>En <span class="bleu">bleu</span>, ce qui est préconisé (rubrique consommables). C'est la base de ce qu'on charge.</p></div></li>
+    <li><b class="n">2</b><div><h2>Charger</h2><p>Chargez le préconisé (<span class="bleu">bleu</span>). Ce que vous prenez <span class="rouge">en plus</span> s'écrit <span class="rouge">en rouge</span> : c'est imputé au chantier.</p></div></li>
+    <li><b class="n">3</b><div><h2>Photo au départ, au dépôt</h2><p>Étalez tout ce que vous emportez, étiquettes visibles, rangé par type. Appli poseurs → votre chantier du planning → <b>« Consommables pris au stock »</b> → 📷 Prendre une photo.</p></div></li>
+    <li><b class="n">4</b><div><h2>Photo au retour, au dépôt</h2><p>Même chose avec ce qui revient, produits entamés à part, <b>avant</b> de ranger. Même chantier → <b>« Consommables remis au stock »</b> → 📷 Prendre une photo. Puis tout se range à sa place.</p></div></li>
+    <li><b class="n">5</b><div><h2>Claude fait les comptes</h2><p>Sorti − revenu = consommé par le chantier. Le stock se met à jour, l'écart avec le préconisé apparaît dans la fiche.</p></div></li>
+  </ol>
+  <div class="tips">
+    <div class="tip ok"><h3>Photo lisible</h3><ul><li>Tout à plat, rien ne se cache</li><li>Silicones, mousses, vis : groupés par type</li><li>Étiquettes et couleurs vers l'objectif</li><li>De haut, à 1 m, bien éclairé</li></ul></div>
+    <div class="tip ko"><h3>À éviter</h3><ul><li>Un tas en vrac dans le camion</li><li>Cartons fermés sans indication</li><li>Photo floue ou à contre-jour</li><li>Oublier de choisir le chantier</li></ul></div>
+  </div>
+  <div class="foot">MGDS · Onglet Stock de l'appli · les photos sont relues par Claude</div>
+</section>
+
+<section class="page atl">
+  <h1><span>STOCK ATELIER</span>Barres, chutes, accessoires</h1>
+  <p class="lead">Les barres neuves restent liées à leur chantier. N'entrent en stock que les barres en trop et les chutes réutilisables.</p>
+  <div class="rule">Une étiquette sur chaque barre en trop ou chute rangée.</div>
+  <div class="label">TGY1213 · 9005 texture · 1,90 m · D 7<small>référence · couleur · longueur · emplacement</small></div>
+  <ol>
+    <li><b class="n">1</b><div><h2>Ranger et étiqueter</h2><p>Barre en trop ou chute à garder : rangez-la, collez l'étiquette avec l'endroit où elle est posée.</p></div></li>
+    <li><b class="n">2</b><div><h2>Photo : 📷 Entrée en stock</h2><p>Appli → onglet <b>Stock</b> → <b>Stock atelier</b> → 📷 Entrée en stock. Photographiez l'étiquette, ou la feuille récapitulative s'il y en a plusieurs. Pas de chantier à choisir.</p></div></li>
+    <li><b class="n">3</b><div><h2>Reprise : 📷 Sortie du stock</h2><p>Même endroit : photo de l'étiquette de la barre ou de la chute reprise.</p></div></li>
+    <li><b class="n">4</b><div><h2>Accessoires : le double bac</h2><p>Deux bacs par référence. Le premier est vide ? On entame le second et on touche <b>« 🫙 Bac vide : à commander »</b> sur l'article dans l'appli.</p></div></li>
+  </ol>
+  <div class="tips">
+    <div class="tip ok"><h3>Étiquette lisible</h3><ul><li>Gros caractères, au feutre noir</li><li>Référence complète (ex. TGY1213)</li><li>Longueur en mètres</li><li>Emplacement : D 7, RAC.3.2…</li></ul></div>
+    <div class="tip ko"><h3>À éviter</h3><ul><li>Barre rangée sans étiquette</li><li>Emplacement oublié sur l'étiquette</li><li>Photo prise de trop loin</li><li>Bac vide sans le signaler</li></ul></div>
+  </div>
+  <div class="foot">MGDS · Onglet Stock de l'appli · les photos sont relues par Claude</div>
+</section>
+</body>
+</html>

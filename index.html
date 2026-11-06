@@ -197,6 +197,7 @@ textarea{min-height:64px;resize:vertical}
 .viewer .fld.lock{color:#0B3D91;font-weight:700;background:#EEF3FB;border-style:solid;border-color:transparent}
 .viewer .fld.plus,.cpanel .qty.plus .cin{color:#C8102E;font-weight:700}.cpanel .qty.plus .clab{color:#C8102E}
 .cpanel .cpre{color:#0B3D91;font-weight:700;align-self:center}
+.cpanel .cloc{font:600 15px var(--f-body);color:var(--ink);background:var(--t-bleu);border-radius:6px;padding:4px 10px;align-self:flex-start}.cpanel .cloc:empty{display:none}
 .viewer .habwhite{position:absolute;z-index:1;background:#fff;pointer-events:none}
 .viewer .consx{position:absolute;z-index:3;background:#fff;color:#111;font-family:Helvetica,Arial,sans-serif;white-space:nowrap;overflow:hidden;line-height:1.3;pointer-events:none;display:flex;align-items:center}.viewer .consx.del{color:#888;font-style:italic;padding-left:4px}
 .cpanel .ctop{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.cpanel .ctop b{flex:1;min-width:8em}.cpanel .ctop .cin{flex:1}.cpanel .ctool{min-height:40px;padding:6px 10px;font-size:14px}.cpanel .corig{flex-basis:100%;font-size:13px;color:var(--muted)}
@@ -1215,6 +1216,19 @@ function habBlock(mk){
   return box;
 }
 const cleanDots=s=>(s||"").replace(/\.{2,}|…/g,"").replace(/\s+/g," ").trim();
+// emplacement au dépôt des consommables de la fiche : articles du stock pose (outil/stock.sql) qui correspondent à la ligne
+const PLACE_STOP=new Set("de du des la le les pour et en au aux avec sans type un une sur".split(" "));
+const placeToks=s=>nrm(s).split(" ").filter(w=>w.length>1&&!PLACE_STOP.has(w)&&!/^\d/.test(w)).map(w=>w.length>3?w.replace(/(s|x)$/,""):w);
+function consoPlaces(){if(!consoPlaces.p)consoPlaces.p=(async()=>{const sb=window.sbClient;if(!sb)return[];
+  const{data,error}=await sb.from("stock_articles").select("nom,coloris,emplacement").eq("stock","pose").neq("actif",false).limit(1000);
+  if(error){consoPlaces.p=null;return[]}return(data||[]).map(a=>({...a,t:new Set(placeToks(a.nom+" "+(a.coloris||"")))}))})();return consoPlaces.p}
+function placeOf(P,title,col){
+  const T=placeToks(title);if(!T.length)return null;
+  let M=P.filter(a=>T.slice(0,2).every(t=>a.t.has(t)));if(!M.length&&T.length>1)M=P.filter(a=>a.t.has(T[0]));if(!M.length)return null;
+  const C=placeToks(col||"");if(C.length){const MC=M.filter(a=>C.every(t=>a.t.has(t)));if(MC.length)M=MC}
+  const by=new Map();M.filter(a=>a.emplacement).forEach(a=>{const k=a.emplacement.toUpperCase();if(!by.has(k))by.set(k,[]);by.get(k).push(a.nom+(a.coloris?" "+a.coloris:""))});
+  return{n:M.length,by};
+}
 function openConso(){
   const list=$("clist");list.innerHTML="";
   const mk=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
@@ -1249,6 +1263,12 @@ function openConso(){
     if(segs[0]&&artF&&(isCol||!/coloris/i.test(title)))card.appendChild(bindText(artF.f,/coloris/i.test(title)?"Précisez le coloris":"Précisez"));
     const colTxt=(R.cell.col||"").split("☐"),info=[isCol&&cleanDots(colTxt[0])&&"Coloris : "+cleanDots(colTxt[0]),cleanDots(R.cell.need)&&"Besoin calculé : "+cleanDots(R.cell.need),!R.fs.some(x=>x.r==="rem")&&cleanDots(R.cell.rem)].filter(Boolean).join(" · ");
     if(info)card.appendChild(mk("div","cinfo",info));
+    // 📍 où le trouver au dépôt (coloris saisi ou coché pris en compte)
+    const loc=mk("div","cloc");card.appendChild(loc);
+    consoPlaces().then(P=>{const col=[cleanDots(colTxt[0]),...R.fs.filter(x=>x.r==="col").map(x=>x.f.cb?"":x.f.el.value)].join(" ");
+      const r=placeOf(P,R.ren||title||(artF&&artF.f.el.value)||"",isCol?col:"");if(!r||!r.by.size)return;
+      const L=[...r.by].slice(0,4);loc.textContent="📍 "+(L.length===1?"Rangé en "+L[0][0]:L.map(([k,n])=>k+(n.length<r.n?" ("+n.map(x=>x.toLowerCase().startsWith(title.toLowerCase())?x.slice(title.length).trim()||x:x).join(", ")+")":"")).join(" · "));
+      loc.title=L.map(([k,n])=>k+" : "+n.join(", ")).join("\n")});
     // options à cocher (dimensions de compribande, coloris du silicone…)
     const chips=mk("div","chips");
     [["art",segs],...(isCol?[["col",colTxt.map(cleanDots)]]:[])].forEach(([r,lab])=>{R.fs.filter(x=>x.r===r&&x.f.cb).sort((a,b)=>b.f.cy-a.f.cy||a.f.x-b.f.x).forEach((x,k)=>chips.appendChild(bindChip(x.f,lab[k+1]||"option "+(k+1))))});
@@ -1308,9 +1328,9 @@ async function sendConsoPhotos(chantier,cat,files,note){
   const sb=window.sbClient,{data:{user:u}}=await sb.auth.getUser();let ok=0;
   for(const [n,f] of files.entries()){
     toast(`Envoi de la photo ${n+1} sur ${files.length}…`);
-    const b=await shrink(f),chemin=`${u.id}/${chantier}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const b=await shrink(f),chemin=`${u.id}/${chantier||"stock"}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
     const up=await sb.storage.from("photos").upload(chemin,b,{contentType:"image/jpeg",upsert:false});if(up.error)continue;
-    const ins=await sb.from("photos").insert({chantier,categorie:cat,chemin,note:note||null});
+    const ins=await sb.from("photos").insert({chantier:chantier||null,categorie:cat,chemin,note:note||null});
     if(ins.error){await sb.storage.from("photos").remove([chemin]);continue}ok++}
   toast(ok===files.length?(ok>1?ok+" photos envoyées":"Photo envoyée")+" : Claude va relever les articles et les reporter dans "+(/^atl_/.test(cat)?"le stock atelier.":"la fiche et le stock."):ok+" photo(s) envoyée(s) sur "+files.length+". Réessayez pour les autres.");
   return ok;
@@ -1320,15 +1340,17 @@ async function sendConsoPhotos(chantier,cat,files,note){
 const CONSO_BTN={conso_sortie:["📷 Sortie du stock","ce que j'emporte"],conso_retour:["📷 Retour au stock","ce que je rapporte"]};
 function consoCamera(getChantier,onSent,noteEl,cats=CONSO_BTN){
   const box=document.createElement("div");box.className="ccam";const first=Object.keys(cats)[0];
+  // atelier : pas de chantier (les chutes viennent de plusieurs chantiers, hors déboursé)
+  const need=!Object.keys(cats).some(c=>/^atl_/.test(c));
   Object.entries(cats).forEach(([cat,[lab,sm]])=>{
     const l=document.createElement("label");l.className="btn ccambtn";l.innerHTML=lab+"<small>"+sm+"</small>";
     const i=document.createElement("input");i.type="file";i.accept="image/*";i.setAttribute("capture","environment");i.hidden=true;l.appendChild(i);
-    i.onchange=async()=>{const files=[...i.files];i.value="";const c=getChantier();if(!files.length)return;if(!c){toast("Choisissez d'abord le chantier.");return}
+    i.onchange=async()=>{const files=[...i.files];i.value="";const c=getChantier();if(!files.length)return;if(!c&&need){toast("Choisissez d'abord le chantier.");return}
       const note=noteEl?noteEl.value.trim():"";const n=await sendConsoPhotos(c,cat,files,note);if(n&&noteEl)noteEl.value="";if(n&&onSent)onSent()};
     box.appendChild(l)});
   const g=document.createElement("label");g.className="sub ccamgal";g.innerHTML="ou <u>choisir dans la galerie</u> comme :";
   const gi=document.createElement("input");gi.type="file";gi.accept="image/*";gi.multiple=true;gi.hidden=true;g.appendChild(gi);
-  gi.onchange=async()=>{const files=[...gi.files];gi.value="";const c=getChantier();if(!files.length)return;if(!c){toast("Choisissez d'abord le chantier.");return}
+  gi.onchange=async()=>{const files=[...gi.files];gi.value="";const c=getChantier();if(!files.length)return;if(!c&&need){toast("Choisissez d'abord le chantier.");return}
     const cat=confirmCat();if(!cat)return;const n=await sendConsoPhotos(c,cat,files,noteEl?noteEl.value.trim():"");if(n&&onSent)onSent()};
   const confirmCat=()=>box.dataset.cat||first;
   const seg=document.createElement("div");seg.className="chips ccamseg";
@@ -1383,7 +1405,7 @@ const STK_TYPES={inventaire:"Comptage",livraison:"Livraison",sortie:"Sortie",ret
 const stkNum=s=>{const v=parseFloat(String(s??"").replace(/\s/g,"").replace(",","."));return isFinite(v)?v:null};
 const stkLvl=a=>stk.niv.get(a.id)??0;
 // rouge : à commander (ou épuisé) · orange : bientôt · vert : bon · gris : pas de seuil
-function stkEtat(a){const n=stkLvl(a),s=a.seuil;if(a.a_commander)return"r";if(n<=0&&(s!=null||n<0))return"r";if(s==null)return"g";if(n<=s)return"r";if(n<=s*1.5)return"o";return"v"}
+function stkEtat(a){const n=stkLvl(a)-stkResQ(a),s=a.seuil;if(a.a_commander)return"r";if(n<=0&&(s!=null||n<0))return"r";if(s==null)return"g";if(n<=s)return"r";if(n<=s*1.5)return"o";return"v"}
 const STK_ETAT={r:"À commander",o:"Bientôt",v:"Suffisant",g:"Pas de seuil"};
 const stkU=(a,n)=>{const u=a.unite||"unité";return(n>1&&!/s$|x$|\d/.test(u)&&!/ de /i.test(u))?u+"s":u};
 const stkQ=(a,n)=>`${nb(n)} ${esc(stkU(a,Math.abs(n)))}${a.contenance&&a.detail?` <span class="sub">≈ ${nb(n*a.contenance)} ${esc(a.detail)}</span>`:""}`;
@@ -1397,30 +1419,48 @@ async function stkLoad(){
     sb.from("stock_mouvements").select("id,article,type,qte,chantier,photo,note,le,par").order("le",{ascending:false}).limit(60)]);
   const e=A.error||N.error||M.error;if(e){stk.ok=false;throw e}
   stk.all=(A.data||[]).sort((x,y)=>String(x.famille).localeCompare(y.famille,"fr")||String(x.nom).localeCompare(y.nom,"fr"));stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);stk.niv=new Map((N.data||[]).map(x=>[x.id,+x.niveau]));stk.inv=new Map((N.data||[]).map(x=>[x.id,x.inventaire_le]));stk.mv=M.data||[];stk.ok=true;
+  await stkResLoad();
 }
+// réservations du stock atelier (outil/atelier.sql) : facultatives tant que la table n'est pas installée
+async function stkResLoad(){const{data,error}=await window.sbClient.from("stock_reservations").select("id,article,commande,qte,note,le").order("le");
+  stk.res=error?[]:data||[];stk.resBy=new Map();stk.res.forEach(r=>stk.resBy.set(r.article,(stk.resBy.get(r.article)||0)+ +r.qte));stk.resOk=!error}
+const stkResQ=a=>(stk.resBy&&stk.resBy.get(a.id))||0;
+const stkResW=()=>atlRole()==="atelier";   // seul Christophe réserve (Steven, 06/11/2026)
+// manque : plus de réservé que de stock (une sortie a eu lieu depuis la réservation)
+const stkResManque=a=>Math.max(0,stkResQ(a)-Math.max(0,stkLvl(a)));
+// réserve q de l'article pour la commande c : une seule ligne par élément et par commande, jamais au-delà du disponible
+async function stkReserve(art,c,q,note){const sb=window.sbClient,x=stk.all.find(y=>y.id===art);
+  const dispo=x?stkLvl(x)-stkResQ(x):0;if(q>dispo){toast("Déjà réservé ou pas assez en stock : "+nb(Math.max(0,dispo))+" disponible"+(dispo>1?"s":"")+".");return false}
+  const old=stk.res.find(r=>r.article===art&&r.commande===c);
+  const{error}=old?await sb.from("stock_reservations").update({qte:+old.qte+q,note:note||old.note}).eq("id",old.id):await sb.from("stock_reservations").insert({article:art,commande:c,qte:q,note:note||null});
+  if(error){toast(/au-del/.test(error.message||"")?"Refusé : déjà réservé ailleurs, il n'en reste pas assez.":"Réservation impossible pour le moment.");return false}
+  toast(old?"Déjà réservé pour cette commande : quantité portée à "+nb(+old.qte+q)+".":"Réservé.");return true}
+// commandes atelier en cours (pour réserver depuis le stock)
+async function atlListe(){let L;if(atl.ok===true)L=[...atl.rows].map(([id,a])=>({id,...a}));
+  else{const{data}=await window.sbClient.from("atelier").select("id,data");L=(data||[]).map(r=>({id:r.id,...r.data}))}
+  return L.filter(a=>!atlD(a,"livre")).sort((x,y)=>String(atlName(x)).localeCompare(atlName(y),"fr"))}
+const atlLabel=a=>atlName(a)+(a.objet?" · "+a.objet:"")+" ("+a.id+")";
 async function loadStock(){
   const el=$("tab-stock");if(!window.sbClient)return;
   if(!jobs.size&&(loadStock.n=(loadStock.n||0)+1)<20){el.innerHTML=`<span class="sub">Chargement…</span>`;setTimeout(()=>{if(!$("tab-stock").hidden)loadStock()},700);return}
   const live=[...jobs.entries()].map(([id,j])=>({id,...j})).filter(j=>!done(j)).sort((a,b)=>String(a.client).localeCompare(b.client));
   const nameOf=id=>{const j=jobs.get(id);return j?(j.client||id)+(j.ville?" · "+j.ville:""):id};
   stkLoad.live=live;stkLoad.nameOf=nameOf;
-  el.innerHTML=`<div class="chips stkwhich" role="tablist">${Object.entries(STK_WHICH).map(([k,l])=>`<button class="chip" role="tab" data-which="${k}" aria-pressed="${stk.which===k}">${k==="pose"?"🧰 ":"🏭 "}${l}</button>`).join("")}<a class="chip" href="plan-stock.html" style="text-decoration:none">🗺️ Plan 3D du stock</a></div>
+  el.innerHTML=`<div class="chips stkwhich" role="tablist">${Object.entries(STK_WHICH).map(([k,l])=>`<button class="chip" role="tab" data-which="${k}" aria-pressed="${stk.which===k}">${k==="pose"?"🧰 ":"🏭 "}${l}</button>`).join("")}<a class="chip" href="plan-stock.html" style="text-decoration:none">🗺️ Plan 3D du stock</a><a class="chip" href="fiche-stock.html" style="text-decoration:none">🖨️ Fiches à afficher</a></div>
     <div id="stk-top"><span class="sub">Chargement du stock…</span></div>
     <section class="stk"><div class="stkcard" id="stk-cmd"></div><div class="stkcard stkdir" id="stk-dir"></div><div class="stkcard stkpose"><h3>📷 Photographier des consommables</h3>
     <label class="fld">Chantier<select id="stk-ch"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
     <div id="stk-cam"></div><label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label></div>
     <div class="stkcard stkpose" id="stk-list"><span class="sub">Chargement…</span></div>
     <div class="stkcard stkatl"><h3>📷 Barres en trop et chutes</h3>
-    <p class="sub" style="margin:0">Les barres neuves restent liées à leur chantier. N'entrent en stock que les <b>barres en trop</b> et les <b>chutes réutilisables</b>, marquées au feutre (réf. + longueur, ex. « TGY1213 1,9 »). Photo de la barre ou de la chute avec son marquage lisible.</p>
-    <label class="fld">Chantier<select id="stk-ach"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
-    <div id="stk-acam"></div><label class="fld">Précision (facultatif)<input type="text" id="stk-anote" placeholder="ex. 2 chutes rangées en CH 3"></label></div>
+    <p class="sub" style="margin:0">Les barres neuves restent liées à leur chantier. N'entrent en stock que les <b>barres en trop</b> et les <b>chutes réutilisables</b>. Sur chacune, une étiquette : <b>réf. · couleur · longueur · emplacement</b> (ex. « TGY1213 · 9005 texture · 1,90 m · D 7 »). Photographiez l'étiquette, ou la feuille récapitulative si plusieurs barres sont rangées en même temps. Pas de chantier à choisir : ce stock ne compte pas dans le déboursé des chantiers.</p>
+    <div id="stk-acam"></div><label class="fld">Précision (facultatif)<input type="text" id="stk-anote" placeholder="ex. 3 chutes rangées ce matin"></label></div>
     <div class="stkcard stkatl" id="stk-alist"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>`;
   const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll(".stkatl").forEach(x=>x.hidden=stk.which!=="atelier");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
   el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw();stkDirs()});
   $("stk-ch").onchange=e=>{stockSel=e.target.value};
   $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>{loadStockList(nameOf);stkRefresh()},$("stk-note")));
-  $("stk-ach").onchange=e=>{stockSel=e.target.value};
-  $("stk-acam").appendChild(consoCamera(()=>$("stk-ach").value,()=>stkAtlPhotos(nameOf),$("stk-anote"),ATL_PHOTO_BTN));
+  $("stk-acam").appendChild(consoCamera(()=>null,()=>stkAtlPhotos(nameOf),$("stk-anote"),ATL_PHOTO_BTN));
   loadStockList(nameOf);stkRefresh();stkDirs();stkAtlPhotos(nameOf);
 }
 // photos de l'atelier : entrée en stock (barres en trop, chutes) / sortie (chute reprise pour un chantier), relues par Claude (outil/releve_conso.py)
@@ -1433,9 +1473,9 @@ async function stkAtlPhotos(nameOf){
   const urls=Object.fromEntries((((await sb.storage.from("photos").createSignedUrls(P.map(p=>p.chemin),3600)).data)||[]).map(x=>[x.path,x.signedUrl]));
   const wait=P.filter(p=>!p.traite).length;
   box.innerHTML=`<h3>Entrées et sorties atelier</h3>${wait?`<p class="sub">${wait} photo${wait>1?"s":""} en attente de lecture par Claude.</p>`:""}
-    <table class="ctab"><tr><th></th><th>Date · chantier</th><th>Relevé</th></tr>${P.map(p=>{const R=parseReleve(p.releve),e=p.categorie==="atl_entree";
+    <table class="ctab"><tr><th></th><th>Date</th><th>Relevé</th></tr>${P.map(p=>{const R=parseReleve(p.releve),e=p.categorie==="atl_entree";
       return`<tr><td><a href="${esc(urls[p.chemin]||"#")}" target="_blank" rel="noopener" class="thumbs" style="display:block;width:56px"><img loading="lazy" src="${esc(urls[p.chemin]||"")}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:4px"></a></td>
-      <td><span class="mono">${fr(p.pris_le.slice(0,10))}</span> · <b style="color:${e?"#15803D":"#C2410C"}">${e?"Entrée":"Sortie"}</b><br><small class="sub">${esc(nameOf(p.chantier))}${p.note?" · "+esc(p.note):""}</small></td>
+      <td><span class="mono">${fr(p.pris_le.slice(0,10))}</span> · <b style="color:${e?"#15803D":"#C2410C"}">${e?"Entrée":"Sortie"}</b>${p.chantier||p.note?`<br><small class="sub">${esc([p.chantier?nameOf(p.chantier):"",p.note||""].filter(Boolean).join(" · "))}</small>`:""}</td>
       <td>${!p.traite?`<span class="sub">en attente</span>`:R&&R.articles.length?R.articles.map(x=>`${e?"+":"−"}${nb(+String(x.q).replace(",",".")||0)} ${esc([x.a,x.l?nb(+x.l)+" m":"",x.c].filter(Boolean).join(" "))}`).join("<br>"):`<span class="sub">${esc(R&&R.txt||"rien de lisible")}</span>`}</td></tr>`}).join("")}</table>`;
 }
 async function stkRefresh(){
@@ -1456,12 +1496,15 @@ function stkDraw(){
       ${canWrite?`<button class="btn" id="stk-inv">📋 Faire l'inventaire</button><button class="btn ghost" id="stk-add">＋ Nouvel article</button>`:""}<button class="btn ghost" id="stk-xls" title="Inventaire valorisé au format de l'Excel du serveur, quantités du jour">📥 Exporter l'Excel</button></div>
     <div class="tools stkfam"><button class="chip" data-sf="" aria-pressed="${!stk.fam}">Tout</button>${fams.map(f=>`<button class="chip" data-sf="${esc(f)}" aria-pressed="${stk.fam===f}">${esc(f)}</button>`).join("")}</div>
     ${cnt.g===A.length&&A.length?`<p class="sub">Aucun seuil d'alerte n'est encore fixé : touchez un article pour lui donner un seuil, ou fixez-les tous d'un coup dans « Faire l'inventaire ».</p>`:""}</div>`;
+  // contrôle des réservations atelier : ce qui manque pour une fabrication (réservé > en stock)
+  const KO=stk.which==="atelier"?A.filter(a=>stkResManque(a)>0):[];
+  if(KO.length)h+=`<div class="stkcard" style="border-color:var(--s-rouge);margin-bottom:14px"><h3>⚠️ Réservations à vérifier</h3><span class="sub">Plus de réservé que de stock : il manquera ces éléments pour une fabrication.</span><div class="stkrows">${KO.map(a=>`<button class="stkrow" data-art="${a.id}"><span class="dot r"></span><span class="stkn">${stkName(a)}<small>${esc(stk.res.filter(r=>r.article===a.id).map(r=>r.commande+" : "+nb(r.qte)).join(" · "))}</small></span><span class="stkq r">manque ${nb(stkResManque(a))}<small>en stock ${nb(stkLvl(a))}</small></span></button>`).join("")}</div></div>`;
   h+=`<div class="stkcard stkniv"><h3>${STK_WHICH[stk.which]} : niveau</h3>`;
   if(!vis.length)h+=`<span class="sub">${A.length?"Aucun article ne correspond.":stk.which==="atelier"?"Aucun article dans le stock atelier pour l'instant (barres, accessoires de fabrication, consommables atelier). Ajoutez-les avec « Nouvel article », ou envoyez l'inventaire atelier à Claude.":"Aucun article pour l'instant."}</span>`;
   let fam=null;
   vis.forEach(a=>{if(a.famille!==fam){if(fam!==null)h+=`</div>`;fam=a.famille;h+=`<h4 class="stkfh">${esc(fam)}</h4><div class="stkrows">`}
     const e=stkEtat(a),n=stkLvl(a);
-    h+=`<button class="stkrow" data-art="${a.id}"><span class="dot ${e}" title="${STK_ETAT[e]}"></span><span class="stkn">${stkName(a)}${a.ref||a.fournisseur?`<small>${esc([a.ref,a.fournisseur].filter(Boolean).join(" · "))}</small>`:""}</span><span class="stkq ${e}">${stkQ(a,n)}${a.seuil!=null?`<small>seuil ${nb(a.seuil)}</small>`:""}</span></button>`});
+    h+=`<button class="stkrow" data-art="${a.id}"><span class="dot ${e}" title="${STK_ETAT[e]}"></span><span class="stkn">${stkName(a)}${a.ref||a.fournisseur?`<small>${esc([a.ref,a.fournisseur].filter(Boolean).join(" · "))}</small>`:""}</span><span class="stkq ${e}">${stkQ(a,n)}${stkResQ(a)?`<small>dont ${nb(stkResQ(a))} réservé${stkResQ(a)>1?"s":""}</small>`:""}${a.seuil!=null?`<small>seuil ${nb(a.seuil)}</small>`:""}</span></button>`});
   if(fam!==null)h+=`</div>`;
   h+=`</div>`;
   $("stk-top").innerHTML=h;
@@ -1572,6 +1615,9 @@ async function stkSheet(id){
     ${canWrite?`<button class="btn" id="sp-save">${id==null?"Créer l'article":"Enregistrer les réglages"}</button>`:""}</div></details>`;
   // double bac (atelier) : le premier bac est vide → l'article passe « à commander » jusqu'à la prochaine livraison
   if(id!=null&&stkMv()&&(a.stock||"pose")==="atelier")h+=`<div class="crow ccard"><b>Double bac</b>${a.a_commander?`<div class="cinfo"><span class="dot r"></span> Bac signalé vide le ${fr(a.a_commander.slice(0,10))} : à commander. Repart tout seul à la prochaine « Livraison ».</div>${canWrite?`<button class="btn ghost" id="sp-vide0">Annuler le signalement</button>`:""}`:`<div class="cinfo">Le premier bac est vide ? On entame le second et l'article passe dans « À commander ».</div><button class="btn" id="sp-vide">🫙 Bac vide : à commander</button>`}</div>`;
+  if(id!=null&&(a.stock||"pose")==="atelier"&&stk.resOk){const RS=stk.res.filter(r=>r.article===a.id);
+    h+=`<div class="crow ccard"><b>Réservations</b>${RS.length?`<table class="ctab">${RS.map(r=>`<tr><td>${nb(r.qte)}</td><td id="sp-rc-${r.id}">${esc(r.commande)}</td><td>${stkResW()?`<button class="btn ghost small" data-rdel="${r.id}">Retirer</button>`:""}</td></tr>`).join("")}</table>`:`<div class="cinfo">Rien de réservé.</div>`}
+      ${stkResW()?`<div class="cline"><input class="cin" id="sp-rq" inputmode="decimal" placeholder="Qté" aria-label="Quantité à réserver" style="max-width:90px"><select class="cin" id="sp-rcmd" aria-label="Commande atelier"><option value="">Commande atelier…</option></select></div><input class="cin" id="sp-rn" placeholder="Remarque (facultatif)" aria-label="Remarque"><button class="btn ghost" id="sp-rok">📌 Réserver pour cette commande</button>`:""}</div>`}
   if(id!=null)h+=`<div class="crow"><b>Historique</b><div id="sp-h" class="cinfo">Chargement…</div></div>`;
   L.innerHTML=h;
   const sb=window.sbClient;
@@ -1586,6 +1632,14 @@ async function stkSheet(id){
     if(error){toast("Impossible pour le moment (droits à installer : outil/stock.sql).");return}
     toast(v?"Bac signalé vide : l'article est dans « À commander ».":"Signalement annulé.");await stkLoad();stkDraw();stkSheet(a.id)};
   if($("sp-vide"))$("sp-vide").onclick=()=>vide(true);
+  if($("sp-rok")||L.querySelector("[id^=sp-rc-]"))atlListe().then(C=>{const by=new Map(C.map(c=>[c.id,c]));
+    L.querySelectorAll("[id^=sp-rc-]").forEach(td=>{const c=by.get(td.textContent);if(c)td.textContent=atlLabel(c)});
+    if($("sp-rcmd"))$("sp-rcmd").insertAdjacentHTML("beforeend",C.map(c=>`<option value="${esc(c.id)}">${esc(atlLabel(c))}</option>`).join(""))});
+  if($("sp-rok"))$("sp-rok").onclick=async()=>{const q=stkNum($("sp-rq").value),c=$("sp-rcmd").value;
+    if(!q||q<=0){toast("Indiquez la quantité à réserver.");return}if(!c){toast("Choisissez la commande atelier.");return}
+    if(!await stkReserve(a.id,c,q,$("sp-rn").value.trim()))return;await stkResLoad();stkDraw();stkSheet(a.id)};
+  L.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=async()=>{const{error}=await sb.from("stock_reservations").delete().eq("id",+b.dataset.rdel);
+    if(error){toast("Impossible pour le moment.");return}toast("Réservation retirée.");await stkResLoad();stkDraw();stkSheet(a.id)});
   if($("sp-vide0"))$("sp-vide0").onclick=()=>vide(false);
   if(canWrite)$("sp-save").onclick=async()=>{
     const nom=$("sp-nom").value.trim();if(!nom){toast("Donnez un nom à l'article.");return}
@@ -2922,6 +2976,10 @@ function atlSheet(){
    <div class="tbl"><table class="atllg"><thead><tr><th>Repère</th><th>Désignation</th><th>L (mm)</th><th>H (mm)</th><th>Qté</th><th></th></tr></thead><tbody>${lignes||`<tr><td colspan="6" class="sub">Aucune ligne. Ajoutez les menuiseries avec leurs cotes, ou déposez l'ARC du logiciel dans Documents.</td></tr>`}</tbody></table></div>
    ${W&&!arcOk?`<form class="add arcadd" id="atlLigne"><input type="text" id="al-rep" placeholder="Repère" aria-label="Repère" style="flex:0 1 80px"><input type="text" id="al-des" placeholder="Désignation (ex. fenêtre 2 vantaux)" aria-label="Désignation"><input type="number" id="al-l" placeholder="L" aria-label="Largeur" inputmode="numeric" style="flex:0 1 80px"><input type="number" id="al-h" placeholder="H" aria-label="Hauteur" inputmode="numeric" style="flex:0 1 80px"><input type="number" id="al-q" placeholder="Qté" value="1" aria-label="Quantité" inputmode="numeric" style="flex:0 1 64px"><button class="btn">+</button></form>`:""}
    <div class="acts" style="margin-top:8px"><button class="btn ghost" data-aprint>🖨️ Imprimer l'ARC</button></div>
+   <h3>Besoins et stock<span class="sub" style="text-transform:none;letter-spacing:0">ce qu'il faut pour la commande, comparé au stock atelier</span></h3>
+   <div id="atlBes"><span class="sub">Chargement…</span></div>
+   <h3>Éléments réservés au stock<span class="sub" style="text-transform:none;letter-spacing:0">chutes, barres, accessoires mis de côté</span></h3>
+   <div id="atlRes"><span class="sub">Chargement…</span></div>
    <h3>Documents<span class="sub" style="text-transform:none;letter-spacing:0">bons de commande, ARC, plans de débit</span></h3>
    ${W?`<div class="drop" id="atlDrop">Glissez ici les bons de commande (matière, vitrages, volets…) ou <label for="atlFile">choisissez des fichiers</label><input type="file" id="atlFile" multiple hidden accept=".pdf,image/*"></div>`:""}
    <ul class="docs">${docs||`<li style="grid-template-columns:1fr"><span class="sub">Aucun document déposé dans l'appli.</span></li>`}</ul>
@@ -2930,7 +2988,93 @@ function atlSheet(){
    ${W?`<div class="acts" style="margin-top:24px"><button class="btn ghost" data-adel style="color:var(--s-rouge)">Supprimer cette commande</button></div>`:""}`;
   const dz=$("atlDrop");if(dz){["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("over")}));["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("over")}));
     dz.addEventListener("drop",e=>atlUpload([...e.dataTransfer.files]));$("atlFile").addEventListener("change",e=>atlUpload([...e.target.files]))}
+  atlResDraw(a);
 }
+// ---- éléments du stock atelier réservés pour la commande : liste, ajout, sortie, fiche imprimable ----
+async function atlResDraw(a){
+  const box=$("atlRes");if(!box)return;const sb=window.sbClient,W=stkResW();
+  try{if(!stk.ok)await stkLoad();else await stkResLoad()}catch(e){}
+  if(atl.open!==a.id||!$("atlRes"))return;
+  atlBesDraw(a);
+  if(!stk.resOk){box.innerHTML=`<p class="sub">Les réservations ne sont pas encore installées dans la base (outil/atelier.sql).</p>`;return}
+  const byA=new Map(stk.all.map(x=>[x.id,x])),RS=stk.res.filter(r=>r.commande===a.id&&byA.has(r.article)).map(r=>({...r,a:byA.get(r.article)}));
+  const lab=x=>[x.ref,x.nom,x.coloris,x.longueur?nb(x.longueur)+" m":""].filter(Boolean).join(" · ");
+  const A=stk.all.filter(x=>(x.stock||"pose")==="atelier"&&x.actif!==false&&stkLvl(x)-stkResQ(x)>0);
+  // contrôle avant fabrication : chaque élément réservé est-il bien encore en stock ?
+  const KO=RS.filter(r=>stkResManque(r.a)>0);
+  box.innerHTML=(RS.length?(KO.length?`<div class="flags" style="margin-bottom:8px"><span class="flag r">⚠️ ${KO.length} élément${KO.length>1?"s":""} manquant${KO.length>1?"s":""} : plus réservé qu'en stock, à vérifier avant la fabrication</span></div>`:`<div class="flags" style="margin-bottom:8px"><span class="flag">✓ Tout le réservé est en stock</span></div>`)+`<div class="tbl"><table><thead><tr><th>📍</th><th>Élément</th><th class="n">Qté</th><th></th></tr></thead><tbody>${RS.map(r=>`<tr><td class="mono">${esc(r.a.emplacement||"?")}</td><td>${esc(lab(r.a))}${r.note?`<br><span class="sub">${esc(r.note)}</span>`:""}</td><td class="n">${nb(r.qte)}${stkResManque(r.a)>0?`<br><span class="flag r">manque ${nb(stkResManque(r.a))}</span>`:""}</td><td>${W?`<button class="btn ghost small" data-rout="${r.id}" title="Enregistre la sortie du stock et lève la réservation">✓ Sorti</button> <button class="btn ghost small" data-rdel="${r.id}">Retirer</button>`:""}</td></tr>`).join("")}</tbody></table></div>`:`<p class="sub">Rien de réservé pour cette commande.</p>`)
+   +`<div class="acts" style="margin-top:8px">${RS.length?`<button class="btn ghost" id="atlResPrint">🖨️ Fiche des éléments réservés</button>`:""}</div>`
+   +(!W?`<p class="sub">Seul Christophe réserve les éléments du stock.</p>`:"")+(W?`<form class="add" id="atlResAdd" style="margin-top:8px"><input type="text" id="ar-art" list="ar-list" placeholder="Chercher : réf., désignation, couleur, emplacement…" aria-label="Élément du stock atelier"><datalist id="ar-list">${A.map(x=>`<option value="${esc(lab(x)+" · 📍 "+(x.emplacement||"?")+" · #"+x.id)}">`).join("")}</datalist><input type="text" id="ar-q" inputmode="decimal" placeholder="Qté" aria-label="Quantité" style="flex:0 1 70px"><button class="btn">📌 Réserver</button></form>`:"");
+  const again=()=>atlResDraw(a);
+  if($("atlResPrint"))$("atlResPrint").onclick=()=>atlResPrint(a,RS,lab);
+  box.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=async()=>{const{error}=await sb.from("stock_reservations").delete().eq("id",+b.dataset.rdel);if(error)toast("Impossible pour le moment.");else toast("Réservation retirée.");again()});
+  box.querySelectorAll("[data-rout]").forEach(b=>b.onclick=async()=>{const r=RS.find(x=>x.id===+b.dataset.rout);if(!r)return;b.disabled=true;
+    const m=await sb.from("stock_mouvements").insert({article:r.article,type:"sortie",qte:r.qte,note:"Réservé pour la commande atelier "+a.id});
+    if(m.error){toast("Sortie impossible pour le moment.");b.disabled=false;return}
+    await sb.from("stock_reservations").delete().eq("id",r.id);toast("Sortie du stock enregistrée.");await stkLoad();again()});
+  const f=$("atlResAdd");if(f)f.onsubmit=async e=>{e.preventDefault();const m=/#(\d+)$/.exec($("ar-art").value.trim()),q=stkNum($("ar-q").value);
+    if(!m){toast("Choisissez l'élément dans la liste proposée.");return}if(!q||q<=0){toast("Indiquez la quantité.");return}
+    if(await stkReserve(+m[1],a.id,q))again()};
+}
+// ---- besoins de la commande ↔ stock atelier ----
+// Christophe colle sa liste (une ligne par élément : réf. · couleur · longueur · quantité, ou réf. · quantité pour un accessoire) ;
+// l'appli cherche dans le stock ce qui convient (même réf., même couleur, longueur suffisante, pas déjà réservé ailleurs),
+// propose de le réserver d'un coup et donne ce qui reste à commander.
+const besRef=s=>String(s||"").toUpperCase().replace(/[\s.]/g,"");
+const besRal=()=>new Set(stk.all.flatMap(a=>String(a.coloris||"").match(/\b\d{4}\b/g)||[]));
+function besParse(txt){const out=[];
+  for(const line of String(txt||"").split(/\r?\n/)){const T=line.split(/\t|;|\s+/).map(x=>x.trim()).filter(Boolean);if(T.length<2)continue;
+    const num=x=>/^\d+(?:[.,]\d+)?$/.test(x)?parseFloat(x.replace(",",".")):null;
+    const q=num(T[T.length-1]);if(q==null||q<=0)continue;
+    let lg=T.length>=3?num(T[T.length-2]):null,mid=T.slice(1,lg!=null?-2:-1);
+    // 4 chiffres sans virgule, sans couleur avant : couleur (RAL) seulement si ce code existe dans le stock, sinon longueur en mm
+    if(lg!=null&&!mid.length&&/^\d{4}$/.test(T[T.length-2])&&besRal().has(T[T.length-2])){mid=[T[T.length-2]];lg=null}
+    if(lg!=null&&lg>20)lg=lg/1000;  // longueur en mm
+    out.push({ref:besRef(T[0]),col:mid.join(" "),lg:lg||null,q})}
+  return out}
+const besColOk=(need,a)=>{const n=nrm(String(need||"").replace(/ral\s*/i,""));if(!n)return true;const t=new Set(nrm(a.coloris||"").split(" "));return n.split(" ").every(w=>t.has(w))};
+const besRefOk=(ref,a)=>{const r=besRef(a.ref);return!!r&&(r===ref||r==="T"+ref)};
+function besCompare(a){
+  const B=a.besoins||[],own=stk.res.filter(r=>r.commande===a.id).map(r=>({...r,left:+r.qte})),used=new Map(),byA=new Map(stk.all.map(x=>[x.id,x]));
+  return B.map(b=>{const fit=x=>(x.stock||"pose")==="atelier"&&x.actif!==false&&besRefOk(b.ref,x)&&besColOk(b.col,x)&&(!b.lg||(x.longueur||0)>=b.lg-0.005);
+    let need=b.q,deja=0;
+    for(const r of own){const x=byA.get(r.article);if(!r.left||!x||!fit(x))continue;const k=Math.min(r.left,need);r.left-=k;need-=k;deja+=k;if(!need)break}
+    const C=stk.all.filter(fit).sort((x,y)=>(x.longueur||0)-(y.longueur||0)||String(x.emplacement||"").localeCompare(y.emplacement||""));
+    const prop=[];for(const x of C){if(!need)break;const d=stkLvl(x)-stkResQ(x)-(used.get(x.id)||0);if(d<=0)continue;const k=Math.min(d,need);
+      used.set(x.id,(used.get(x.id)||0)+k);prop.push({x,q:k});need-=k}
+    return{b,deja,prop,reste:need}})}
+async function atlBesDraw(a){
+  const box=$("atlBes");if(!box)return;const W=stkResW();
+  if(!stk.ok||!stk.resOk){box.innerHTML=`<p class="sub">Le stock ou les réservations ne sont pas encore installés dans la base.</p>`;return}
+  const C=besCompare(a),aRes=C.reduce((n,c)=>n+c.prop.length,0),aCmd=C.filter(c=>c.reste>0);
+  const pl=p=>`${nb(p.q)} × 📍 <b>${esc(p.x.emplacement||"?")}</b>${p.x.longueur?" ("+nb(p.x.longueur)+" m)":""}`;
+  box.innerHTML=(C.length?`<div class="tbl"><table><thead><tr><th>Réf.</th><th>Couleur</th><th class="n">Long.</th><th class="n">Qté</th><th>Dans le stock</th><th class="n">À commander</th><th></th></tr></thead><tbody>${C.map((c,i)=>`<tr>
+      <td class="mono">${esc(c.b.ref)}</td><td>${esc(c.b.col||"")}</td><td class="n">${c.b.lg?nb(c.b.lg)+" m":""}</td><td class="n">${nb(c.b.q)}</td>
+      <td>${c.deja?`<span class="flag">✓ ${nb(c.deja)} déjà réservé${c.deja>1?"s":""}</span> `:""}${c.prop.map(pl).join("<br>")||(c.deja?"":`<span class="sub">rien</span>`)}</td>
+      <td class="n">${c.reste?`<b style="color:var(--s-rouge)">${nb(c.reste)}</b>`:"✓"}</td>
+      <td>${W?`<button class="btn ghost small" data-bdel="${i}" aria-label="Retirer la ligne">✕</button>`:""}</td></tr>`).join("")}</tbody></table></div>
+    <div class="acts" style="margin-top:8px">${W&&aRes?`<button class="btn" id="besRes">📌 Réserver ce qui est en stock (${aRes})</button>`:""}${aCmd.length?`<button class="btn ghost" id="besCopy">📋 Copier ce qui reste à commander (${aCmd.length})</button>`:C.length?`<span class="flag">✓ Tout est couvert par le stock</span>`:""}</div>`
+    :`<p class="sub">Aucun besoin saisi. Collez la liste de la commande : l'appli retrouve dans le stock ce qu'on a déjà.</p>`)
+   +(W?`<details ${C.length?"":"open"} style="margin-top:8px"><summary class="sub" style="cursor:pointer">＋ Ajouter des besoins (coller une liste)</summary>
+      <textarea id="besTxt" rows="5" style="width:100%;margin-top:6px;font:15px var(--f-mono)" placeholder="Une ligne par élément : réf. · couleur · longueur · quantité\nTGY1213 9005 texture 2,10 3\nTFZ16590 9005 6,5 2\nT1046 4   (accessoire : réf. · quantité)"></textarea>
+      <div class="acts"><button class="btn ghost" id="besAdd">Ajouter et comparer au stock</button><span class="sub">Copié d'Excel (colonnes réf., couleur, longueur, qté) ou tapé. Longueur en m ou en mm.</span></div></details>`:"");
+  if($("besAdd"))$("besAdd").onclick=()=>{const N=besParse($("besTxt").value);if(!N.length){toast("Aucune ligne reconnue : réf. · couleur · longueur · quantité.");return}
+    atlSave(a.id,{besoins:[...(a.besoins||[]),...N]});toast(N.length+" ligne"+(N.length>1?"s":"")+" ajoutée"+(N.length>1?"s":"")+".")};
+  box.querySelectorAll("[data-bdel]").forEach(b=>b.onclick=()=>{const L=[...(a.besoins||[])];L.splice(+b.dataset.bdel,1);atlSave(a.id,{besoins:L})});
+  if($("besRes"))$("besRes").onclick=async()=>{const bt=$("besRes");bt.disabled=true;let ok=0,ko=0;
+    for(const c of C)for(const p of c.prop){if(await stkReserve(p.x.id,a.id,p.q,"Besoin "+c.b.ref+(c.b.lg?" "+nb(c.b.lg)+" m":"")))ok++;else ko++;await stkResLoad()}
+    toast(ok+" réservation"+(ok>1?"s":"")+" faite"+(ok>1?"s":"")+(ko?" · "+ko+" refusée"+(ko>1?"s":"")+" (déjà réservé ailleurs)":"")+".");atlSheet()};
+  if($("besCopy"))$("besCopy").onclick=async()=>{const t="À commander · "+atlName(a)+" ("+a.id+")\n"+aCmd.map(c=>"- "+[c.b.ref,c.b.col,c.b.lg?nb(c.b.lg)+" m":""].filter(Boolean).join(" ")+" : "+nb(c.reste)).join("\n");
+    try{await navigator.clipboard.writeText(t);toast("Liste copiée.")}catch(e){toast("Copie impossible sur cet appareil.")}};
+}
+function atlResPrint(a,RS,lab){const w=window.open("","_blank");if(!w){toast("Autorisez l'ouverture des fenêtres pour imprimer la fiche.");return}
+  const c=atlJob(a),key=s=>String(s||"~").toUpperCase().replace(/\d+/g,d=>d.padStart(4,"0"));
+  const L=[...RS].sort((x,y)=>key(x.a.emplacement).localeCompare(key(y.a.emplacement))||String(x.a.ref||"").localeCompare(y.a.ref||""));
+  w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Réservé ${esc(a.id)}</title><style>body{font:15px Arial,sans-serif;margin:28px;color:#222}h1{font-size:22px;margin:0 0 4px}.s{color:#666}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{border:1px solid #999;padding:8px;text-align:left;vertical-align:top}th{background:#eee}.n{text-align:right}.pl{font:700 18px monospace;white-space:nowrap}.ck{width:28px}button{margin-top:18px;font-size:15px;padding:8px 16px}@media print{button{display:none}}</style></head><body>
+  <h1>Éléments réservés au stock atelier</h1><div class="s">Commande ${esc(a.id)} · ${esc(atlName(a))}${a.objet?" · "+esc(a.objet):""}${c?" · chantier "+esc(a.chantier):""} · imprimé le ${fr(today())}</div>
+  <table><thead><tr><th>Emplacement</th><th>Réf.</th><th>Désignation</th><th>Couleur</th><th class="n">Long.</th><th class="n">Qté</th><th class="ck">Pris</th></tr></thead><tbody>${L.map(r=>`<tr><td class="pl">${esc(r.a.emplacement||"?")}</td><td>${esc(r.a.ref||"")}</td><td>${esc(r.a.nom)}${r.note?`<br><i>${esc(r.note)}</i>`:""}</td><td>${esc(r.a.coloris||"")}</td><td class="n">${r.a.longueur?nb(r.a.longueur)+" m":""}</td><td class="n"><b>${nb(r.qte)}</b> ${esc(r.a.unite||"")}</td><td class="ck">☐</td></tr>`).join("")}</tbody></table>
+  <p class="s">Trié par emplacement pour faire le tour du stock dans l'ordre. Une fois pris : « ✓ Sorti » dans la commande atelier.</p>
+  <button onclick="print()">Imprimer</button></body></html>`);w.document.close()}
 function atlGuess(n){n=n.toLowerCase();return/vitr|verre|glass|saint.?gobain/.test(n)?"Bon de commande vitrages":/volet|store|bubendorff|somfy|profalux/.test(n)?"Bon de commande volets / stores":/technal|alu|barre|profil/.test(n)?"Bon de commande matière":/fouss|access/.test(n)?"Bon de commande accessoires":/\barc\b|accus/.test(n)?"ARC":/d[eé]bit|plan/.test(n)?"Plan / débit":"Autre"}
 async function atlUpload(files){const id=atl.open,sb=window.sbClient;if(!id||!atlCanW())return;
   for(const f of files){toast("Envoi de « "+f.name+" »…");
