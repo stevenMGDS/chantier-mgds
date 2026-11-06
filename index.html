@@ -262,6 +262,9 @@ textarea{min-height:64px;resize:vertical}
 .atlwk{display:grid;grid-template-columns:64px 1fr 96px;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}.atlwk .g{height:12px;background:var(--sunk);border-radius:3px;overflow:hidden}.atlwk .g i{display:block;height:100%;background:var(--s-bleu)}.atlwk .g i.o{background:var(--s-orange)}.atlwk .g i.r{background:var(--s-rouge)}.atlwk small{grid-column:2/-1;color:var(--muted);font-size:13px}
 .atlh{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:24px 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}.atlh .sub{text-transform:none;letter-spacing:0;font-weight:400}
 .lim{display:block;font:12px var(--f-mono);color:var(--muted);white-space:nowrap}.lim.o{color:var(--s-orange);font-weight:600}.lim.r{color:var(--s-rouge);font-weight:600}
+.atloff .lab{color:var(--muted)}.atloff .btn{padding:4px 10px;font-size:13px}
+.atldet{margin-top:14px;border:1px solid var(--line);border-radius:8px;padding:8px 12px}.atldet summary{cursor:pointer;font:600 15px var(--f-body)}
+#asheet .steps .pdates .arck{font-size:14px}#asheet .steps .pdates .box{width:24px;height:24px}
 .atlk{margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.atlk .kpi b{font-size:20px}
 .atllg td{padding:4px 6px}.atllg input{width:100%;min-width:56px;font:14px var(--f-body);border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:var(--surface);color:var(--ink)}.atllg .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:18px}
 #asheet input[type=number]{font:15px var(--f-body);border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--surface);color:var(--ink);min-width:0}#asheet .sem input{width:4.2em}#asheet .sem input[data-wk="y"]{width:5.6em}
@@ -2717,11 +2720,18 @@ function atlSheet(){
   const a0=atl.rows.get(atl.open);if(!a0){atlClose();return}
   const a={id:atl.open,...a0},W=atlCanW(),ro=W?"":"disabled",c=atlJob(a),p=atlPlan(a),cur=atlCur(a),arcOk=atlD(a,"arc");
   const lim=k=>{const l=p.L[k];if(!l||atlD(a,k))return"";const n=-days(l);return `<span class="lim ${n<0?"r":n<=7?"o":""}">au plus tard ${fr(l)} · ${sem(l)}</span>`};
-  const steps=atlStepsOf(a).map(s=>{const k=s.k,d=atlD(a,k);
-    const autoMetre=k==="metre"&&c&&sd(c,"metre"),auto=ATL_CMDS[k]||(k==="recu"&&atlOn(a).length)||autoMetre;
-    const hint=ATL_CMDS[k]?"se coche dans Commandes fournisseurs":k==="recu"&&atlOn(a).length?"se coche quand tout est reçu":autoMetre?"repris de la fiche chantier":k==="metre"&&c&&c.type!=="neuf"?"se coche aussi avec le métré du chantier":k==="arc"?"les vitrages et volets se commandent ensuite":"";
+  // étapes : une case = un clic, la date s'inscrit seule (comme la fiche chantier) ; les commandes ont leur semaine de livraison et leur case « Reçu » sur la même ligne
+  const steps=ATL_STEPS.map(s=>{const k=s.k,d=atlD(a,k),X=ATL_CMDS[k]?atlCmd(a,k):null;
+    if(X&&!X.on)return W||atlCanStep(k)?`<li class="atloff"><span></span><span class="lab">${esc(atlLab(a,s))}<em>pas nécessaire pour cette commande</em></span><button class="btn ghost" data-acmdon="${k}">Ajouter</button></li>`:"";
+    const autoMetre=k==="metre"&&c&&sd(c,"metre"),autoRecu=k==="recu"&&atlOn(a).length;
+    const lockC=X&&(k==="vitr"||k==="volet")&&!arcOk&&!d;
+    const hint=lockC?"après la validation de l'ARC":autoMetre?"repris de la fiche chantier":k==="metre"&&c&&c.type!=="neuf"?"se coche aussi avec le métré du chantier":k==="arc"?"cotes définitives : vitrages et volets se commandent ensuite":autoRecu?"coche tout ce qui est commandé":X&&X.four?esc(X.four):"";
     const tag=!d&&a.bloque&&k===cur?'<span class="state blk">bloqué</span>':!d&&p.L[k]&&p.L[k]<today()?'<span class="state late">en retard</span>':k===cur?'<span class="state cur">à faire</span>':"";
-    return `<li><button class="box" role="checkbox" aria-checked="${!!d}" data-astep="${k}" aria-label="${esc(atlLab(a,s))}" ${atlCanStep(k)&&!auto?"":"disabled"}>${d?tick:""}</button><span class="lab">${esc(atlLab(a,s))}${hint?`<em>${hint}</em>`:""}${tag}</span><span class="date">${fr(d)}${lim(k)}</span></li>`}).join("");
+    const box=X?`<button class="box" role="checkbox" aria-checked="${!!d}" data-acbox="${k}" data-ack="cmd" aria-label="${esc(atlLab(a,s))}" ${W&&!lockC?"":"disabled"}>${d?tick:""}</button>`
+      :`<button class="box" role="checkbox" aria-checked="${!!d}" data-astep="${k}" aria-label="${esc(atlLab(a,s))}" ${atlCanStep(k)&&!autoMetre?"":"disabled"}>${d?tick:""}</button>`;
+    let right=`<span class="date">${fr(d)}${lim(k)}</span>`;
+    if(X&&d){const rc=X.recu&&X.recu.d;right=`<span class="pdates"><span class="date">${fr(d)}</span>${rc?"":`<span class="sub" style="font-size:12px">livraison prévue</span>${semInput(`data-acmdwk="${k}" ${ro}`,X.prev)}`}<span class="arck"><button class="box" role="checkbox" aria-checked="${!!rc}" data-acbox="${k}" data-ack="recu" aria-label="${esc(X.l)} reçu" ${ro}>${rc?tick:""}</button>Reçu<span class="mono">${fr(rc)}</span></span>${!rc&&!X.prev?`<span class="lim">arrivée estimée ${sem(p.P[k])}</span>`:""}</span>`}
+    return `<li>${box}<span class="lab">${esc(atlLab(a,s))}${hint?`<em>${hint}</em>`:""}${tag}</span>${right}</li>`}).join("");
   const cmds=Object.keys(ATL_CMDS).map(k=>{const x=atlCmd(a,k),ok=x.cmd&&x.cmd.d,rc=x.recu&&x.recu.d,apres=k==="vitr"||k==="volet",lockC=apres&&!arcOk&&!ok;
     if(!x.on)return `<li class="arc"><div class="arch"><b>${x.l}</b><span class="sub">pas nécessaire pour cette commande</span>${W?`<button class="btn ghost" data-acmdon="${k}" style="margin-left:auto">Ajouter</button>`:""}</div></li>`;
     const dl=k==="vitr"?`<select data-acmd="${k}" data-ack="sem" ${ro}>${[[2,"2 semaines (verre standard)"],[3,"3 semaines (verre technique)"]].map(([v,t])=>`<option value="${v}" ${+x.sem===v?"selected":""}>${t}</option>`).join("")}</select>`
@@ -2756,8 +2766,8 @@ function atlSheet(){
     <label>Fin de production fixée à la main<input type="date" min="2000-01-01" max="2099-12-31" data-af="finManu" value="${esc(a.finManu)}" ${ro}><span class="sub">vide = calculée</span></label>
     <label class="wide">Bloqué (le motif fait passer la commande en rouge)<input type="text" data-af="bloque" value="${esc(a.bloque)}" ${ro}></label>
     <label class="wide">Remarques<textarea data-af="notes" ${ro}>${esc(a.notes)}</textarea></label></div>
-   <h3>Étapes<span class="sub" style="text-transform:none;letter-spacing:0">« au plus tard » : rétro-planning depuis la date de ${a.dest==="revente"?"besoin":"pose"}</span></h3><ul class="steps">${steps}</ul>
-   <h3>Commandes fournisseurs<span class="sub" style="text-transform:none;letter-spacing:0">matière tout de suite, vitrages et volets après l'ARC</span></h3><ul class="arcs">${cmds}</ul>
+   <h3>Étapes<span class="sub" style="text-transform:none;letter-spacing:0">un clic, la date s'inscrit seule · « au plus tard » depuis la date de ${a.dest==="revente"?"besoin":"pose"}</span></h3><ul class="steps">${steps}</ul>
+   <details class="atldet"><summary>Fournisseurs, n° de commande et délais</summary><ul class="arcs" style="margin-top:8px">${cmds}</ul></details>
    <h3>ARC atelier<span class="sub" style="text-transform:none;letter-spacing:0">cotes validées après le métré</span></h3>
    <div class="fields"><label>N° d'ARC<input type="text" data-af="arcRef" value="${esc(a.arcRef||a.id)}" ${ro}></label><div class="sub" style="align-self:end">${arcInfo}</div></div>
    ${arcOk?`<p class="sub">ARC validé le ${fr(arcOk)} : les lignes ne se modifient plus (décochez « ARC validé » pour corriger).</p>`:""}
@@ -2817,6 +2827,9 @@ function atlClick(e){
   else if(t.dataset.aclose!==undefined)atlClose();
   else if(!a)return true;
   else if(t.dataset.astep){const k=t.dataset.astep;if(!atlCanStep(k))return true;
+    if(k==="recu"&&atlOn(a).length){const ks=atlOn(a);if(atlD(a,"recu")){atlSave(id,{cmds:Object.fromEntries(ks.map(q=>[q,{recu:null}]))});return true}
+      const pas=ks.filter(q=>!atlD(a,q));if(pas.length){toast("Pas encore commandé : "+pas.map(q=>ATL_CMDS[q].l.toLowerCase()).join(", ")+".");return true}
+      atlSave(id,{cmds:Object.fromEntries(ks.filter(q=>!(atlCmd(a,q).recu&&atlCmd(a,q).recu.d)).map(q=>[q,{recu:{d:today(),by:me||""}}]))});return true}
     if(k==="arc"&&atlD(a,"arc")&&["vitr","volet"].some(q=>atlCmd(a,q).on&&atlD(a,q))&&!confirm("Vitrages ou volets déjà commandés sur ces cotes. Annuler quand même la validation de l'ARC ?"))return true;atlSave(id,{steps:{[k]:atlD(a,k)?null:{d:today(),by:me||""}}})}
   else if(t.dataset.acbox){const k=t.dataset.acbox,f=t.dataset.ack,x=atlCmd(a,k),on=!(x[f]&&x[f].d);
     if(on&&f==="cmd"&&(k==="vitr"||k==="volet")&&!atlD(a,"arc")){toast("Validez d'abord l'ARC : les cotes ne pourront plus changer.");return true}
