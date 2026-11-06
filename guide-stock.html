@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guide du stock MGDS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Guide de gestion et d'organisation du stock (pose et atelier), à transmettre à toutes les équipes. A4, imprimable. */
+:root{--bg:#E9ECEE;--paper:#FFFFFF;--ink:#1E2428;--muted:#56626B;--line:#C9D1D6;--sunk:#F2F4F5;--pose:#1F5FBF;--atl:#C2410C;--bleu:#0B3D91;--rouge:#C8102E;--vert:#15803D;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;--f-body:"Barlow","Helvetica Neue",Arial,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#171B1E}}
+:root[data-theme="dark"]{--bg:#171B1E}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:12px 16px}
+.bar a,.bar button{font:600 15px var(--f-body);border:1.5px solid var(--line);background:#fff;color:var(--ink);padding:8px 16px;border-radius:18px;cursor:pointer;text-decoration:none}
+.page{background:var(--paper);color:var(--ink);width:min(210mm,100% - 32px);margin:0 auto 24px;padding:13mm 15mm 11mm;box-shadow:0 2px 10px rgba(0,0,0,.15);display:flex;flex-direction:column;gap:3.5mm}
+.top{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:4px;font:600 13px var(--f-body);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+h1{font:700 38px/1.05 var(--f-display);margin:2mm 0 0}
+h2{font:700 25px/1.1 var(--f-display);margin:2mm 0 0;display:flex;align-items:center;gap:10px}
+h2 .tag{font:700 15px var(--f-display);color:#fff;padding:2px 10px;border-radius:5px;letter-spacing:.04em}
+.tag.p{background:var(--pose)}.tag.a{background:var(--atl)}.tag.g{background:var(--ink)}
+h3{font:700 18px/1.15 var(--f-display);margin:1mm 0 0;text-transform:uppercase;letter-spacing:.03em}
+p{margin:0}
+.lead{font-size:17px;color:var(--muted)}
+ul{margin:0;padding-left:20px}ul li{margin:1px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:5mm}
+.box{border:1.5px solid var(--line);border-radius:8px;padding:8px 11px;display:flex;flex-direction:column;gap:4px}
+.box.p{border-left:5px solid var(--pose)}.box.a{border-left:5px solid var(--atl)}
+.rule{font:700 19px/1.25 var(--f-display);border:2.5px solid var(--ink);border-radius:8px;padding:6px 12px;text-align:center}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+th{background:var(--sunk);font:700 14px var(--f-display);text-transform:uppercase;letter-spacing:.03em}
+.mono{font-family:var(--f-mono);font-size:13px}
+.label{font:500 15px var(--f-mono);border:2px dashed var(--ink);border-radius:6px;padding:6px 12px;text-align:center}
+.label small{display:block;font:500 12px var(--f-body);color:var(--muted);margin-top:2px}
+.bleu{color:var(--bleu);font-weight:700}.rouge{color:var(--rouge);font-weight:700}
+.steps{counter-reset:s;list-style:none;padding:0;display:flex;flex-direction:column;gap:5px}
+.steps li{counter-increment:s;display:grid;grid-template-columns:26px 1fr;gap:8px}
+.steps li::before{content:counter(s);font:700 15px/26px var(--f-display);width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;text-align:center}
+.p .steps li::before{background:var(--pose)}.a .steps li::before{background:var(--atl)}
+.foot{margin-top:auto;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:5px;display:flex;justify-content:space-between}
+@media (max-width:640px){.page{padding:18px 16px}.cols{grid-template-columns:1fr}h1{font-size:30px}table{font-size:13px}}
+@media print{
+  @page{size:A4;margin:0}
+  body{background:#fff}.bar{display:none}
+  .page{width:210mm;height:297mm;margin:0;box-shadow:none;page-break-after:always;break-after:page;overflow:hidden}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<div class="bar"><a href="index.html">← Retour à l'appli</a><a href="fiche-stock.html">🖨️ Fiches à afficher</a><button onclick="print()">🖨️ Imprimer le guide</button></div>
+
+<!-- PAGE 1 : principes et organisation -->
+<section class="page">
+  <div class="top"><span>MGDS · Gestion du stock</span><span>Novembre 2026</span></div>
+  <h1>Gestion et organisation du stock</h1>
+  <p class="lead">Ce guide explique comment le stock est organisé, qui fait quoi et comment tout passe par l'appli chantiers. Il concerne le bureau, les poseurs et l'atelier.</p>
+
+  <h2><span class="tag g">LES PRINCIPES</span></h2>
+  <div class="cols">
+    <div class="box p"><h3>Stock pose</h3><p>Consommables de pose : silicones, mousses, vis, chevilles, compribandes, cales… Ils font des allers-retours avec les chantiers. <b>Tout est lié au chantier</b>, pour connaître le vrai déboursé.</p></div>
+    <div class="box a"><h3>Stock atelier</h3><p>Accessoires de fabrication, consommables atelier, <b>barres en trop et chutes réutilisables</b>. Les barres neuves restent liées à leur chantier. Ce stock <b>ne compte pas</b> dans le déboursé des chantiers.</p></div>
+  </div>
+  <div class="rule">Pas de photo = pas de mouvement. Tout ce qui sort ou revient passe par une photo dans l'appli.</div>
+  <p>Claude relit les photos, met le stock à jour et prépare les listes « À commander ». Personne n'a à compter à la main au quotidien.</p>
+
+  <h2><span class="tag g">L'ORGANISATION DU DÉPÔT</span></h2>
+  <table>
+    <tr><th style="width:24%">Zone</th><th>Code</th><th>Ce qu'on y range</th></tr>
+    <tr><td>Barres debout</td><td class="mono">D 1 … D 23</td><td>Barres et chutes de profilés (atelier)</td></tr>
+    <tr><td>Racks</td><td class="mono">RAC.3.1, RAC.3.2…</td><td>Barres longues (6,5 m), boucliers, barres en trop</td></tr>
+    <tr><td>Mezzanine, rangées 1 à 3</td><td class="mono">M1A.3, M2B.1…</td><td>Consommables et accessoires de pose</td></tr>
+    <tr><td>Mezzanine, rangées 4 à 6</td><td class="mono">M4A.2…</td><td>Accessoires et consommables atelier</td></tr>
+    <tr><td>Garage</td><td class="mono">G</td><td>Habillages de pose, matériel Minimaliste</td></tr>
+  </table>
+  <ul>
+    <li><b>Une étiquette par emplacement</b>, en gros caractères (3 cm au moins) : c'est le code repris dans l'appli.</li>
+    <li><b>Une étiquette par bac ou casier</b> : référence et nom (ex. <span class="mono">TGY1213 Chicane 9005</span>).</li>
+    <li>Le plan 3D du dépôt est dans l'appli : onglet Stock → 🗺️ Plan 3D du stock.</li>
+    <li>Chaque article du stock porte son emplacement : la fiche Préparation l'affiche (📍) pour trouver vite.</li>
+  </ul>
+  <div class="foot"><span>MGDS · Guide du stock</span><span>1 / 3</span></div>
+</section>
+
+<!-- PAGE 2 : stock pose -->
+<section class="page p">
+  <div class="top"><span>MGDS · Gestion du stock</span><span>Stock pose</span></div>
+  <h2><span class="tag p">STOCK POSE</span>Préparer, partir, revenir</h2>
+  <ol class="steps">
+    <li><div><b>Préparation (bureau, Yannick, Stéphanie).</b> Dans la fiche Préparation du chantier, la rubrique consommables donne le <span class="bleu">préconisé, en bleu</span>. La fenêtre 🧰 Consommables indique pour chaque ligne <b>📍 où la trouver</b> au dépôt.</div></li>
+    <li><div><b>Chargement (poseurs).</b> On charge le préconisé. Ce qu'on prend <span class="rouge">en plus</span> s'écrit <span class="rouge">en rouge</span> : c'est imputé au chantier.</div></li>
+    <li><div><b>Photo au départ, au dépôt.</b> Tout ce qui part est étalé, étiquettes visibles, rangé par type. Appli poseurs → le chantier du planning → <b>« Consommables pris au stock »</b> → 📷.</div></li>
+    <li><div><b>Photo au retour, au dépôt, avant de ranger.</b> Même chose avec ce qui revient, produits entamés à part. Même chantier → <b>« Consommables remis au stock »</b> → 📷. Puis tout reprend sa place.</div></li>
+    <li><div><b>Claude fait les comptes.</b> Sorti − revenu = consommé par le chantier. Le stock se met à jour, et l'écart avec le préconisé apparaît dans la fiche chantier (déboursé).</div></li>
+  </ol>
+  <div class="cols">
+    <div class="box"><h3 style="color:var(--vert)">Une photo lisible</h3><ul><li>Tout à plat, rien de caché</li><li>Groupé par type : silicones ensemble, mousses ensemble…</li><li>Étiquettes et couleurs vers l'objectif</li><li>De haut, à 1 m, bien éclairé</li></ul></div>
+    <div class="box"><h3 style="color:var(--rouge)">À éviter</h3><ul><li>Un tas en vrac dans le camion</li><li>Des cartons fermés sans indication</li><li>Une photo floue ou à contre-jour</li><li>Oublier de choisir le bon chantier</li></ul></div>
+  </div>
+  <h3>Le bureau</h3>
+  <ul>
+    <li><b>Onglet Stock → Stock pose</b> : niveau de chaque article, pastille <span style="color:var(--rouge);font-weight:700">rouge</span> = à commander, orange = bientôt.</li>
+    <li><b>🛒 À commander</b> : la liste par fournisseur, à copier dans un mail de commande.</li>
+    <li><b>＋ Livraison</b> sur l'article à la réception d'une commande ; <b>📋 Faire l'inventaire</b> pour un recomptage.</li>
+    <li>Seuils d'alerte : touchez un article → Réglages → Seuil d'alerte (en dessous, il passe à commander).</li>
+    <li><b>📥 Exporter l'Excel</b> : l'inventaire valorisé du jour, à copier sur le serveur. <b>🖨️ Fiches à afficher</b> : les règles photo pour le dépôt et l'atelier.</li>
+  </ul>
+  <div class="foot"><span>MGDS · Guide du stock</span><span>2 / 3</span></div>
+</section>
+
+<!-- PAGE 3 : stock atelier + qui fait quoi -->
+<section class="page a">
+  <div class="top"><span>MGDS · Gestion du stock</span><span>Stock atelier</span></div>
+  <h2><span class="tag a">STOCK ATELIER</span>Chutes, accessoires, réservations</h2>
+  <div class="cols">
+    <div class="box a"><h3>Barres en trop et chutes</h3>
+      <div class="label">TGY1213 · 9005 texture · 1,90 m · D 7<small>référence · couleur · longueur · emplacement</small></div>
+      <ul><li>Étiquette collée sur chaque barre en trop ou chute gardée.</li><li>Onglet Stock → Stock atelier → <b>📷 Entrée en stock</b> (photo de l'étiquette ou de la feuille récap).</li><li>Reprise : <b>📷 Sortie du stock</b>. Pas de chantier à choisir.</li></ul></div>
+    <div class="box a"><h3>Accessoires : le double bac</h3>
+      <ul><li>Deux bacs par référence.</li><li>Le premier est vide : on entame le second et on touche <b>🫙 Bac vide : à commander</b> sur l'article.</li><li>L'article passe dans « À commander » jusqu'à la prochaine livraison.</li></ul></div>
+  </div>
+  <h3>Préparer une fabrication (Christophe)</h3>
+  <ol class="steps">
+    <li><div>Commande de l'onglet Atelier → <b>Besoins et stock</b> : coller la liste (réf. · couleur · longueur · quantité).</div></li>
+    <li><div>L'appli trouve ce qu'on a déjà (même réf., même couleur, longueur suffisante) avec son 📍 emplacement, et ce qui <span class="rouge">reste à commander</span>.</div></li>
+    <li><div><b>📌 Réserver ce qui est en stock</b>, puis <b>📋 Copier ce qui reste à commander</b> pour le fournisseur.</div></li>
+    <li><div>Avant de lancer : <b>✓ Tout le réservé est en stock</b> ou ⚠️ manquant à vérifier. <b>🖨️ Fiche des éléments réservés</b> (triée par emplacement), puis <b>✓ Sorti</b> une fois pris.</div></li>
+  </ol>
+  <p><b>Réservations : Christophe seul.</b> Pas de double réservation, jamais plus que le stock. Le stock affiche « dont X réservés ».</p>
+
+  <h2><span class="tag g">QUI FAIT QUOI</span></h2>
+  <table>
+    <tr><th style="width:22%">Qui</th><th>Rôle dans le stock</th></tr>
+    <tr><td>Steven, Marine (bureau)</td><td>Commandes fournisseurs, livraisons, seuils, inventaires, export Excel</td></tr>
+    <tr><td>Yannick, Stéphanie</td><td>Fiche Préparation : préconisé des consommables</td></tr>
+    <tr><td>Poseurs</td><td>Charger, noter en rouge le supplément, photos départ et retour</td></tr>
+    <tr><td>Christophe (atelier)</td><td>Besoins et réservations des commandes, bac vide, entrées et sorties atelier</td></tr>
+    <tr><td>Manu</td><td>Étiquettes des barres en trop et chutes, photos d'entrée</td></tr>
+    <tr><td>Claude</td><td>Relit les photos, met le stock à jour, prépare « À commander »</td></tr>
+  </table>
+  <div class="foot"><span>MGDS · Guide du stock</span><span>3 / 3</span></div>
+</section>
+</body>
+</html>
