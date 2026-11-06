@@ -2976,6 +2976,8 @@ function atlSheet(){
    <div class="tbl"><table class="atllg"><thead><tr><th>Repère</th><th>Désignation</th><th>L (mm)</th><th>H (mm)</th><th>Qté</th><th></th></tr></thead><tbody>${lignes||`<tr><td colspan="6" class="sub">Aucune ligne. Ajoutez les menuiseries avec leurs cotes, ou déposez l'ARC du logiciel dans Documents.</td></tr>`}</tbody></table></div>
    ${W&&!arcOk?`<form class="add arcadd" id="atlLigne"><input type="text" id="al-rep" placeholder="Repère" aria-label="Repère" style="flex:0 1 80px"><input type="text" id="al-des" placeholder="Désignation (ex. fenêtre 2 vantaux)" aria-label="Désignation"><input type="number" id="al-l" placeholder="L" aria-label="Largeur" inputmode="numeric" style="flex:0 1 80px"><input type="number" id="al-h" placeholder="H" aria-label="Hauteur" inputmode="numeric" style="flex:0 1 80px"><input type="number" id="al-q" placeholder="Qté" value="1" aria-label="Quantité" inputmode="numeric" style="flex:0 1 64px"><button class="btn">+</button></form>`:""}
    <div class="acts" style="margin-top:8px"><button class="btn ghost" data-aprint>🖨️ Imprimer l'ARC</button></div>
+   <h3>Besoins et stock<span class="sub" style="text-transform:none;letter-spacing:0">ce qu'il faut pour la commande, comparé au stock atelier</span></h3>
+   <div id="atlBes"><span class="sub">Chargement…</span></div>
    <h3>Éléments réservés au stock<span class="sub" style="text-transform:none;letter-spacing:0">chutes, barres, accessoires mis de côté</span></h3>
    <div id="atlRes"><span class="sub">Chargement…</span></div>
    <h3>Documents<span class="sub" style="text-transform:none;letter-spacing:0">bons de commande, ARC, plans de débit</span></h3>
@@ -2993,6 +2995,7 @@ async function atlResDraw(a){
   const box=$("atlRes");if(!box)return;const sb=window.sbClient,W=stkResW();
   try{if(!stk.ok)await stkLoad();else await stkResLoad()}catch(e){}
   if(atl.open!==a.id||!$("atlRes"))return;
+  atlBesDraw(a);
   if(!stk.resOk){box.innerHTML=`<p class="sub">Les réservations ne sont pas encore installées dans la base (outil/atelier.sql).</p>`;return}
   const byA=new Map(stk.all.map(x=>[x.id,x])),RS=stk.res.filter(r=>r.commande===a.id&&byA.has(r.article)).map(r=>({...r,a:byA.get(r.article)}));
   const lab=x=>[x.ref,x.nom,x.coloris,x.longueur?nb(x.longueur)+" m":""].filter(Boolean).join(" · ");
@@ -3012,6 +3015,57 @@ async function atlResDraw(a){
   const f=$("atlResAdd");if(f)f.onsubmit=async e=>{e.preventDefault();const m=/#(\d+)$/.exec($("ar-art").value.trim()),q=stkNum($("ar-q").value);
     if(!m){toast("Choisissez l'élément dans la liste proposée.");return}if(!q||q<=0){toast("Indiquez la quantité.");return}
     if(await stkReserve(+m[1],a.id,q))again()};
+}
+// ---- besoins de la commande ↔ stock atelier ----
+// Christophe colle sa liste (une ligne par élément : réf. · couleur · longueur · quantité, ou réf. · quantité pour un accessoire) ;
+// l'appli cherche dans le stock ce qui convient (même réf., même couleur, longueur suffisante, pas déjà réservé ailleurs),
+// propose de le réserver d'un coup et donne ce qui reste à commander.
+const besRef=s=>String(s||"").toUpperCase().replace(/[\s.]/g,"");
+const besRal=()=>new Set(stk.all.flatMap(a=>String(a.coloris||"").match(/\b\d{4}\b/g)||[]));
+function besParse(txt){const out=[];
+  for(const line of String(txt||"").split(/\r?\n/)){const T=line.split(/\t|;|\s+/).map(x=>x.trim()).filter(Boolean);if(T.length<2)continue;
+    const num=x=>/^\d+(?:[.,]\d+)?$/.test(x)?parseFloat(x.replace(",",".")):null;
+    const q=num(T[T.length-1]);if(q==null||q<=0)continue;
+    let lg=T.length>=3?num(T[T.length-2]):null,mid=T.slice(1,lg!=null?-2:-1);
+    // 4 chiffres sans virgule, sans couleur avant : couleur (RAL) seulement si ce code existe dans le stock, sinon longueur en mm
+    if(lg!=null&&!mid.length&&/^\d{4}$/.test(T[T.length-2])&&besRal().has(T[T.length-2])){mid=[T[T.length-2]];lg=null}
+    if(lg!=null&&lg>20)lg=lg/1000;  // longueur en mm
+    out.push({ref:besRef(T[0]),col:mid.join(" "),lg:lg||null,q})}
+  return out}
+const besColOk=(need,a)=>{const n=nrm(String(need||"").replace(/ral\s*/i,""));if(!n)return true;const t=new Set(nrm(a.coloris||"").split(" "));return n.split(" ").every(w=>t.has(w))};
+const besRefOk=(ref,a)=>{const r=besRef(a.ref);return!!r&&(r===ref||r==="T"+ref)};
+function besCompare(a){
+  const B=a.besoins||[],own=stk.res.filter(r=>r.commande===a.id).map(r=>({...r,left:+r.qte})),used=new Map(),byA=new Map(stk.all.map(x=>[x.id,x]));
+  return B.map(b=>{const fit=x=>(x.stock||"pose")==="atelier"&&x.actif!==false&&besRefOk(b.ref,x)&&besColOk(b.col,x)&&(!b.lg||(x.longueur||0)>=b.lg-0.005);
+    let need=b.q,deja=0;
+    for(const r of own){const x=byA.get(r.article);if(!r.left||!x||!fit(x))continue;const k=Math.min(r.left,need);r.left-=k;need-=k;deja+=k;if(!need)break}
+    const C=stk.all.filter(fit).sort((x,y)=>(x.longueur||0)-(y.longueur||0)||String(x.emplacement||"").localeCompare(y.emplacement||""));
+    const prop=[];for(const x of C){if(!need)break;const d=stkLvl(x)-stkResQ(x)-(used.get(x.id)||0);if(d<=0)continue;const k=Math.min(d,need);
+      used.set(x.id,(used.get(x.id)||0)+k);prop.push({x,q:k});need-=k}
+    return{b,deja,prop,reste:need}})}
+async function atlBesDraw(a){
+  const box=$("atlBes");if(!box)return;const W=stkResW();
+  if(!stk.ok||!stk.resOk){box.innerHTML=`<p class="sub">Le stock ou les réservations ne sont pas encore installés dans la base.</p>`;return}
+  const C=besCompare(a),aRes=C.reduce((n,c)=>n+c.prop.length,0),aCmd=C.filter(c=>c.reste>0);
+  const pl=p=>`${nb(p.q)} × 📍 <b>${esc(p.x.emplacement||"?")}</b>${p.x.longueur?" ("+nb(p.x.longueur)+" m)":""}`;
+  box.innerHTML=(C.length?`<div class="tbl"><table><thead><tr><th>Réf.</th><th>Couleur</th><th class="n">Long.</th><th class="n">Qté</th><th>Dans le stock</th><th class="n">À commander</th><th></th></tr></thead><tbody>${C.map((c,i)=>`<tr>
+      <td class="mono">${esc(c.b.ref)}</td><td>${esc(c.b.col||"")}</td><td class="n">${c.b.lg?nb(c.b.lg)+" m":""}</td><td class="n">${nb(c.b.q)}</td>
+      <td>${c.deja?`<span class="flag">✓ ${nb(c.deja)} déjà réservé${c.deja>1?"s":""}</span> `:""}${c.prop.map(pl).join("<br>")||(c.deja?"":`<span class="sub">rien</span>`)}</td>
+      <td class="n">${c.reste?`<b style="color:var(--s-rouge)">${nb(c.reste)}</b>`:"✓"}</td>
+      <td>${W?`<button class="btn ghost small" data-bdel="${i}" aria-label="Retirer la ligne">✕</button>`:""}</td></tr>`).join("")}</tbody></table></div>
+    <div class="acts" style="margin-top:8px">${W&&aRes?`<button class="btn" id="besRes">📌 Réserver ce qui est en stock (${aRes})</button>`:""}${aCmd.length?`<button class="btn ghost" id="besCopy">📋 Copier ce qui reste à commander (${aCmd.length})</button>`:C.length?`<span class="flag">✓ Tout est couvert par le stock</span>`:""}</div>`
+    :`<p class="sub">Aucun besoin saisi. Collez la liste de la commande : l'appli retrouve dans le stock ce qu'on a déjà.</p>`)
+   +(W?`<details ${C.length?"":"open"} style="margin-top:8px"><summary class="sub" style="cursor:pointer">＋ Ajouter des besoins (coller une liste)</summary>
+      <textarea id="besTxt" rows="5" style="width:100%;margin-top:6px;font:15px var(--f-mono)" placeholder="Une ligne par élément : réf. · couleur · longueur · quantité\nTGY1213 9005 texture 2,10 3\nTFZ16590 9005 6,5 2\nT1046 4   (accessoire : réf. · quantité)"></textarea>
+      <div class="acts"><button class="btn ghost" id="besAdd">Ajouter et comparer au stock</button><span class="sub">Copié d'Excel (colonnes réf., couleur, longueur, qté) ou tapé. Longueur en m ou en mm.</span></div></details>`:"");
+  if($("besAdd"))$("besAdd").onclick=()=>{const N=besParse($("besTxt").value);if(!N.length){toast("Aucune ligne reconnue : réf. · couleur · longueur · quantité.");return}
+    atlSave(a.id,{besoins:[...(a.besoins||[]),...N]});toast(N.length+" ligne"+(N.length>1?"s":"")+" ajoutée"+(N.length>1?"s":"")+".")};
+  box.querySelectorAll("[data-bdel]").forEach(b=>b.onclick=()=>{const L=[...(a.besoins||[])];L.splice(+b.dataset.bdel,1);atlSave(a.id,{besoins:L})});
+  if($("besRes"))$("besRes").onclick=async()=>{const bt=$("besRes");bt.disabled=true;let ok=0,ko=0;
+    for(const c of C)for(const p of c.prop){if(await stkReserve(p.x.id,a.id,p.q,"Besoin "+c.b.ref+(c.b.lg?" "+nb(c.b.lg)+" m":"")))ok++;else ko++;await stkResLoad()}
+    toast(ok+" réservation"+(ok>1?"s":"")+" faite"+(ok>1?"s":"")+(ko?" · "+ko+" refusée"+(ko>1?"s":"")+" (déjà réservé ailleurs)":"")+".");atlSheet()};
+  if($("besCopy"))$("besCopy").onclick=async()=>{const t="À commander · "+atlName(a)+" ("+a.id+")\n"+aCmd.map(c=>"- "+[c.b.ref,c.b.col,c.b.lg?nb(c.b.lg)+" m":""].filter(Boolean).join(" ")+" : "+nb(c.reste)).join("\n");
+    try{await navigator.clipboard.writeText(t);toast("Liste copiée.")}catch(e){toast("Copie impossible sur cet appareil.")}};
 }
 function atlResPrint(a,RS,lab){const w=window.open("","_blank");if(!w){toast("Autorisez l'ouverture des fenêtres pour imprimer la fiche.");return}
   const c=atlJob(a),key=s=>String(s||"~").toUpperCase().replace(/\d+/g,d=>d.padStart(4,"0"));
