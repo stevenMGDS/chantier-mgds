@@ -126,7 +126,7 @@ def feuille_profils(ws):
         k = (ref, nom.lower(), col, lg if not tole else None, place(r[6]))
         if k not in lignes:
             lignes[k] = {"stock": "atelier", "ref": ref or None, "nom": (nom[0].upper() + nom[1:]) if nom else f"Profilé {ref}",
-                         "famille": "Tôles" if tole else "Barres", "coloris": col, "unite": unite,
+                         "famille": "Tôles" if tole else "Chutes" if nom.lower().startswith("chute") else "Barres", "coloris": col, "unite": unite,
                          "longueur": lg if (lg and not tole) else None, "emplacement": place(r[6]),
                          "fournisseur": "Technal" if ref.startswith("T") else None, "pu": nombre(r[8]) or None, "qte": 0.0}
         lignes[k]["qte"] += q

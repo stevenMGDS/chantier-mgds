@@ -195,7 +195,7 @@ textarea{min-height:64px;resize:vertical}
 .viewer .optlab{position:absolute;z-index:2;color:#1a1a1a;font-family:Helvetica,Arial,sans-serif;white-space:nowrap;line-height:1.4;pointer-events:none}
 .viewer .fldro.habp{color:#0B3D91;font-weight:700;white-space:pre;line-height:1.15;overflow:hidden;font-family:Helvetica,Arial,sans-serif}
 .viewer .fld.lock{color:#0B3D91;font-weight:700;background:#EEF3FB;border-style:solid;border-color:transparent}
-.viewer .fld.plus,.cpanel .qty.plus .cin{color:#C2410C;font-weight:700}.cpanel .qty.plus .clab{color:#C2410C}
+.viewer .fld.plus,.cpanel .qty.plus .cin{color:#C8102E;font-weight:700}.cpanel .qty.plus .clab{color:#C8102E}
 .cpanel .cpre{color:#0B3D91;font-weight:700;align-self:center}
 .viewer .habwhite{position:absolute;z-index:1;background:#fff;pointer-events:none}
 .viewer .consx{position:absolute;z-index:3;background:#fff;color:#111;font-family:Helvetica,Arial,sans-serif;white-space:nowrap;overflow:hidden;line-height:1.3;pointer-events:none;display:flex;align-items:center}.viewer .consx.del{color:#888;font-style:italic;padding-left:4px}
@@ -1312,14 +1312,16 @@ async function sendConsoPhotos(chantier,cat,files,note){
     const up=await sb.storage.from("photos").upload(chemin,b,{contentType:"image/jpeg",upsert:false});if(up.error)continue;
     const ins=await sb.from("photos").insert({chantier,categorie:cat,chemin,note:note||null});
     if(ins.error){await sb.storage.from("photos").remove([chemin]);continue}ok++}
-  toast(ok===files.length?(ok>1?ok+" photos envoyées":"Photo envoyée")+" : Claude va relever les articles et les reporter dans la fiche et le stock.":ok+" photo(s) envoyée(s) sur "+files.length+". Réessayez pour les autres.");
+  toast(ok===files.length?(ok>1?ok+" photos envoyées":"Photo envoyée")+" : Claude va relever les articles et les reporter dans "+(/^atl_/.test(cat)?"le stock atelier.":"la fiche et le stock."):ok+" photo(s) envoyée(s) sur "+files.length+". Réessayez pour les autres.");
   return ok;
 }
 // deux gros boutons « appareil photo » (sortie / retour) ; onSent après l'envoi
-function consoCamera(getChantier,onSent,noteEl){
-  const box=document.createElement("div");box.className="ccam";
-  Object.entries(CONSO_CAT).forEach(([cat,lab])=>{
-    const l=document.createElement("label");l.className="btn ccambtn";l.innerHTML=(cat==="conso_sortie"?"📷 Sortie du stock<small>ce que j'emporte</small>":"📷 Retour au stock<small>ce que je rapporte</small>");
+// cats : {catégorie: [libellé, précision]} ; par défaut sortie / retour du stock pose
+const CONSO_BTN={conso_sortie:["📷 Sortie du stock","ce que j'emporte"],conso_retour:["📷 Retour au stock","ce que je rapporte"]};
+function consoCamera(getChantier,onSent,noteEl,cats=CONSO_BTN){
+  const box=document.createElement("div");box.className="ccam";const first=Object.keys(cats)[0];
+  Object.entries(cats).forEach(([cat,[lab,sm]])=>{
+    const l=document.createElement("label");l.className="btn ccambtn";l.innerHTML=lab+"<small>"+sm+"</small>";
     const i=document.createElement("input");i.type="file";i.accept="image/*";i.setAttribute("capture","environment");i.hidden=true;l.appendChild(i);
     i.onchange=async()=>{const files=[...i.files];i.value="";const c=getChantier();if(!files.length)return;if(!c){toast("Choisissez d'abord le chantier.");return}
       const note=noteEl?noteEl.value.trim():"";const n=await sendConsoPhotos(c,cat,files,note);if(n&&noteEl)noteEl.value="";if(n&&onSent)onSent()};
@@ -1328,9 +1330,9 @@ function consoCamera(getChantier,onSent,noteEl){
   const gi=document.createElement("input");gi.type="file";gi.accept="image/*";gi.multiple=true;gi.hidden=true;g.appendChild(gi);
   gi.onchange=async()=>{const files=[...gi.files];gi.value="";const c=getChantier();if(!files.length)return;if(!c){toast("Choisissez d'abord le chantier.");return}
     const cat=confirmCat();if(!cat)return;const n=await sendConsoPhotos(c,cat,files,noteEl?noteEl.value.trim():"");if(n&&onSent)onSent()};
-  const confirmCat=()=>box.dataset.cat||"conso_sortie";
+  const confirmCat=()=>box.dataset.cat||first;
   const seg=document.createElement("div");seg.className="chips ccamseg";
-  Object.entries(CONSO_CAT).forEach(([cat,lab])=>{const b=document.createElement("button");b.type="button";b.className="chip"+(cat==="conso_sortie"?" on":"");b.textContent=lab;
+  Object.entries(cats).forEach(([cat,[lab]])=>{const b=document.createElement("button");b.type="button";b.className="chip"+(cat===first?" on":"");b.textContent=lab.replace(/^📷 /,"");
     b.onclick=()=>{box.dataset.cat=cat;seg.querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b))};seg.appendChild(b)});
   const gw=document.createElement("div");gw.className="ccamg";gw.append(g,seg);
   const w=document.createElement("div");w.append(box,gw);return w;
@@ -1381,7 +1383,7 @@ const STK_TYPES={inventaire:"Comptage",livraison:"Livraison",sortie:"Sortie",ret
 const stkNum=s=>{const v=parseFloat(String(s??"").replace(/\s/g,"").replace(",","."));return isFinite(v)?v:null};
 const stkLvl=a=>stk.niv.get(a.id)??0;
 // rouge : à commander (ou épuisé) · orange : bientôt · vert : bon · gris : pas de seuil
-function stkEtat(a){const n=stkLvl(a),s=a.seuil;if(n<=0&&(s!=null||n<0))return"r";if(s==null)return"g";if(n<=s)return"r";if(n<=s*1.5)return"o";return"v"}
+function stkEtat(a){const n=stkLvl(a),s=a.seuil;if(a.a_commander)return"r";if(n<=0&&(s!=null||n<0))return"r";if(s==null)return"g";if(n<=s)return"r";if(n<=s*1.5)return"o";return"v"}
 const STK_ETAT={r:"À commander",o:"Bientôt",v:"Suffisant",g:"Pas de seuil"};
 const stkU=(a,n)=>{const u=a.unite||"unité";return(n>1&&!/s$|x$|\d/.test(u)&&!/ de /i.test(u))?u+"s":u};
 const stkQ=(a,n)=>`${nb(n)} ${esc(stkU(a,Math.abs(n)))}${a.contenance&&a.detail?` <span class="sub">≈ ${nb(n*a.contenance)} ${esc(a.detail)}</span>`:""}`;
@@ -1407,12 +1409,34 @@ async function loadStock(){
     <section class="stk"><div class="stkcard" id="stk-cmd"></div><div class="stkcard stkdir" id="stk-dir"></div><div class="stkcard stkpose"><h3>📷 Photographier des consommables</h3>
     <label class="fld">Chantier<select id="stk-ch"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
     <div id="stk-cam"></div><label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label></div>
-    <div class="stkcard stkpose" id="stk-list"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>`;
-  const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
+    <div class="stkcard stkpose" id="stk-list"><span class="sub">Chargement…</span></div>
+    <div class="stkcard stkatl"><h3>📷 Barres en trop et chutes</h3>
+    <p class="sub" style="margin:0">Les barres neuves restent liées à leur chantier. N'entrent en stock que les <b>barres en trop</b> et les <b>chutes réutilisables</b>, marquées au feutre (réf. + longueur, ex. « TGY1213 1,9 »). Photo de la barre ou de la chute avec son marquage lisible.</p>
+    <label class="fld">Chantier<select id="stk-ach"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
+    <div id="stk-acam"></div><label class="fld">Précision (facultatif)<input type="text" id="stk-anote" placeholder="ex. 2 chutes rangées en CH 3"></label></div>
+    <div class="stkcard stkatl" id="stk-alist"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>`;
+  const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll(".stkatl").forEach(x=>x.hidden=stk.which!=="atelier");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
   el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw();stkDirs()});
   $("stk-ch").onchange=e=>{stockSel=e.target.value};
   $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>{loadStockList(nameOf);stkRefresh()},$("stk-note")));
-  loadStockList(nameOf);stkRefresh();stkDirs();
+  $("stk-ach").onchange=e=>{stockSel=e.target.value};
+  $("stk-acam").appendChild(consoCamera(()=>$("stk-ach").value,()=>stkAtlPhotos(nameOf),$("stk-anote"),ATL_PHOTO_BTN));
+  loadStockList(nameOf);stkRefresh();stkDirs();stkAtlPhotos(nameOf);
+}
+// photos de l'atelier : entrée en stock (barres en trop, chutes) / sortie (chute reprise pour un chantier), relues par Claude (outil/releve_conso.py)
+const ATL_PHOTO_BTN={atl_entree:["📷 Entrée en stock","barres en trop, chutes"],atl_sortie:["📷 Sortie du stock","chute reprise pour ce chantier"]};
+async function stkAtlPhotos(nameOf){
+  const box=$("stk-alist");if(!box)return;const sb=window.sbClient;
+  const{data,error}=await sb.from("photos").select("id,chantier,categorie,chemin,note,pris_le,traite,releve").in("categorie",Object.keys(ATL_PHOTO_BTN)).order("pris_le",{ascending:false}).limit(40);
+  if(error){box.innerHTML=`<h3>Entrées et sorties atelier</h3><span class="sub">Les photos atelier ne sont pas encore installées dans la base (outil/stock.sql).</span>`;return}
+  const P=data||[];if(!P.length){box.innerHTML=`<h3>Entrées et sorties atelier</h3><span class="sub">Aucune photo pour l'instant.</span>`;return}
+  const urls=Object.fromEntries((((await sb.storage.from("photos").createSignedUrls(P.map(p=>p.chemin),3600)).data)||[]).map(x=>[x.path,x.signedUrl]));
+  const wait=P.filter(p=>!p.traite).length;
+  box.innerHTML=`<h3>Entrées et sorties atelier</h3>${wait?`<p class="sub">${wait} photo${wait>1?"s":""} en attente de lecture par Claude.</p>`:""}
+    <table class="ctab"><tr><th></th><th>Date · chantier</th><th>Relevé</th></tr>${P.map(p=>{const R=parseReleve(p.releve),e=p.categorie==="atl_entree";
+      return`<tr><td><a href="${esc(urls[p.chemin]||"#")}" target="_blank" rel="noopener" class="thumbs" style="display:block;width:56px"><img loading="lazy" src="${esc(urls[p.chemin]||"")}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:4px"></a></td>
+      <td><span class="mono">${fr(p.pris_le.slice(0,10))}</span> · <b style="color:${e?"#15803D":"#C2410C"}">${e?"Entrée":"Sortie"}</b><br><small class="sub">${esc(nameOf(p.chantier))}${p.note?" · "+esc(p.note):""}</small></td>
+      <td>${!p.traite?`<span class="sub">en attente</span>`:R&&R.articles.length?R.articles.map(x=>`${e?"+":"−"}${nb(+String(x.q).replace(",",".")||0)} ${esc([x.a,x.l?nb(+x.l)+" m":"",x.c].filter(Boolean).join(" "))}`).join("<br>"):`<span class="sub">${esc(R&&R.txt||"rien de lisible")}</span>`}</td></tr>`}).join("")}</table>`;
 }
 async function stkRefresh(){
   try{await stkLoad()}catch(e){$("stk-top").innerHTML=`<div class="stkcard"><h3>Niveau du stock</h3><span class="sub">Le stock n'est pas encore installé dans la base. Les photos de sorties et de retours fonctionnent déjà ci-dessous.</span></div>`;$("stk-cmd").hidden=$("stk-mv").hidden=true;return}
@@ -1476,13 +1500,13 @@ async function stkExcel(){
     for(const [n,f] of [["Joints","Joints"],["Accessoires","Accessoires"]])
       sheet(n,pc(["Réf.","Désignation","Qté","Unité","PU HT"]),by("atelier",a=>a.famille===f).map(a=>({c:pc([a.ref||"",a.nom,Q(a),a.unite||"unité",pu(a)]),q:Q(a),pu:pu(a)})),pc([14,46,8,10,10]));
     // Profilés : Réf · Désignation · Coloris · Finition · Nb barres · Longueur · Localisation · ML · PU (au ml) ; valorisé sur les ml
-    const pr=by("atelier",a=>a.famille==="Barres"||a.famille==="Tôles").map(a=>{const q=Q(a),lg=a.longueur?+a.longueur:null,u=String(a.unite||"").toLowerCase();
+    const pr=by("atelier",a=>a.famille==="Barres"||a.famille==="Tôles"||a.famille==="Chutes").map(a=>{const q=Q(a),lg=a.longueur?+a.longueur:null,u=String(a.unite||"").toLowerCase();
       const m=String(a.coloris||"").match(/^RAL\s*(\d{4})\s*(.*)$/i),col=m?m[1]:(a.coloris||""),fin=m?m[2]:"";
       const nbar=u==="m"?"":q,ml=u==="m"?q:lg?r2(q*lg):"";
       return{c:pc([a.ref||"",a.nom,col,fin,nbar,lg??"",a.emplacement||"",ml,pu(a)]),q:ml!==""?ml:q,pu:pu(a)}});
     sheet("Profilés",pc(["Réf.","Désignation","Coloris","Finition","Nb barres","Longueur (m)","Localisation","ML","PU HT"]),pr,pc([12,34,9,10,9,11,12,9,10]));
     // les articles d'autres familles atelier (ajoutés dans l'appli) ne doivent pas disparaître du fichier
-    const autres=by("atelier",a=>!["Consommables atelier","Joints","Accessoires","Barres","Tôles"].includes(a.famille));
+    const autres=by("atelier",a=>!["Consommables atelier","Joints","Accessoires","Barres","Tôles","Chutes"].includes(a.famille));
     if(autres.length)sheet("Autres atelier",pc(["Réf.","Désignation","Famille","Qté","Unité","PU HT"]),autres.map(a=>({c:pc([a.ref||"",a.nom,a.famille,Q(a),a.unite||"unité",pu(a)]),q:Q(a),pu:pu(a)})),pc([14,40,18,8,10,10]));
     XLSX.writeFile(wb,"Inventaire Stock valorisé au "+dd+".xlsx",{compression:true});
     toast("Excel téléchargé : stock pose et atelier au "+fr(d)+", entrées et sorties comprises.");
@@ -1498,8 +1522,8 @@ function stkDrawCmd(){
   const prop=a=>a.reassort!=null?a.reassort:Math.max(0,Math.ceil((a.seuil||0)*2-stkLvl(a)));
   let h=`<h3>🛒 À commander</h3>`,txt=[];
   for(const [f,X] of [...by].sort((a,b)=>a[0].localeCompare(b[0]))){
-    h+=`<div class="stkch"><h4>${esc(f)}</h4><table class="ctab"><tr><th>Article</th><th>En stock</th><th>À commander</th></tr>${X.map(a=>`<tr><td><span class="dot ${stkEtat(a)}"></span> ${stkName(a)}</td><td>${nb(stkLvl(a))}</td><td><b>${nb(prop(a))}</b> ${esc(stkU(a,prop(a)))}</td></tr>`).join("")}</table></div>`;
-    txt.push(f+" :\n"+X.map(a=>"- "+a.nom+(a.coloris&&!nrm(a.nom).includes(nrm(a.coloris))?" ("+a.coloris+")":"")+" : "+nb(prop(a))+" "+stkU(a,prop(a))).join("\n"))}
+    h+=`<div class="stkch"><h4>${esc(f)}</h4><table class="ctab"><tr><th>Article</th><th>En stock</th><th>À commander</th></tr>${X.map(a=>`<tr><td><span class="dot ${stkEtat(a)}"></span> ${stkName(a)}</td><td>${nb(stkLvl(a))}</td><td>${!prop(a)&&a.a_commander?`<span class="sub">bac vide</span>`:`<b>${nb(prop(a))}</b> ${esc(stkU(a,prop(a)))}`}</td></tr>`).join("")}</table></div>`;
+    txt.push(f+" :\n"+X.map(a=>"- "+a.nom+(a.coloris&&!nrm(a.nom).includes(nrm(a.coloris))?" ("+a.coloris+")":"")+" : "+(!prop(a)&&a.a_commander?"à réassortir (bac vide)":nb(prop(a))+" "+stkU(a,prop(a)))).join("\n"))}
   h+=`<button class="btn ghost" id="stk-copy">📋 Copier la liste</button><span class="sub">Quantité proposée : la quantité de réassort de l'article, sinon de quoi revenir à deux fois le seuil.</span>`;
   box.innerHTML=h;
   $("stk-copy").onclick=async()=>{try{await navigator.clipboard.writeText("Commande consommables MGDS\n\n"+txt.join("\n\n"));toast("Liste copiée : collez-la dans un mail ou une commande.")}catch(e){toast("Copie impossible sur cet appareil.")}};
@@ -1546,6 +1570,8 @@ async function stkSheet(id){
     ${canWrite?`<label class="clab">Prix unitaire HT (€)<input class="cin" id="sp-pu" inputmode="decimal" value="${a.pu!=null?nb(a.pu):""}"></label>`:""}
     ${canWrite&&id!=null?`<label class="cline"><input type="checkbox" id="sp-off" ${a.actif===false?"checked":""}> Article plus utilisé (masqué)</label>`:""}
     ${canWrite?`<button class="btn" id="sp-save">${id==null?"Créer l'article":"Enregistrer les réglages"}</button>`:""}</div></details>`;
+  // double bac (atelier) : le premier bac est vide → l'article passe « à commander » jusqu'à la prochaine livraison
+  if(id!=null&&stkMv()&&(a.stock||"pose")==="atelier")h+=`<div class="crow ccard"><b>Double bac</b>${a.a_commander?`<div class="cinfo"><span class="dot r"></span> Bac signalé vide le ${fr(a.a_commander.slice(0,10))} : à commander. Repart tout seul à la prochaine « Livraison ».</div>${canWrite?`<button class="btn ghost" id="sp-vide0">Annuler le signalement</button>`:""}`:`<div class="cinfo">Le premier bac est vide ? On entame le second et l'article passe dans « À commander ».</div><button class="btn" id="sp-vide">🫙 Bac vide : à commander</button>`}</div>`;
   if(id!=null)h+=`<div class="crow"><b>Historique</b><div id="sp-h" class="cinfo">Chargement…</div></div>`;
   L.innerHTML=h;
   const sb=window.sbClient;
@@ -1556,6 +1582,11 @@ async function stkSheet(id){
       const{error}=await sb.from("stock_mouvements").insert({article:a.id,type:t,qte:v,chantier:$("sp-c").hidden?null:($("sp-c").value||null),note:$("sp-n").value.trim()||null});
       if(error){$("sp-ok").disabled=false;toast("Enregistrement impossible. Réessayez.");return}
       toast({inventaire:"Comptage enregistré.",livraison:"Livraison enregistrée.",sortie:"Sortie enregistrée.",retour:"Retour enregistré."}[t]);await stkLoad();stkDraw();stkSheet(a.id)}}
+  const vide=async v=>{const{error}=await sb.rpc("stock_bac_vide",{p_article:a.id,p_vide:v});
+    if(error){toast("Impossible pour le moment (droits à installer : outil/stock.sql).");return}
+    toast(v?"Bac signalé vide : l'article est dans « À commander ».":"Signalement annulé.");await stkLoad();stkDraw();stkSheet(a.id)};
+  if($("sp-vide"))$("sp-vide").onclick=()=>vide(true);
+  if($("sp-vide0"))$("sp-vide0").onclick=()=>vide(false);
   if(canWrite)$("sp-save").onclick=async()=>{
     const nom=$("sp-nom").value.trim();if(!nom){toast("Donnez un nom à l'article.");return}
     const row={stock:$("sp-stock").value,ref:$("sp-ref").value.trim()||null,emplacement:$("sp-pl").value.trim().toUpperCase()||null,longueur:stkNum($("sp-lg").value),nom,famille:$("sp-fam").value.trim()||"Divers",coloris:$("sp-col").value.trim()||null,fournisseur:$("sp-four").value.trim()||null,unite:$("sp-u").value.trim()||"unité",
@@ -2129,10 +2160,10 @@ async function saveFill(){
       if(f.cb){const c=form.getCheckBox(f.name);f.el.checked?c.check():c.uncheck()}
       else form.getTextField(f.name).setText(f.el.value.replace(/[^\x20-\x7E\xA0-\xFF\n€œŒ’‘“”–—…]/g,""))
     }catch(_){}}
-    // quantités chargées en plus (orange)
+    // quantités chargées en plus (rouge ; le préconisé est en bleu)
     for(const f of vForm.fields.filter(x=>/^plus_/.test(x.name)&&x.el.value.trim())){const v=f.el.value.trim().replace(/[^\x20-\x7E]/g,""),txt=/^\+/.test(v)?v:"+"+v;
       let tf;try{tf=form.getTextField(f.name)}catch(_){if(!f.plus)continue;try{tf=form.createTextField(f.name);tf.addToPage(doc.getPage(f.pi),{x:f.plus.x,y:f.plus.y,width:f.plus.w,height:10,borderWidth:0,font})}catch(_){continue}}
-      try{tf.acroField.setDefaultAppearance("0.85 0.33 0 rg /Helv 8 Tf");tf.setFontSize(8);tf.setText(txt);f.el.value=txt}catch(_){}}
+      try{tf.acroField.setDefaultAppearance("0.78 0.06 0.18 rg /Helv 8 Tf");tf.setFontSize(8);tf.setText(txt);f.el.value=txt}catch(_){}}
     // cadre croquis et remarques des anciennes fiches : le champ est ajouté au PDF
     for(const f of vForm.fields.filter(x=>x.synth&&x.el.value.trim())){try{form.getTextField(f.name)}catch(_){try{
       const [x1,y1,x2,y2]=f.synth.rect,tf=form.createTextField(f.name);tf.enableMultiline();
@@ -2407,7 +2438,7 @@ async function consRedraw(doc,o={}){
       const q=tx(X[1]+2,fy,X[2]-X[1]-4,fh,r.qty,{ro:r.ro,blue:r.ro});if(r.aq&&r.qty)auto[q.getName()]=S(r.qty);
       const cb=form.createCheckBox("consx_"+stamp+"_"+(seq++));cb.addToPage(pg,{x:X[2]+4,y:cy-5,width:10,height:10,borderWidth:.8,borderColor:PDFLib.rgb(.35,.35,.35),backgroundColor:white});if(r.chk)cb.check();
       if(r.plus){const t=tx(X[2]+16,cy-5,X[3]-X[2]-22,10,/^\+/.test(r.plus)?r.plus:"+"+r.plus,{ro:false,name:"plus_"+pi+"_"+Math.round(cy)});
-        t.acroField.setDefaultAppearance("0.85 0.33 0 rg /Helv 8 Tf");t.setFontSize(8);t.setText(S(/^\+/.test(r.plus)?r.plus:"+"+r.plus))}
+        t.acroField.setDefaultAppearance("0.78 0.06 0.18 rg /Helv 8 Tf");t.setFontSize(8);t.setText(S(/^\+/.test(r.plus)?r.plus:"+"+r.plus))}
       const m=tx(X[3]+2,fy,X[4]-X[3]-4,fh,r.rem);if(r.ar&&r.rem)auto[m.getName()]=S(r.rem);
     }
     X.forEach(x=>pg.drawLine({start:{x,y},end:{x,y:y-RH},thickness:.5,color:line}));
