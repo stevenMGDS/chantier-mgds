@@ -1404,7 +1404,7 @@ async function loadStock(){
   const live=[...jobs.entries()].map(([id,j])=>({id,...j})).filter(j=>!done(j)).sort((a,b)=>String(a.client).localeCompare(b.client));
   const nameOf=id=>{const j=jobs.get(id);return j?(j.client||id)+(j.ville?" · "+j.ville:""):id};
   stkLoad.live=live;stkLoad.nameOf=nameOf;
-  el.innerHTML=`<div class="chips stkwhich" role="tablist">${Object.entries(STK_WHICH).map(([k,l])=>`<button class="chip" role="tab" data-which="${k}" aria-pressed="${stk.which===k}">${k==="pose"?"🧰 ":"🏭 "}${l}</button>`).join("")}<a class="chip" href="plan-stock.html" style="text-decoration:none">🗺️ Plan 3D du stock</a></div>
+  el.innerHTML=`<div class="chips stkwhich" role="tablist">${Object.entries(STK_WHICH).map(([k,l])=>`<button class="chip" role="tab" data-which="${k}" aria-pressed="${stk.which===k}">${k==="pose"?"🧰 ":"🏭 "}${l}</button>`).join("")}<a class="chip" href="plan-stock.html" style="text-decoration:none">🗺️ Plan 3D du stock</a><a class="chip" href="fiche-stock.html" style="text-decoration:none">🖨️ Fiches à afficher</a></div>
     <div id="stk-top"><span class="sub">Chargement du stock…</span></div>
     <section class="stk"><div class="stkcard" id="stk-cmd"></div><div class="stkcard stkdir" id="stk-dir"></div><div class="stkcard stkpose"><h3>📷 Photographier des consommables</h3>
     <label class="fld">Chantier<select id="stk-ch"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
