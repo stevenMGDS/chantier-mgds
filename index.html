@@ -1411,9 +1411,9 @@ async function loadStock(){
     <div id="stk-cam"></div><label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label></div>
     <div class="stkcard stkpose" id="stk-list"><span class="sub">Chargement…</span></div>
     <div class="stkcard stkatl"><h3>📷 Barres en trop et chutes</h3>
-    <p class="sub" style="margin:0">Les barres neuves restent liées à leur chantier. N'entrent en stock que les <b>barres en trop</b> et les <b>chutes réutilisables</b>, marquées au feutre (réf. + longueur, ex. « TGY1213 1,9 »). Photo de la barre ou de la chute avec son marquage lisible.</p>
+    <p class="sub" style="margin:0">Les barres neuves restent liées à leur chantier. N'entrent en stock que les <b>barres en trop</b> et les <b>chutes réutilisables</b>. Sur chacune, une étiquette : <b>réf. · couleur · longueur · emplacement</b> (ex. « TGY1213 · 9005 texture · 1,90 m · D 7 »). Photographiez l'étiquette, ou la feuille récapitulative si plusieurs barres sont rangées en même temps.</p>
     <label class="fld">Chantier<select id="stk-ach"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
-    <div id="stk-acam"></div><label class="fld">Précision (facultatif)<input type="text" id="stk-anote" placeholder="ex. 2 chutes rangées en CH 3"></label></div>
+    <div id="stk-acam"></div><label class="fld">Précision (facultatif)<input type="text" id="stk-anote" placeholder="ex. 3 chutes rangées ce matin"></label></div>
     <div class="stkcard stkatl" id="stk-alist"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>`;
   const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll(".stkatl").forEach(x=>x.hidden=stk.which!=="atelier");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
   el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw();stkDirs()});

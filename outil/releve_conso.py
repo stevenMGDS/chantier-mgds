@@ -15,6 +15,9 @@ Atelier (photos « atl_entree » = barres en trop / chutes qui entrent en stock,
 - même JSON, avec l : longueur en m ; stock : id de l'article atelier (commande « articles atelier », même réf. + coloris + longueur) ;
   ou, pour une chute ou une barre absente du stock, nouveau : {"ref","nom","coloris","longueur","emplacement"} (créée en famille « Chutes »,
   ou « Barres » si "barre": true). q = nombre de barres / chutes.
+  Manu colle sur chaque barre / chute une étiquette « réf. · couleur · longueur · emplacement » et photographie l'étiquette
+  ou sa feuille récapitulative (plusieurs lignes) : l'emplacement de l'étiquette fait foi (même réf. + couleur + longueur
+  rangée ailleurs = autre ligne de stock).
 Ne noter que ce qui se voit ou se compte sans doute possible ; sinon le dire dans « txt ».
 L'appli reprend ces relevés : fenêtre Consommables de la fiche (bouton « Reporter dans la fiche ») et onglet Stock.
 Accès : l'hôte Supabase est authentifié par le proxy de l'environnement « MGDS Supabase ».
