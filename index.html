@@ -262,6 +262,7 @@ textarea{min-height:64px;resize:vertical}
 .atlwk{display:grid;grid-template-columns:64px 1fr 96px;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}.atlwk .g{height:12px;background:var(--sunk);border-radius:3px;overflow:hidden}.atlwk .g i{display:block;height:100%;background:var(--s-bleu)}.atlwk .g i.o{background:var(--s-orange)}.atlwk .g i.r{background:var(--s-rouge)}.atlwk small{grid-column:2/-1;color:var(--muted);font-size:13px}
 .atlh{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:24px 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}.atlh .sub{text-transform:none;letter-spacing:0;font-weight:400}
 .lim{display:block;font:12px var(--f-mono);color:var(--muted);white-space:nowrap}.lim.o{color:var(--s-orange);font-weight:600}.lim.r{color:var(--s-rouge);font-weight:600}
+.atltk td:nth-child(2) input,.atltk td:nth-child(3) input{text-align:right;max-width:110px;margin-left:auto;display:block}.atltk .tot td{background:var(--sunk)}
 .atloff .lab{color:var(--muted)}.atloff .btn{padding:4px 10px;font-size:13px}
 .atldet{margin-top:14px;border:1px solid var(--line);border-radius:8px;padding:8px 12px}.atldet summary{cursor:pointer;font:600 15px var(--f-body)}
 #asheet .steps .pdates .arck{font-size:14px}#asheet .steps .pdates .box{width:24px;height:24px}
@@ -2546,6 +2547,11 @@ const ATL_STEPS=[
  {k:"livre",l:"Livré / enlevé",ph:"Livraison"}];
 const ATL_SK=Object.fromEntries(ATL_STEPS.map(s=>[s.k,s]));
 const ATL_DO={mat:"Commander la matière",acc:"Commander les accessoires",metre:"Faire le métré",arc:"Valider l'ARC",vitr:"Commander les vitrages",volet:"Commander les volets / stores",recu:"Tout recevoir",debut:"Lancer la production",fin:"Finir la production"};
+// temps de production détaillé par tâche (prévu / réel, en heures) ; le total prévu donne le temps de production
+const ATL_TACHES=["Débit des barres","Usinage / perçage","Assemblage (sertissage, équerres)","Quincaillerie / accessoires","Vitrage / parclosage","Contrôle et emballage"];
+const atlTaches=a=>(a.taches&&a.taches.length?a.taches:ATL_TACHES.map(t=>({t,h:"",r:""}))).map(x=>({...x}));
+const atlNum=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>=0?n:0};
+const atlSum=(T,k)=>Math.round(T.reduce((s,x)=>s+atlNum(x[k]),0)*10)/10;
 const ATL_DOCS=["Bon de commande matière","Bon de commande accessoires","Bon de commande vitrages","Bon de commande volets / stores","ARC","Plan / débit","Autre"];
 const atl={rows:new Map(),ok:null,open:null,dest:"",q:"",filter:"encours",pending:false,built:false};
 const atlRole=()=>(window.mgdsProfil||{}).role||"lecteur";
@@ -2744,6 +2750,7 @@ function atlSheet(){
       <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-acbox="${k}" data-ack="cmd" aria-label="${x.l} commandé" ${ro||(lockC?"disabled":"")}>${ok?tick:""}</button>Commandé<span class="mono">${fr(ok)}</span></span>
       <span class="arck"><button class="box" role="checkbox" aria-checked="${!!rc}" data-acbox="${k}" data-ack="recu" aria-label="${x.l} reçu" ${ro||(!ok&&!rc?"disabled":"")}>${rc?tick:""}</button>Reçu<span class="mono">${fr(rc)}</span></span></div>
      ${info?`<div class="sub">${info}</div>`:""}</li>`}).join("");
+  const TK=atlTaches(a);
   const lg=(a.lignes||[]),lro=ro||(arcOk?"disabled":"");
   const lignes=lg.map((l,i)=>`<tr>${["rep","des","l","h","q"].map(f=>`<td><input type="${f==="rep"||f==="des"?"text":"number"}" ${f==="rep"||f==="des"?"":'inputmode="numeric" min="0"'} data-alg="${i}" data-alk="${f}" value="${esc(l[f])}" aria-label="${f}" ${lro}></td>`).join("")}<td>${W&&!arcOk?`<button class="x" data-adelg="${i}" aria-label="Retirer la ligne">×</button>`:""}</td></tr>`).join("");
   const arcInfo=c?(arcOk?`Reporté dans la fiche chantier ${esc(c.client)} (ARC et livraisons) : livraison ${sem(p.finSem)}.`:`Sera reporté dans la fiche chantier ${esc(c.client)} dès la validation de l'ARC.`):"Pas de chantier MGDS lié : l'ARC reste ici.";
@@ -2761,12 +2768,17 @@ function atlSheet(){
     <label>Client / artisan<input type="text" data-af="client" value="${esc(a.client)}" placeholder="${esc((c||{}).client||"")}" ${ro}></label>
     <label>N° de devis<input type="text" data-af="devis" value="${esc(a.devis)}" ${ro}></label>
     <label class="wide">Objet<input type="text" data-af="objet" value="${esc(a.objet)}" placeholder="ex. 6 châssis alu RAL 7016" ${ro}></label>
-    <label>Temps de production (h)<input type="number" min="0" step="0.5" inputmode="decimal" data-af="heures" value="${esc(a.heures||"")}" ${ro}><span class="sub">${p.pj} jour${p.pj>1?"s":""} à ${ATL_H_JOUR} h</span></label>
+    <label>Temps de production (h)<input type="number" min="0" step="0.5" inputmode="decimal" data-af="heures" value="${esc(a.heures||"")}" ${ro||(a.taches&&a.taches.length?"disabled":"")}><span class="sub">${p.pj} jour${p.pj>1?"s":""} à ${ATL_H_JOUR} h${a.taches&&a.taches.length?" · total des tâches ci-dessous":""}</span></label>
     <label>${a.dest==="revente"?"Date d'enlèvement":"Date de besoin"}<input type="date" min="2000-01-01" max="2099-12-31" data-af="besoin" value="${esc(a.besoin)}" ${ro}><span class="sub">${a.besoin?"":pose?"vide = date de pose de la fiche chantier ("+fr(pose)+")":c?"la fiche chantier n'a pas encore de date de pose":""}</span></label>
     <label>Fin de production fixée à la main<input type="date" min="2000-01-01" max="2099-12-31" data-af="finManu" value="${esc(a.finManu)}" ${ro}><span class="sub">vide = calculée</span></label>
     <label class="wide">Bloqué (le motif fait passer la commande en rouge)<input type="text" data-af="bloque" value="${esc(a.bloque)}" ${ro}></label>
     <label class="wide">Remarques<textarea data-af="notes" ${ro}>${esc(a.notes)}</textarea></label></div>
    <h3>Étapes<span class="sub" style="text-transform:none;letter-spacing:0">un clic, la date s'inscrit seule · « au plus tard » depuis la date de ${a.dest==="revente"?"besoin":"pose"}</span></h3><ul class="steps">${steps}</ul>
+   <h3>Temps de production<span class="sub" style="text-transform:none;letter-spacing:0">par tâche, en heures · le prévu calcule la fin de production</span></h3>
+   <div class="tbl"><table class="atllg atltk"><thead><tr><th>Tâche</th><th class="n">Prévu (h)</th><th class="n">Réel (h)</th><th></th></tr></thead><tbody>${TK.map((x,i)=>`<tr><td><input type="text" data-atk="${i}" data-atf="t" value="${esc(x.t)}" aria-label="Tâche" ${ro}></td><td><input type="number" min="0" step="0.5" inputmode="decimal" data-atk="${i}" data-atf="h" value="${esc(x.h)}" aria-label="Prévu ${esc(x.t)}" ${ro}></td><td><input type="number" min="0" step="0.5" inputmode="decimal" data-atk="${i}" data-atf="r" value="${esc(x.r)}" aria-label="Réel ${esc(x.t)}" ${ro}></td><td>${W?`<button class="x" data-adeltk="${i}" aria-label="Retirer la tâche">×</button>`:""}</td></tr>`).join("")}
+    <tr class="tot"><td><b>Total</b></td><td class="n"><b>${atlSum(TK,"h")} h</b></td><td class="n"><b>${atlSum(TK,"r")} h</b></td><td></td></tr></tbody></table></div>
+   ${(()=>{const F=TK.filter(x=>x.r!==""&&x.r!=null&&atlNum(x.h)),d=Math.round((atlSum(F,"r")-atlSum(F,"h"))*10)/10;return F.length?`<p class="sub">Sur les ${F.length} tâche${F.length>1?"s":""} déjà faite${F.length>1?"s":""} : ${d===0?"réel conforme au prévu":"réel "+(d>0?"au-dessus":"en dessous")+" du prévu de "+Math.abs(d)+" h"}.</p>`:""})()}
+   ${W?`<form class="add arcadd" id="atlTache"><input type="text" id="at-t" placeholder="Autre tâche (ex. cintrage, laquage)" aria-label="Nouvelle tâche"><button class="btn">+</button></form>`:""}
    <details class="atldet"><summary>Fournisseurs, n° de commande et délais</summary><ul class="arcs" style="margin-top:8px">${cmds}</ul></details>
    <h3>ARC atelier<span class="sub" style="text-transform:none;letter-spacing:0">cotes validées après le métré</span></h3>
    <div class="fields"><label>N° d'ARC<input type="text" data-af="arcRef" value="${esc(a.arcRef||a.id)}" ${ro}></label><div class="sub" style="align-self:end">${arcInfo}</div></div>
@@ -2836,6 +2848,7 @@ function atlClick(e){
     const v=on?{d:today(),by:me||""}:null,patch={[f]:v};if(f==="cmd"&&!on)patch.recu=null;atlSave(id,{cmds:{[k]:patch}})}
   else if(t.dataset.acmdon)atlSave(id,{cmds:{[t.dataset.acmdon]:{on:true}}});
   else if(t.dataset.acmdoff){const x=atlCmd(a,t.dataset.acmdoff);if(x.cmd&&x.cmd.d&&!confirm("Cette commande est déjà passée. La retirer quand même ?"))return true;atlSave(id,{cmds:{[t.dataset.acmdoff]:{on:false}}})}
+  else if(t.dataset.adeltk!==undefined){const T=atlTaches(a);T.splice(+t.dataset.adeltk,1);atlSave(id,{taches:T,heures:atlSum(T,"h")})}
   else if(t.dataset.adelg!==undefined){const lg=[...(a.lignes||[])];lg.splice(+t.dataset.adelg,1);atlSave(id,{lignes:lg})}
   else if(t.dataset.adoc!==undefined)atlDoc((a.docs||[])[+t.dataset.adoc]);
   else if(t.dataset.aprint!==undefined)atlPrint(a);
@@ -2850,11 +2863,13 @@ function atlChange(e){
   else if(t.dataset.acmd){const k=t.dataset.acmd,f=t.dataset.ack;atlSave(id,{cmds:{[k]:{[f]:f==="sem"?Math.max(0,+t.value||0):t.value.trim()}}})}
   else if(t.dataset.wk&&t.dataset.acmdwk){const box=t.closest(".sem"),w=+box.querySelector('[data-wk="w"]').value,y=+box.querySelector('[data-wk="y"]').value;
     const d=w>=1&&w<=53&&y>=2000?weekFri(y,w):"";if(!d&&box.querySelector('[data-wk="w"]').value)return;atlSave(id,{cmds:{[t.dataset.acmdwk]:{prev:d}}})}
+  else if(t.dataset.atk!==undefined){const T=atlTaches(a),f=t.dataset.atf;T[+t.dataset.atk][f]=f==="t"?t.value.trim():t.value===""?"":atlNum(t.value);atlSave(id,{taches:T,heures:atlSum(T,"h")})}
   else if(t.dataset.alg!==undefined){const lg=(a.lignes||[]).map(x=>({...x}));lg[+t.dataset.alg][t.dataset.alk]=t.value.trim();atlSave(id,{lignes:lg})}
   else if(t.dataset.adoctype!==undefined){const ds=(a.docs||[]).map(x=>({...x}));ds[+t.dataset.adoctype].type=t.value;atlSave(id,{docs:ds})}
 }
 function atlSubmit(e){e.preventDefault();e.stopPropagation();
   if(e.target.id==="atlNewForm"){atlCreate();return}
+  if(e.target.id==="atlTache"){const a=atl.rows.get(atl.open);if(!a)return;const v=$("at-t").value.trim();if(!v)return;const T=atlTaches(a);T.push({t:v,h:"",r:""});atlSave(atl.open,{taches:T,heures:atlSum(T,"h")});return}
   if(e.target.id==="atlLigne"){const a=atl.rows.get(atl.open);if(!a)return;const l={rep:$("al-rep").value.trim(),des:$("al-des").value.trim(),l:$("al-l").value,h:$("al-h").value,q:$("al-q").value||"1"};
     if(!l.des&&!l.rep){toast("Indiquez au moins le repère ou la désignation.");return}atlSave(atl.open,{lignes:[...(a.lignes||[]),l]})}}
 (async()=>{

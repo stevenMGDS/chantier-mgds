@@ -112,6 +112,7 @@ table.plan th.today{color:var(--accent)}
 table.plan td.name{font-weight:700;white-space:nowrap;background:var(--sunk)}
 .pchip{display:flex;align-items:center;gap:4px;background:var(--t-bleu);border-radius:6px;padding:3px 4px 3px 8px;margin-bottom:4px;font-size:13px;line-height:1.2}
 .pchip span{flex:1;min-width:0}
+.pchip.pret{background:var(--t-rouge,#F8DADA);border-left:6px solid var(--s-rouge,#CC4141)}.atlrow td{background:var(--sunk)}
 .pchip.atel,.pchip.atel[style]{background:var(--t-orange)!important;border-left:6px solid var(--s-orange)}
 .pchip button{border:0;background:none;cursor:pointer;font-size:16px;padding:0 4px;color:var(--muted)}
 .add{border:1px dashed var(--line);background:none;border-radius:6px;width:100%;padding:4px;cursor:pointer;color:var(--muted)}
@@ -605,17 +606,31 @@ const idOf=email=>(profils.find(p=>p.email===email)||{}).id;
 const shortName=id=>nameOf(id).replace(/\s*\(.*\)$/,"");
 let gVue="equipe";
 const kOf=x=>x.chantier||"~"+(x.libelle||""),labOf=x=>x.chantier?jobShort(x.chantier):(x.libelle||"");
+// atelier (onglet Atelier de l'appli) : jours de production prévus et date « prêt », d'après la fin de production calculée
+// (calc.fin) et le temps de production (7 h par jour ouvré). Lecture seule : le planning de pose (Excel de Marine) n'est pas modifié.
+async function loadAtelier(){try{const{data,error}=await sb.from("atelier").select("id,data");if(error)return[];
+  return(data||[]).filter(r=>r.id[0]!=="_"&&r.data&&!(r.data.steps&&r.data.steps.livre&&r.data.steps.livre.d)).map(r=>{const a=r.data,st=a.steps||{};
+    const fin=(st.fin&&st.fin.d)||(a.calc&&a.calc.fin)||"",pj=Math.max(1,Math.ceil((+a.heures||0)/7));let deb=st.debut&&st.debut.d||"";
+    if(!deb&&fin){let d=parse(fin),k=pj-1;while(k>0){d=addDays(d,-1);if(d.getDay()%6)k--}deb=iso(d)}
+    return{id:r.id,chantier:a.chantier||"",nom:a.chantier?jobShort(a.chantier):(a.client||r.id),fin,deb,fait:!!(st.fin&&st.fin.d)}}).filter(x=>x.fin)}catch(_){return[]}}
+const atlPasPret=(A,c,d)=>A.find(x=>x.chantier&&x.chantier===c&&!x.fait&&x.fin>=d);
 async function vGPlanning(v){
-  const days=weekDays(),pl=await loadPlanning(days[0],days[6]),ps=poseurs(),t=today(),ed=role==="editeur";
+  const days=weekDays(),pl=await loadPlanning(days[0],days[6]),ps=poseurs(),t=today(),ed=role==="editeur",A=await loadAtelier();
   const showSun=pl.some(p=>p.jour===days[6]);const cols=showSun?days:days.slice(0,6);
   v._pl=pl;
   const head=`<thead><tr><th>${gVue==="equipe"?"Équipe":"Personne"}</th>${cols.map(d=>`<th class="${d===t?"today":""}">${esc(dayLabel(d))}</th>`).join("")}</tr></thead>`;
-  const chip=(label,sub,ids,c,at)=>`<div class="pchip${at?" atel":""}"${c?"":` style="background:var(--sunk)"`}><span>${c?`<button style="all:unset;cursor:pointer" data-open="${esc(c)}">${esc(label)}</button>`:`<b style="font-weight:600">${esc(label)}</b>`}${sub?`<br><span class="sub">${esc(sub)}</span>`:""}</span>${ed?`<button data-pdel="${ids.join(",")}" aria-label="Retirer">×</button>`:""}</div>`;
+  const chip0=(label,sub,ids,c,at)=>`<div class="pchip${at?" atel":""}"${c?"":` style="background:var(--sunk)"`}><span>${c?`<button style="all:unset;cursor:pointer" data-open="${esc(c)}">${esc(label)}</button>`:`<b style="font-weight:600">${esc(label)}</b>`}${sub?`<br><span class="sub">${esc(sub)}</span>`:""}</span>${ed?`<button data-pdel="${ids.join(",")}" aria-label="Retirer">×</button>`:""}</div>`;
+  // pose prévue avant la fin de fabrication à l'atelier : chip en rouge
+  let jourCell="";const chip=(label,sub,ids,c,at)=>{const w=!at&&c&&jourCell>=t&&atlPasPret(A,c,jourCell);   // jours passés : pas d'alerte
+    const h=chip0(label,w?[sub,"⚠ atelier prêt le "+w.fin.slice(8,10)+"/"+w.fin.slice(5,7)].filter(Boolean).join(" · "):sub,ids,c,at);return w?h.replace('class="pchip"','class="pchip pret"'):h};
+  const atlRow=`<tr class="atlrow"><td class="name">Atelier<br><span class="sub" style="font-weight:400">fabrication (Christophe)</span></td>${cols.map(d=>{
+    const L=A.filter(x=>x.deb<=d&&d<=x.fin&&(parse(d).getDay()%6));
+    return`<td>${L.map(x=>`<div class="pchip atel"><span><b style="font-weight:600">${esc(x.nom)}</b><br><span class="sub">${d===x.fin?(x.fait?"✓ terminé":"prêt (prévu)"):"production"}</span></span></div>`).join("")}</td>`}).join("")}</tr>`;
   let body;
   if(gVue==="equipe"){
     body=EQUIPES.map(eq=>{const mem=eq.m.map(idOf).filter(Boolean),chefs=(eq.chefs||[]).map(idOf).filter(Boolean);
       return`<tr><td class="name">${esc(eq.l)}${eq.sub?`<br><span class="sub">${esc(eq.sub)}</span>`:""}<br><span class="sub" style="font-weight:400">${eq.chefs?"Steven ou Yannick + ":""}${mem.map(shortName).join(", ")}</span></td>${cols.map(d=>{
-        const day=pl.filter(x=>x.jour===d);let cells="";
+        const day=pl.filter(x=>x.jour===d);let cells="";jourCell=d;
         if(eq.chefs){
           // équipe 3 : un chantier où Steven ou Yannick est placé ce jour-là
           for(const x of day.filter(x=>chefs.includes(x.poseur))){const with_=day.filter(y=>kOf(y)===kOf(x)&&mem.includes(y.poseur));
@@ -629,11 +644,11 @@ async function vGPlanning(v){
         return`<td>${cells}${ed?`<button class="add" data-padd="eq${eq.k}|${d}" aria-label="Placer l'équipe">+</button>`:""}</td>`}).join("")}</tr>`}).join("");
   }else{
     const people=[...ps,...EQUIPES[2].chefs.map(e=>profils.find(p=>p.email===e)).filter(Boolean)];
-    body=people.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${pl.filter(x=>x.poseur===p.id&&x.jour===d).map(x=>chip(labOf(x),x.note,[x.id],x.chantier,isAtel(x.note))).join("")}
+    body=people.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${(jourCell=d,pl.filter(x=>x.poseur===p.id&&x.jour===d)).map(x=>chip(labOf(x),x.note,[x.id],x.chantier,isAtel(x.note))).join("")}
      ${ed?`<button class="add" data-padd="${p.id}|${d}" aria-label="Ajouter un chantier">+</button>`:""}</td>`).join("")}</tr>`).join("");
   }
   v.innerHTML=weekNav()+`<div class="chips"><button class="chip" data-gvue="equipe" aria-pressed="${gVue==="equipe"}">Par équipe</button><button class="chip" data-gvue="personne" aria-pressed="${gVue==="personne"}">Par personne</button></div>`
-   +(ps.length?`<div class="gridwrap"><table class="plan">${head}<tbody>${body}</tbody></table></div>${ed?`<p class="sub">Touchez « + » pour placer une équipe (ou une personne) sur un chantier. Chacun voit sur son téléphone les chantiers où vous l'avez placé, avec les fiches.</p>`:""}`
+   +(ps.length?`<div class="gridwrap"><table class="plan">${head}<tbody>${body}${A.length?atlRow:""}</tbody></table></div>${A.some(x=>pl.some(p=>p.jour>=t&&p.chantier===x.chantier&&!x.fait&&x.fin>=p.jour))?`<p class="sub"><span class="pchip pret" style="display:inline-flex">⚠</span> pose prévue avant la fin de fabrication à l'atelier.</p>`:""}${ed?`<p class="sub">Touchez « + » pour placer une équipe (ou une personne) sur un chantier. Chacun voit sur son téléphone les chantiers où vous l'avez placé, avec les fiches.</p>`:""}`
    :`<div class="empty" style="margin-top:16px">Aucun poseur n'a encore d'accès.</div>`);
 }
 document.addEventListener("click",e=>{const b=e.target.closest("[data-gvue]");if(b){gVue=b.dataset.gvue;render()}});
