@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Veille atelier : dossiers ATELIER du serveur + tableau « SUIVI ATELIER.xlsx » de Christophe -> onglet Atelier de l'appli.
+"""Veille atelier : dossiers ATELIER du serveur -> onglet Atelier de l'appli.
 
 Consigne de Steven (06/11/2026) :
 - dans chaque dossier chantier du dossier des commandes, un sous-dossier « ATELIER » rempli = une production atelier
   (bons de commande matière, vitrages…). Les documents les plus récents font foi ;
 - le dossier « ATELIER » à la racine des commandes contient les dossiers hors pose MGDS (revente, chantiers annexes) :
   ceux qui existent au premier passage sont clos ; ensuite, tout nouveau dossier devient une commande atelier ;
-- Christophe note ses dates dans SUIVI ATELIER.xlsx : une date du tableau l'emporte sur l'appli.
+- pas de tableau Excel (consigne du 06/11/2026) : Christophe coche ses étapes dans l'appli, l'outil ne fait que compléter
+  ce qui n'y est pas encore noté, d'après les documents du serveur.
 
 En deux étapes (une tâche planifiée ne peut pas avoir à la fois le Mac et l'environnement « MGDS Supabase ») :
 1) sur le Mac, lister les dossiers (commande donnée dans la tâche planifiée) dans liste.txt, lignes :
      A|<chemin d'un dossier atelier>   D|<chemin d'un sous-dossier>   F|AAAA-MM-JJ|taille|<chemin d'un fichier>
-   puis : python3 -I atelier_sync.py export --racine "<dossier des commandes>" --liste liste.txt [--suivi SUIVI.xlsx] > atelier.json
+   puis : python3 -I atelier_sync.py export --racine "<dossier des commandes>" --liste liste.txt > atelier.json
    (aucun appel réseau) ;
 2) dans l'environnement « MGDS Supabase » : python3 -I atelier_sync.py import atelier.json [--essai]
    crée ou complète les commandes atelier et affiche un résumé. N'efface jamais rien.
@@ -28,22 +29,6 @@ ON = {"mat": True, "acc": False, "vitr": True, "volet": False}
 VIDES = {"CONSTRUCTION", "VILLE", "ORLEANS", "IMMOBILIER", "VILLAGE", "ENTREPRISE", "PORTE", "ENTREE", "SAFETY",
          "LOFTS", "GLOBALE", "SYSTEM", "ATELIER", "CHANTIER", "COMMANDE", "COMMANDES", "MGDS"}
 
-# colonnes du tableau de Christophe (même ordre que le modèle SUIVI ATELIER.xlsx)
-COLS = [("N° commande", "id"), ("Chantier / client", "nom"), ("N° de devis", "devis"), ("Pour (MGDS / Revente)", "dest"),
-        ("Objet", "objet"), ("Temps de production (h)", "heures"), ("Date de pose / besoin", "besoin"),
-        ("Matière : commandée le", "mat.cmd"), ("Matière : n° de commande", "mat.bon"),
-        ("Matière : livraison prévue (semaine)", "mat.prev"), ("Matière : reçue le", "mat.recu"),
-        ("Accessoires : commandés le", "acc.cmd"), ("Accessoires : reçus le", "acc.recu"),
-        ("Métré le", "metre"), ("ARC validé le", "arc"), ("N° d'ARC", "arcRef"),
-        ("Vitrages : fournisseur", "vitr.four"), ("Vitrages : délai (2 ou 3 sem.)", "vitr.sem"),
-        ("Vitrages : commandés le", "vitr.cmd"), ("Vitrages : livraison prévue (semaine)", "vitr.prev"),
-        ("Vitrages : reçus le", "vitr.recu"),
-        ("Volets / stores : commandés le", "volet.cmd"), ("Volets / stores : reçus le", "volet.recu"),
-        ("Production lancée le", "debut"), ("Production terminée le", "fin"), ("Livré le", "livre"), ("Remarques", "notes")]
-CALC = [("Matière à commander avant", "mat"), ("Vitrages à commander avant", "vitr"), ("Fin de production au plus tard", "fin")]
-DATES = {"besoin", "mat.cmd", "mat.recu", "acc.cmd", "acc.recu", "metre", "arc", "vitr.cmd", "vitr.recu",
-         "volet.cmd", "volet.recu", "debut", "fin", "livre"}
-SEMAINES = {"mat.prev", "vitr.prev"}
 
 
 def plain(s):
@@ -78,27 +63,6 @@ def week_fri(y, w):
     return iso(datetime.date.fromisocalendar(y, w, 5))
 
 
-def lit_date(v, semaine=False):
-    """Cellule Excel -> AAAA-MM-JJ. Accepte une date, « 12/11/26 », « 12/11/2026 », « S47 » (vendredi de la semaine)."""
-    if v is None or v == "": return ""
-    if isinstance(v, datetime.datetime): v = v.date()
-    if isinstance(v, datetime.date): return fri(iso(v)) if semaine else iso(v)
-    t = str(v).strip()
-    m = re.match(r"^S\s?(\d{1,2})(?:\s*[-/ ]\s*(\d{2,4}))?$", t, re.I)
-    if m:
-        y = int(m.group(2)) if m.group(2) else datetime.date.today().year
-        return week_fri(y + 2000 if y < 100 else y, int(m.group(1)))
-    m = re.match(r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$", t)
-    if m:
-        y = int(m.group(3)); y = y + 2000 if y < 100 else y
-        d = iso(datetime.date(y, int(m.group(2)), int(m.group(1))))
-        return fri(d) if semaine else d
-    m = re.match(r"^(\d{4})-(\d\d)-(\d\d)", t)
-    if m: return fri(m.group(0)) if semaine else m.group(0)
-    if semaine and re.match(r"^\d{1,2}$", t): return week_fri(datetime.date.today().year, int(t))
-    return ""
-
-
 # ---------- étape 1 : export (Mac, sans réseau) ----------
 def classe(nom):
     n = plain(nom)
@@ -110,7 +74,7 @@ def classe(nom):
     return ""
 
 
-def export(racine, liste, suivi):
+def export(racine, liste):
     racine = racine.rstrip("/")
     ateliers, fichiers, sous = [], [], []
     for ligne in open(liste, encoding="utf-8", errors="replace"):
@@ -123,7 +87,7 @@ def export(racine, liste, suivi):
     # on garde les dossiers atelier les plus hauts (pas les sous-dossiers « atelier » d'un dossier atelier)
     ateliers = sorted(set(a for a in ateliers if not any(a != b and a.startswith(b + "/") for b in ateliers)))
     hors_racine = [a for a in ateliers if os.path.dirname(a) == racine]
-    out = {"genere": datetime.datetime.now().isoformat(timespec="minutes"), "productions": [], "hors": [], "suivi": []}
+    out = {"genere": datetime.datetime.now().isoformat(timespec="minutes"), "productions": [], "hors": []}
     def docs(dossier):
         fs = [f for f in fichiers if f["chemin"].startswith(dossier + "/")]
         fs.sort(key=lambda f: f["d"], reverse=True)   # les plus récents d'abord
@@ -137,38 +101,7 @@ def export(racine, liste, suivi):
         if not ds: continue   # dossier atelier vide : pas de production
         chantier_dossier = os.path.dirname(a)
         out["productions"].append({"dossier": os.path.basename(chantier_dossier), "src": os.path.relpath(a, racine), "docs": ds})
-    if suivi: out["suivi"] = lit_suivi(suivi)
     json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
-
-
-def lit_suivi(chemin):
-    import openpyxl
-    wb = openpyxl.load_workbook(chemin, data_only=True)
-    ws = wb["Suivi"] if "Suivi" in wb.sheetnames else wb.worksheets[0]
-    entete, cols = None, {}
-    for r in ws.iter_rows(min_row=1, max_row=10):
-        noms = [plain(c.value) for c in r]
-        if plain("Chantier / client") in noms:
-            entete = r[0].row
-            for i, n in enumerate(noms):
-                for lib, k in COLS:
-                    if n == plain(lib): cols[k] = i
-            break
-    if not entete: raise SystemExit("SUIVI ATELIER : ligne d'en-tête « Chantier / client » introuvable")
-    lignes = []
-    for r in ws.iter_rows(min_row=entete + 1, values_only=True):
-        x = {}
-        for k, i in cols.items():
-            v = r[i] if i < len(r) else None
-            if k in DATES: v = lit_date(v)
-            elif k in SEMAINES: v = lit_date(v, True)
-            elif k in ("heures", "vitr.sem"):
-                try: v = float(str(v).replace(",", ".")) if v not in (None, "") else ""
-                except ValueError: v = ""
-            else: v = str(v).strip() if v is not None else ""
-            if v not in ("", None): x[k] = v
-        if x.get("nom") or x.get("id") or x.get("devis"): lignes.append(x)
-    return lignes
 
 
 # ---------- étape 2 : import (environnement MGDS Supabase) ----------
@@ -265,7 +198,7 @@ def importe(fichier, essai):
     today = datetime.date.today().isoformat()
     pre = "AT" + today[2:4] + "-"
     num = [max([0] + [int(k[len(pre):]) for k in rows if k.startswith(pre) and k[len(pre):].isdigit()])]
-    resume = {"crees": [], "maj": [], "sans_chantier": [], "hors_nouveaux": [], "a_valider": [], "suivi_inconnu": []}
+    resume = {"crees": [], "maj": [], "sans_chantier": [], "hors_nouveaux": [], "a_valider": []}
 
     def nouveau_id():
         num[0] += 1
@@ -351,40 +284,6 @@ def importe(fichier, essai):
             ecrit(aid, merge(a, patch), nouveau=True)
             resume["hors_nouveaux"].append(f"{aid} : {h['nom']}")
 
-    # 3. tableau de Christophe : ses dates l'emportent
-    for x in j.get("suivi", []):
-        aid = x.get("id") if x.get("id") in rows else None
-        if not aid:
-            cid = x.get("devis") if x.get("devis") in chantiers else trouve_chantier(f"{x.get('nom','')} {x.get('devis','')}", chantiers)
-            cand = [k for k, r in rows.items() if not k.startswith("_") and (
-                (cid and r["data"].get("chantier") == cid) or
-                plain(r["data"].get("client") or "") == plain(x.get("nom")) or
-                (x.get("nom") and plain(x.get("nom")) in plain(r["data"].get("src") or "")))]
-            if len(cand) == 1: aid = cand[0]
-            elif not cand and (x.get("nom") or cid):
-                aid = nouveau_id()
-                ecrit(aid, {"dest": "revente" if plain(x.get("dest")).startswith("REV") else "mgds", "chantier": cid,
-                            "client": "" if cid else x.get("nom", ""), "objet": "", "heures": 0, "devis": cid, "besoin": "",
-                            "finManu": "", "bloque": "", "notes": "", "cmds": {}, "lignes": [], "docs": [], "steps": {},
-                            "cree": today, "arcRef": aid}, nouveau=True)
-                resume["crees"].append(f"{aid} : {x.get('nom') or cid} (tableau de Christophe)")
-            else:
-                resume["suivi_inconnu"].append(f"{x.get('nom') or x.get('devis')} : {len(cand)} commandes possibles, ligne ignorée")
-                continue
-        patch = {}
-        for k, v in x.items():
-            if k in ("id", "nom"): continue
-            if k == "dest": patch["dest"] = "revente" if plain(v).startswith("REV") else "mgds"; continue
-            if "." in k:
-                q, f = k.split(".")
-                val = {"d": v, "by": "suivi"} if f in ("cmd", "recu") else (int(v) if f == "sem" else v)
-                patch.setdefault("cmds", {}).setdefault(q, {"on": True})[f] = val
-            elif k in ("metre", "arc", "debut", "fin", "livre"):
-                patch.setdefault("steps", {})[k] = {"d": v, "by": "suivi"}
-            else:
-                patch[k] = v
-        if ecrit(aid, patch): resume["maj"].append(f"{aid} : dates du tableau de Christophe")
-
     print(json.dumps(resume, ensure_ascii=False, indent=1))
 
 
@@ -393,7 +292,7 @@ if __name__ == "__main__":
     def opt(n):
         return a[a.index(n) + 1] if n in a else None
     if a and a[0] == "export":
-        export(opt("--racine"), opt("--liste"), opt("--suivi"))
+        export(opt("--racine"), opt("--liste"))   # --suivi (ancien tableau Excel) est ignoré
     elif a and a[0] == "import" and len(a) > 1:
         importe(a[1], "--essai" in a)
     else:

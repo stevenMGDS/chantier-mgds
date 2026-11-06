@@ -11,5 +11,4 @@ Accès sur invitation uniquement ; les données sont dans une base Supabase prot
 - `outil/stock.sql` : stock de consommables, deux stocks distincts (pose / atelier) : articles, mouvements (inventaire, livraison, sortie, retour) et niveau calculé ; onglet Stock de l'appli
 - `outil/stock_import.py` : import d'un inventaire Excel (ex. « Inventaire au 30.06.26 ») dans le stock
 - `outil/atelier.sql` : espace atelier (rôle « atelier » pour Christophe) : commandes de fabrication, commandes matière / accessoires / vitrages / volets, rétro-planning depuis la date de pose, charge par semaine ; l'ARC atelier validé est recopié dans « ARC et livraisons » de la fiche chantier ; onglet Atelier de l'appli
-- `outil/atelier_sync.py` : veille atelier : dossiers ATELIER des chantiers et dossier ATELIER (hors pose MGDS) du serveur, plus le tableau `SUIVI ATELIER.xlsx` de Christophe -> commandes de l'onglet Atelier (deux étapes : liste sur le Mac, import dans l'environnement Supabase)
-- `outil/SUIVI ATELIER.xlsx` : modèle du tableau de suivi de Christophe (une ligne par production, colonnes « au plus tard » calculées)
+- `outil/atelier_sync.py` : veille atelier : dossiers ATELIER des chantiers et dossier ATELIER (hors pose MGDS) du serveur -> commandes de l'onglet Atelier (deux étapes : liste sur le Mac, import dans l'environnement Supabase)
