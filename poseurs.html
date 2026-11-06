@@ -65,6 +65,7 @@ h3{font:700 19px var(--f-display);margin:18px 0 6px}
 .card{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:8px;cursor:pointer}
 .card:hover{border-color:var(--accent)}
 .day.today .card{border-left:6px solid var(--accent)}
+.card.atel,.day.today .card.atel{background:var(--t-orange);border-left:6px solid var(--s-orange)}
 .client{font:700 21px var(--f-display);line-height:1.15}
 .empty{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:14px 16px;color:var(--muted)}
 .none{color:var(--muted);font-size:15px;padding:2px 0 4px}
@@ -111,6 +112,7 @@ table.plan th.today{color:var(--accent)}
 table.plan td.name{font-weight:700;white-space:nowrap;background:var(--sunk)}
 .pchip{display:flex;align-items:center;gap:4px;background:var(--t-bleu);border-radius:6px;padding:3px 4px 3px 8px;margin-bottom:4px;font-size:13px;line-height:1.2}
 .pchip span{flex:1;min-width:0}
+.pchip.atel,.pchip.atel[style]{background:var(--t-orange)!important;border-left:6px solid var(--s-orange)}
 .pchip button{border:0;background:none;cursor:pointer;font-size:16px;padding:0 4px;color:var(--muted)}
 .add{border:1px dashed var(--line);background:none;border-radius:6px;width:100%;padding:4px;cursor:pointer;color:var(--muted)}
 table.h{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
@@ -232,6 +234,8 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-qsen
   b.disabled=false;if(error){toast("Envoi impossible. Réessayez.");return}
   qDone=true;$("qcard")?.remove();toast("Merci ! Claude a bien reçu ta réponse.");
 });
+// planning « À l'atelier » (case orange de l'Excel ou « ATELIER - … ») : affiché en orange
+const isAtel=n=>/^à l['’]atelier$/i.test((n||"").trim());
 async function render(){
   const v=$("view");
   try{
@@ -254,7 +258,7 @@ async function vPlanning(v){
   v.innerHTML=weekNav()+days.map((d,i)=>{const items=pl.filter(p=>p.jour===d);
     if(i===6&&!items.length)return"";
     return`<section class="day${d===t?" today":""}"><div class="day-h">${d===t?"Aujourd'hui · ":""}${dayLabel(d)}</div>
-      ${items.length?items.map(p=>{if(!p.chantier)return`<div class="card" style="cursor:default"><div class="client">${esc(p.libelle)}</div>${p.note?`<div>${esc(p.note)}</div>`:`<div class="sub">${/cong|repos|fér|fer|repas|formation|atelier/i.test(p.libelle)?"":"Pas encore de fiche pour ce chantier dans l'appli"}</div>`}</div>`;const j=chantiers.get(p.chantier)||{};return`<button class="card" data-open="${esc(p.chantier)}">
+      ${items.length?items.map(p=>{if(!p.chantier)return`<div class="card${isAtel(p.note)?" atel":""}" style="cursor:default"><div class="client">${esc(p.libelle)}</div>${p.note?`<div>${esc(p.note)}</div>`:`<div class="sub">${/cong|repos|fér|fer|repas|formation|atelier/i.test(p.libelle)?"":"Pas encore de fiche pour ce chantier dans l'appli"}</div>`}</div>`;const j=chantiers.get(p.chantier)||{};return`<button class="card${isAtel(p.note)?" atel":""}" data-open="${esc(p.chantier)}">
         <div class="client">${esc(jobName(p.chantier))}</div><div class="sub">${esc(addrOf(j))||"Adresse à demander à Marine"}</div>${p.note?`<div>${esc(p.note)}</div>`:""}</button>`}).join("")
       :`<div class="none">Pas de chantier prévu</div>`}</section>`}).join("")
     +(pl.length?"":`<div class="empty" style="margin-top:16px">Aucun chantier prévu cette semaine pour vous. Marine remplit votre planning ici.</div>`);
@@ -606,7 +610,7 @@ async function vGPlanning(v){
   const showSun=pl.some(p=>p.jour===days[6]);const cols=showSun?days:days.slice(0,6);
   v._pl=pl;
   const head=`<thead><tr><th>${gVue==="equipe"?"Équipe":"Personne"}</th>${cols.map(d=>`<th class="${d===t?"today":""}">${esc(dayLabel(d))}</th>`).join("")}</tr></thead>`;
-  const chip=(label,sub,ids,c)=>`<div class="pchip"${c?"":` style="background:var(--sunk)"`}><span>${c?`<button style="all:unset;cursor:pointer" data-open="${esc(c)}">${esc(label)}</button>`:`<b style="font-weight:600">${esc(label)}</b>`}${sub?`<br><span class="sub">${esc(sub)}</span>`:""}</span>${ed?`<button data-pdel="${ids.join(",")}" aria-label="Retirer">×</button>`:""}</div>`;
+  const chip=(label,sub,ids,c,at)=>`<div class="pchip${at?" atel":""}"${c?"":` style="background:var(--sunk)"`}><span>${c?`<button style="all:unset;cursor:pointer" data-open="${esc(c)}">${esc(label)}</button>`:`<b style="font-weight:600">${esc(label)}</b>`}${sub?`<br><span class="sub">${esc(sub)}</span>`:""}</span>${ed?`<button data-pdel="${ids.join(",")}" aria-label="Retirer">×</button>`:""}</div>`;
   let body;
   if(gVue==="equipe"){
     body=EQUIPES.map(eq=>{const mem=eq.m.map(idOf).filter(Boolean),chefs=(eq.chefs||[]).map(idOf).filter(Boolean);
@@ -615,17 +619,17 @@ async function vGPlanning(v){
         if(eq.chefs){
           // équipe 3 : un chantier où Steven ou Yannick est placé ce jour-là
           for(const x of day.filter(x=>chefs.includes(x.poseur))){const with_=day.filter(y=>kOf(y)===kOf(x)&&mem.includes(y.poseur));
-            cells+=chip(labOf(x),[shortName(x.poseur)+(with_.length?" + "+with_.map(y=>shortName(y.poseur)).join(", "):""),x.note].filter(Boolean).join(" · "),[x,...with_].map(y=>y.id),x.chantier)}
+            cells+=chip(labOf(x),[shortName(x.poseur)+(with_.length?" + "+with_.map(y=>shortName(y.poseur)).join(", "):""),x.note].filter(Boolean).join(" · "),[x,...with_].map(y=>y.id),x.chantier,isAtel(x.note))}
         }else{
           const cs=[...new Set(day.filter(x=>mem.includes(x.poseur)).map(kOf))];
           for(const c of cs){if(EQUIPES[2].chefs.map(idOf).some(ch=>day.some(y=>kOf(y)===c&&y.poseur===ch))&&eq.k==="2")continue; // affiché en équipe 3
             const rows=day.filter(x=>kOf(x)===c&&mem.includes(x.poseur)),who=rows.length<mem.length?rows.map(x=>shortName(x.poseur)).join(", "):"",note=rows.find(x=>x.note)?.note||"";
-            cells+=chip(labOf(rows[0]),[who,note].filter(Boolean).join(" · "),rows.map(x=>x.id),rows[0].chantier)}
+            cells+=chip(labOf(rows[0]),[who,note].filter(Boolean).join(" · "),rows.map(x=>x.id),rows[0].chantier,rows.some(x=>isAtel(x.note)))}
         }
         return`<td>${cells}${ed?`<button class="add" data-padd="eq${eq.k}|${d}" aria-label="Placer l'équipe">+</button>`:""}</td>`}).join("")}</tr>`}).join("");
   }else{
     const people=[...ps,...EQUIPES[2].chefs.map(e=>profils.find(p=>p.email===e)).filter(Boolean)];
-    body=people.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${pl.filter(x=>x.poseur===p.id&&x.jour===d).map(x=>chip(labOf(x),x.note,[x.id],x.chantier)).join("")}
+    body=people.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${pl.filter(x=>x.poseur===p.id&&x.jour===d).map(x=>chip(labOf(x),x.note,[x.id],x.chantier,isAtel(x.note))).join("")}
      ${ed?`<button class="add" data-padd="${p.id}|${d}" aria-label="Ajouter un chantier">+</button>`:""}</td>`).join("")}</tr>`).join("");
   }
   v.innerHTML=weekNav()+`<div class="chips"><button class="chip" data-gvue="equipe" aria-pressed="${gVue==="equipe"}">Par équipe</button><button class="chip" data-gvue="personne" aria-pressed="${gVue==="personne"}">Par personne</button></div>`
