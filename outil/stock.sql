@@ -117,3 +117,7 @@ $$ begin
 end $$;
 drop trigger if exists stock_livre on public.stock_mouvements;
 create trigger stock_livre after insert on public.stock_mouvements for each row execute function public.stock_livre();
+-- les photos atelier ne sont liées à aucun chantier (chutes de plusieurs chantiers, hors déboursé) ; les autres le restent
+alter table public.photos alter column chantier drop not null;
+alter table public.photos drop constraint if exists photos_chantier_requis;
+alter table public.photos add constraint photos_chantier_requis check (chantier is not null or categorie in ('atl_entree','atl_sortie'));

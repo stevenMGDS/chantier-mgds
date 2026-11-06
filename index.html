@@ -1308,9 +1308,9 @@ async function sendConsoPhotos(chantier,cat,files,note){
   const sb=window.sbClient,{data:{user:u}}=await sb.auth.getUser();let ok=0;
   for(const [n,f] of files.entries()){
     toast(`Envoi de la photo ${n+1} sur ${files.length}…`);
-    const b=await shrink(f),chemin=`${u.id}/${chantier}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const b=await shrink(f),chemin=`${u.id}/${chantier||"stock"}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
     const up=await sb.storage.from("photos").upload(chemin,b,{contentType:"image/jpeg",upsert:false});if(up.error)continue;
-    const ins=await sb.from("photos").insert({chantier,categorie:cat,chemin,note:note||null});
+    const ins=await sb.from("photos").insert({chantier:chantier||null,categorie:cat,chemin,note:note||null});
     if(ins.error){await sb.storage.from("photos").remove([chemin]);continue}ok++}
   toast(ok===files.length?(ok>1?ok+" photos envoyées":"Photo envoyée")+" : Claude va relever les articles et les reporter dans "+(/^atl_/.test(cat)?"le stock atelier.":"la fiche et le stock."):ok+" photo(s) envoyée(s) sur "+files.length+". Réessayez pour les autres.");
   return ok;
@@ -1320,15 +1320,17 @@ async function sendConsoPhotos(chantier,cat,files,note){
 const CONSO_BTN={conso_sortie:["📷 Sortie du stock","ce que j'emporte"],conso_retour:["📷 Retour au stock","ce que je rapporte"]};
 function consoCamera(getChantier,onSent,noteEl,cats=CONSO_BTN){
   const box=document.createElement("div");box.className="ccam";const first=Object.keys(cats)[0];
+  // atelier : pas de chantier (les chutes viennent de plusieurs chantiers, hors déboursé)
+  const need=!Object.keys(cats).some(c=>/^atl_/.test(c));
   Object.entries(cats).forEach(([cat,[lab,sm]])=>{
     const l=document.createElement("label");l.className="btn ccambtn";l.innerHTML=lab+"<small>"+sm+"</small>";
     const i=document.createElement("input");i.type="file";i.accept="image/*";i.setAttribute("capture","environment");i.hidden=true;l.appendChild(i);
-    i.onchange=async()=>{const files=[...i.files];i.value="";const c=getChantier();if(!files.length)return;if(!c){toast("Choisissez d'abord le chantier.");return}
+    i.onchange=async()=>{const files=[...i.files];i.value="";const c=getChantier();if(!files.length)return;if(!c&&need){toast("Choisissez d'abord le chantier.");return}
       const note=noteEl?noteEl.value.trim():"";const n=await sendConsoPhotos(c,cat,files,note);if(n&&noteEl)noteEl.value="";if(n&&onSent)onSent()};
     box.appendChild(l)});
   const g=document.createElement("label");g.className="sub ccamgal";g.innerHTML="ou <u>choisir dans la galerie</u> comme :";
   const gi=document.createElement("input");gi.type="file";gi.accept="image/*";gi.multiple=true;gi.hidden=true;g.appendChild(gi);
-  gi.onchange=async()=>{const files=[...gi.files];gi.value="";const c=getChantier();if(!files.length)return;if(!c){toast("Choisissez d'abord le chantier.");return}
+  gi.onchange=async()=>{const files=[...gi.files];gi.value="";const c=getChantier();if(!files.length)return;if(!c&&need){toast("Choisissez d'abord le chantier.");return}
     const cat=confirmCat();if(!cat)return;const n=await sendConsoPhotos(c,cat,files,noteEl?noteEl.value.trim():"");if(n&&onSent)onSent()};
   const confirmCat=()=>box.dataset.cat||first;
   const seg=document.createElement("div");seg.className="chips ccamseg";
@@ -1411,16 +1413,14 @@ async function loadStock(){
     <div id="stk-cam"></div><label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label></div>
     <div class="stkcard stkpose" id="stk-list"><span class="sub">Chargement…</span></div>
     <div class="stkcard stkatl"><h3>📷 Barres en trop et chutes</h3>
-    <p class="sub" style="margin:0">Les barres neuves restent liées à leur chantier. N'entrent en stock que les <b>barres en trop</b> et les <b>chutes réutilisables</b>. Sur chacune, une étiquette : <b>réf. · couleur · longueur · emplacement</b> (ex. « TGY1213 · 9005 texture · 1,90 m · D 7 »). Photographiez l'étiquette, ou la feuille récapitulative si plusieurs barres sont rangées en même temps.</p>
-    <label class="fld">Chantier<select id="stk-ach"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
+    <p class="sub" style="margin:0">Les barres neuves restent liées à leur chantier. N'entrent en stock que les <b>barres en trop</b> et les <b>chutes réutilisables</b>. Sur chacune, une étiquette : <b>réf. · couleur · longueur · emplacement</b> (ex. « TGY1213 · 9005 texture · 1,90 m · D 7 »). Photographiez l'étiquette, ou la feuille récapitulative si plusieurs barres sont rangées en même temps. Pas de chantier à choisir : ce stock ne compte pas dans le déboursé des chantiers.</p>
     <div id="stk-acam"></div><label class="fld">Précision (facultatif)<input type="text" id="stk-anote" placeholder="ex. 3 chutes rangées ce matin"></label></div>
     <div class="stkcard stkatl" id="stk-alist"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>`;
   const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll(".stkatl").forEach(x=>x.hidden=stk.which!=="atelier");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
   el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw();stkDirs()});
   $("stk-ch").onchange=e=>{stockSel=e.target.value};
   $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>{loadStockList(nameOf);stkRefresh()},$("stk-note")));
-  $("stk-ach").onchange=e=>{stockSel=e.target.value};
-  $("stk-acam").appendChild(consoCamera(()=>$("stk-ach").value,()=>stkAtlPhotos(nameOf),$("stk-anote"),ATL_PHOTO_BTN));
+  $("stk-acam").appendChild(consoCamera(()=>null,()=>stkAtlPhotos(nameOf),$("stk-anote"),ATL_PHOTO_BTN));
   loadStockList(nameOf);stkRefresh();stkDirs();stkAtlPhotos(nameOf);
 }
 // photos de l'atelier : entrée en stock (barres en trop, chutes) / sortie (chute reprise pour un chantier), relues par Claude (outil/releve_conso.py)
@@ -1433,9 +1433,9 @@ async function stkAtlPhotos(nameOf){
   const urls=Object.fromEntries((((await sb.storage.from("photos").createSignedUrls(P.map(p=>p.chemin),3600)).data)||[]).map(x=>[x.path,x.signedUrl]));
   const wait=P.filter(p=>!p.traite).length;
   box.innerHTML=`<h3>Entrées et sorties atelier</h3>${wait?`<p class="sub">${wait} photo${wait>1?"s":""} en attente de lecture par Claude.</p>`:""}
-    <table class="ctab"><tr><th></th><th>Date · chantier</th><th>Relevé</th></tr>${P.map(p=>{const R=parseReleve(p.releve),e=p.categorie==="atl_entree";
+    <table class="ctab"><tr><th></th><th>Date</th><th>Relevé</th></tr>${P.map(p=>{const R=parseReleve(p.releve),e=p.categorie==="atl_entree";
       return`<tr><td><a href="${esc(urls[p.chemin]||"#")}" target="_blank" rel="noopener" class="thumbs" style="display:block;width:56px"><img loading="lazy" src="${esc(urls[p.chemin]||"")}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:4px"></a></td>
-      <td><span class="mono">${fr(p.pris_le.slice(0,10))}</span> · <b style="color:${e?"#15803D":"#C2410C"}">${e?"Entrée":"Sortie"}</b><br><small class="sub">${esc(nameOf(p.chantier))}${p.note?" · "+esc(p.note):""}</small></td>
+      <td><span class="mono">${fr(p.pris_le.slice(0,10))}</span> · <b style="color:${e?"#15803D":"#C2410C"}">${e?"Entrée":"Sortie"}</b>${p.chantier||p.note?`<br><small class="sub">${esc([p.chantier?nameOf(p.chantier):"",p.note||""].filter(Boolean).join(" · "))}</small>`:""}</td>
       <td>${!p.traite?`<span class="sub">en attente</span>`:R&&R.articles.length?R.articles.map(x=>`${e?"+":"−"}${nb(+String(x.q).replace(",",".")||0)} ${esc([x.a,x.l?nb(+x.l)+" m":"",x.c].filter(Boolean).join(" "))}`).join("<br>"):`<span class="sub">${esc(R&&R.txt||"rien de lisible")}</span>`}</td></tr>`}).join("")}</table>`;
 }
 async function stkRefresh(){

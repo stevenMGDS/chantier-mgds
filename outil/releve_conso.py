@@ -11,7 +11,8 @@ Le relevé est un JSON : {"articles":[{"a":"Silicone","fiche":"Silicone","c":"bl
 - stock : id de l'article du stock pose (commande « articles ») ; qs : quantité dans l'unité du stock si elle diffère
   (ex. 6 cartouches d'un article compté en cartons de 12 → qs 0,5). Sans qs, la conversion utilise la contenance de l'article.
   Avec « stock », le relevé enlève (sortie) ou remet (retour) la quantité dans le stock ; relire une photo remplace ses mouvements.
-Atelier (photos « atl_entree » = barres en trop / chutes qui entrent en stock, « atl_sortie » = chute reprise pour un chantier) :
+Atelier (photos « atl_entree » = barres en trop / chutes qui entrent en stock, « atl_sortie » = chute reprise) : sans chantier,
+hors déboursé des chantiers (les chutes viennent souvent de plusieurs chantiers) ;
 - même JSON, avec l : longueur en m ; stock : id de l'article atelier (commande « articles atelier », même réf. + coloris + longueur) ;
   ou, pour une chute ou une barre absente du stock, nouveau : {"ref","nom","coloris","longueur","emplacement"} (créée en famille « Chutes »,
   ou « Barres » si "barre": true). q = nombre de barres / chutes.
