@@ -76,6 +76,7 @@ def place(v):
 def feuille_pose(ws):
     out = []
     for r in ws.iter_rows(min_row=2, values_only=True):
+        r = tuple(r) + (None,) * 10  # colonnes PU absentes (export fait par un non-éditeur)
         nom = txt(r[0])
         if not nom or nom.upper().startswith("TOTAL"):
             continue
@@ -92,6 +93,7 @@ def feuille_atelier(ws, fam, cols):
     """cols : index (ref, nom, qte, unite, fournisseur ou None, pu)."""
     out = []
     for r in ws.iter_rows(min_row=2, values_only=True):
+        r = tuple(r) + (None,) * 10  # colonnes PU absentes (export fait par un non-éditeur)
         ref, nom = txt(r[cols[0]]), txt(r[cols[1]])
         if (not nom and not ref) or nom.upper().startswith("TOTAL") or ref.upper().startswith("TOTAL"):
             continue
@@ -106,8 +108,9 @@ def feuille_profils(ws):
     """Une ligne par référence + coloris + longueur + emplacement ; quantité = nombre de barres."""
     lignes = {}
     for r in ws.iter_rows(min_row=2, values_only=True):
+        r = tuple(r) + (None,) * 10  # colonnes PU absentes (export fait par un non-éditeur)
         ref, nom = txt(r[0]), txt(r[1])
-        if not nom and not ref:
+        if (not nom and not ref) or ref.upper().startswith("TOTAL"):
             continue
         col = " ".join(x for x in (txt(r[2]), txt(r[3]).lower()) if x) or None
         if col and re.fullmatch(r"\d{4}( .*)?", col):
@@ -123,7 +126,7 @@ def feuille_profils(ws):
         k = (ref, nom.lower(), col, lg if not tole else None, place(r[6]))
         if k not in lignes:
             lignes[k] = {"stock": "atelier", "ref": ref or None, "nom": (nom[0].upper() + nom[1:]) if nom else f"Profilé {ref}",
-                         "famille": "Tôles" if tole else "Barres", "coloris": col, "unite": unite,
+                         "famille": "Tôles" if tole else "Chutes" if nom.lower().startswith("chute") else "Barres", "coloris": col, "unite": unite,
                          "longueur": lg if (lg and not tole) else None, "emplacement": place(r[6]),
                          "fournisseur": "Technal" if ref.startswith("T") else None, "pu": nombre(r[8]) or None, "qte": 0.0}
         lignes[k]["qte"] += q
@@ -165,7 +168,14 @@ CHAMPS = ("stock", "ref", "nom", "famille", "coloris", "unite", "longueur", "emp
 
 def envoie(xlsx, jour):
     lignes = lire(xlsx)
-    existants = {cle(a): a["id"] for a in req("GET", "/rest/v1/stock_articles?select=id," + ",".join(CHAMPS))}
+    tous, i = [], 0
+    while True:  # la base ne rend que 1 000 lignes par requête
+        page = req("GET", f"/rest/v1/stock_articles?select=id,{','.join(CHAMPS)}&order=id&offset={i}&limit=1000")
+        tous += page
+        if len(page) < 1000:
+            break
+        i += 1000
+    existants = {cle(a): a["id"] for a in tous}
     neufs, vus = [], set()
     for l in lignes:
         if cle(l) in existants or cle(l) in vus:

@@ -91,3 +91,29 @@ grant select on public.stock_niveaux to authenticated;
 drop policy if exists "docs stock supprimés par les éditeurs" on storage.objects;
 create policy "docs stock supprimés par les éditeurs" on storage.objects for delete to authenticated
   using (bucket_id = 'documents' and public.est_editeur() and (storage.foldername(name))[1] = 'stock');
+
+-- ===== stock atelier : barres en trop, chutes, double bac (06/11/2026) =====
+-- Les barres neuves restent liées à leur chantier : n'entrent en stock que les barres en trop et les chutes réutilisables
+-- (famille « Chutes », marquées au feutre réf. + longueur). Photos « atl_entree » / « atl_sortie » relues par Claude (outil/releve_conso.py).
+alter table public.photos drop constraint if exists photos_categorie_check;
+alter table public.photos add constraint photos_categorie_check
+  check (categorie in ('avant','fin','conso_sortie','conso_retour','autre','atl_entree','atl_sortie'));
+
+-- double bac : « Bac vide » met l'article dans « À commander » ; la prochaine livraison l'en sort.
+alter table public.stock_articles add column if not exists a_commander timestamptz;
+create or replace function public.stock_bac_vide(p_article bigint, p_vide boolean default true) returns void
+language plpgsql security definer set search_path = public as
+$$ begin
+  if not (public.est_editeur() or (p_vide and exists (select 1 from profils where id = auth.uid() and role = 'atelier')))
+    then raise exception 'non autorisé'; end if;
+  update stock_articles set a_commander = case when p_vide then now() end where id = p_article;
+end $$;
+grant execute on function public.stock_bac_vide(bigint, boolean) to authenticated;
+
+create or replace function public.stock_livre() returns trigger language plpgsql security definer set search_path = public as
+$$ begin
+  if new.type in ('livraison','inventaire') then update stock_articles set a_commander = null where id = new.article and a_commander is not null; end if;
+  return new;
+end $$;
+drop trigger if exists stock_livre on public.stock_mouvements;
+create trigger stock_livre after insert on public.stock_mouvements for each row execute function public.stock_livre();
