@@ -1388,8 +1388,10 @@ const stkQ=(a,n)=>`${nb(n)} ${esc(stkU(a,Math.abs(n)))}${a.contenance&&a.detail?
 const stkName=a=>esc(a.nom)+(a.longueur?` <span class="sub">${nb(a.longueur)} m</span>`:"")+(a.coloris||a.emplacement?`<span class="stktags">${a.coloris?`<span class="stkcol">${esc(a.coloris)}</span>`:""}${a.emplacement?`<span class="stkpl" title="Emplacement">📍 ${esc(a.emplacement)}</span>`:""}</span>`:"");
 async function stkLoad(){
   const sb=window.sbClient;
-  const [A,N,M]=await Promise.all([sb.from("stock_articles").select("*").order("famille").order("nom"),
-    sb.from("stock_niveaux").select("id,niveau,inventaire_le"),
+  // la base ne rend que 1 000 lignes par requête : articles et niveaux lus par pages (plus de 2 000 articles avec l'atelier)
+  const all=async q=>{const out=[];for(let i=0;;i+=1000){const r=await q().range(i,i+999);if(r.error)return r;out.push(...(r.data||[]));if((r.data||[]).length<1000)return{data:out}}};
+  const [A,N,M]=await Promise.all([all(()=>sb.from("stock_articles").select("*").order("id")),
+    all(()=>sb.from("stock_niveaux").select("id,niveau,inventaire_le").order("id")),
     sb.from("stock_mouvements").select("id,article,type,qte,chantier,photo,note,le,par").order("le",{ascending:false}).limit(60)]);
   const e=A.error||N.error||M.error;if(e){stk.ok=false;throw e}
   stk.all=(A.data||[]).sort((x,y)=>String(x.famille).localeCompare(y.famille,"fr")||String(x.nom).localeCompare(y.nom,"fr"));stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);stk.niv=new Map((N.data||[]).map(x=>[x.id,+x.niveau]));stk.inv=new Map((N.data||[]).map(x=>[x.id,x.inventaire_le]));stk.mv=M.data||[];stk.ok=true;
@@ -1427,7 +1429,7 @@ function stkDraw(){
       <button class="stat o" data-sf="!" aria-pressed="false"><b>${cnt.o}</b><span>bientôt</span></button>
       <button class="stat" data-sf="" aria-pressed="${!stk.fam}"><b>${A.length}</b><span>articles${lastInv?" · inventaire du "+fr(lastInv.slice(0,10)):""}</span></button></div>
     <div class="tools"><input type="search" id="stk-q" placeholder="Chercher un article, une réf., un coloris, un emplacement…" value="${esc(stk.q)}" aria-label="Chercher un article">
-      ${canWrite?`<button class="btn" id="stk-inv">📋 Faire l'inventaire</button><button class="btn ghost" id="stk-add">＋ Nouvel article</button>`:""}</div>
+      ${canWrite?`<button class="btn" id="stk-inv">📋 Faire l'inventaire</button><button class="btn ghost" id="stk-add">＋ Nouvel article</button>`:""}<button class="btn ghost" id="stk-xls" title="Inventaire valorisé au format de l'Excel du serveur, quantités du jour">📥 Exporter l'Excel</button></div>
     <div class="tools stkfam"><button class="chip" data-sf="" aria-pressed="${!stk.fam}">Tout</button>${fams.map(f=>`<button class="chip" data-sf="${esc(f)}" aria-pressed="${stk.fam===f}">${esc(f)}</button>`).join("")}</div>
     ${cnt.g===A.length&&A.length?`<p class="sub">Aucun seuil d'alerte n'est encore fixé : touchez un article pour lui donner un seuil, ou fixez-les tous d'un coup dans « Faire l'inventaire ».</p>`:""}</div>`;
   h+=`<div class="stkcard stkniv"><h3>${STK_WHICH[stk.which]} : niveau</h3>`;
@@ -1444,7 +1446,48 @@ function stkDraw(){
   const qi=$("stk-q");qi.oninput=()=>{stk.q=qi.value;clearTimeout(stkDraw.t);stkDraw.t=setTimeout(()=>{const p=qi.selectionStart;stkDraw();const n=$("stk-q");n.focus();n.setSelectionRange(p,p)},250)};
   if($("stk-inv"))$("stk-inv").onclick=stkInventaire;
   if($("stk-add"))$("stk-add").onclick=()=>stkSheet(null);
+  $("stk-xls").onclick=stkExcel;
   stkDrawCmd();stkDrawMv();
+}
+// Export Excel : mêmes feuilles et mêmes colonnes que l'« Inventaire Stock valorisé » du serveur (lu par outil/stock_import.py),
+// avec le niveau du jour (dernier inventaire + entrées / sorties). Les deux stocks sont dans le même fichier, quel que soit l'onglet ouvert.
+// Prix et totaux : éditeurs seulement (comme dans l'appli). Le fichier peut être réimporté tel quel par stock_import.py.
+async function stkExcel(){
+  const b=$("stk-xls");b.disabled=true;const t0=b.textContent;b.textContent="Préparation…";
+  try{
+    if(!window.XLSX)await new Promise((ok,ko)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc)});
+    await stkLoad();
+    const P=canWrite,d=today(),dd=d.slice(8,10)+"."+d.slice(5,7)+"."+d.slice(2,4),r2=v=>Math.round(v*1000)/1000;
+    const A=stk.all.filter(a=>a.actif!==false),Q=a=>r2(stk.niv.get(a.id)??0),pu=a=>a.pu==null?"":+a.pu;
+    const by=(st,f)=>A.filter(a=>(a.stock||"pose")===st&&f(a)).sort((x,y)=>String(x.famille).localeCompare(y.famille,"fr")||String(x.ref||"").localeCompare(y.ref||"","fr")||String(x.nom).localeCompare(y.nom,"fr")||(x.longueur||0)-(y.longueur||0));
+    const wb=XLSX.utils.book_new();
+    // tot : index de la colonne quantité valorisée → total HT en fin de ligne et ligne TOTAL
+    const sheet=(name,head,rows,wid)=>{let total=0;
+      if(P){head=[...head,"Total HT"];rows=rows.map(r=>{const v=typeof r.pu==="number"&&typeof r.q==="number"?Math.round(r.pu*r.q*100)/100:"";if(v!=="")total+=v;return[...r.c,v]})}else rows=rows.map(r=>r.c);
+      const aoa=[head,...rows];if(P&&rows.length)aoa.push(["TOTAL",...Array(head.length-2).fill(""),Math.round(total*100)/100]);
+      const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=[...wid,...(P?[12]:[])].map(w=>({wch:w}));ws["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:head.length-1}})};
+      XLSX.utils.book_append_sheet(wb,ws,(name+" - "+dd).slice(0,31))};
+    const pc=c=>P?c:c.filter((_,i)=>i!==c.length-1);  // retire la colonne PU pour les non-éditeurs
+    // Pose : Désignation · Quantité · Format · Fournisseur · PU
+    sheet("Pose",pc(["Désignation","Quantité","Format","Fournisseur","PU HT"]),by("pose",()=>true).map(a=>({c:pc([a.nom,Q(a),a.unite||"unité",a.fournisseur||"",pu(a)]),q:Q(a),pu:pu(a)})),pc([46,10,16,18,10]));
+    // Atelier (consommables) : Réf · Désignation · Qté · Unité · Fournisseur · PU
+    sheet("Atelier",pc(["Réf.","Désignation","Qté","Unité","Fournisseur","PU HT"]),by("atelier",a=>a.famille==="Consommables atelier").map(a=>({c:pc([a.ref||"",a.nom,Q(a),a.unite||"unité",a.fournisseur||"",pu(a)]),q:Q(a),pu:pu(a)})),pc([14,46,8,10,16,10]));
+    // Joints, Accessoires : Réf · Désignation · Qté · Unité · PU
+    for(const [n,f] of [["Joints","Joints"],["Accessoires","Accessoires"]])
+      sheet(n,pc(["Réf.","Désignation","Qté","Unité","PU HT"]),by("atelier",a=>a.famille===f).map(a=>({c:pc([a.ref||"",a.nom,Q(a),a.unite||"unité",pu(a)]),q:Q(a),pu:pu(a)})),pc([14,46,8,10,10]));
+    // Profilés : Réf · Désignation · Coloris · Finition · Nb barres · Longueur · Localisation · ML · PU (au ml) ; valorisé sur les ml
+    const pr=by("atelier",a=>a.famille==="Barres"||a.famille==="Tôles").map(a=>{const q=Q(a),lg=a.longueur?+a.longueur:null,u=String(a.unite||"").toLowerCase();
+      const m=String(a.coloris||"").match(/^RAL\s*(\d{4})\s*(.*)$/i),col=m?m[1]:(a.coloris||""),fin=m?m[2]:"";
+      const nbar=u==="m"?"":q,ml=u==="m"?q:lg?r2(q*lg):"";
+      return{c:pc([a.ref||"",a.nom,col,fin,nbar,lg??"",a.emplacement||"",ml,pu(a)]),q:ml!==""?ml:q,pu:pu(a)}});
+    sheet("Profilés",pc(["Réf.","Désignation","Coloris","Finition","Nb barres","Longueur (m)","Localisation","ML","PU HT"]),pr,pc([12,34,9,10,9,11,12,9,10]));
+    // les articles d'autres familles atelier (ajoutés dans l'appli) ne doivent pas disparaître du fichier
+    const autres=by("atelier",a=>!["Consommables atelier","Joints","Accessoires","Barres","Tôles"].includes(a.famille));
+    if(autres.length)sheet("Autres atelier",pc(["Réf.","Désignation","Famille","Qté","Unité","PU HT"]),autres.map(a=>({c:pc([a.ref||"",a.nom,a.famille,Q(a),a.unite||"unité",pu(a)]),q:Q(a),pu:pu(a)})),pc([14,40,18,8,10,10]));
+    XLSX.writeFile(wb,"Inventaire Stock valorisé au "+dd+".xlsx",{compression:true});
+    toast("Excel téléchargé : stock pose et atelier au "+fr(d)+", entrées et sorties comprises.");
+  }catch(e){toast("Export impossible pour le moment. Réessayez.")}
+  finally{b.disabled=false;b.textContent=t0}
 }
 // « À commander » : articles rouges et orange, rangés par fournisseur, à copier dans un mail / une commande
 function stkDrawCmd(){
