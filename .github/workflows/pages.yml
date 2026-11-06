@@ -23,7 +23,7 @@ jobs:
       - name: Préparer _site
         run: |
           mkdir -p _site/outil
-          cp index.html poseurs.html plan-stock.html \
+          cp index.html poseurs.html plan-stock.html plan-atelier.html \
              manifest.json manifest-poseurs.json \
              icon.svg icon-180.png icon-512.png .nojekyll _site/
           cp outil/shim.js _site/outil/
