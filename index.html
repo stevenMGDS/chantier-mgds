@@ -259,6 +259,12 @@ textarea{min-height:64px;resize:vertical}
 .dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;background:var(--s-gris)}.dot.r{background:var(--s-rouge)}.dot.o{background:var(--s-orange)}.dot.v{background:var(--s-vert)}
 .spanel{position:fixed;z-index:60}.stkbig{font:700 28px var(--f-mono)}.stkbig.r{color:var(--s-rouge)}.stkbig.o{color:var(--s-orange)}
 .stkform{display:flex;flex-direction:column;gap:8px;margin-top:8px}.stkform .clab{display:flex;flex-direction:column;gap:2px}
+.atlwk{display:grid;grid-template-columns:64px 1fr 96px;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}.atlwk .g{height:12px;background:var(--sunk);border-radius:3px;overflow:hidden}.atlwk .g i{display:block;height:100%;background:var(--s-bleu)}.atlwk .g i.o{background:var(--s-orange)}.atlwk .g i.r{background:var(--s-rouge)}.atlwk small{grid-column:2/-1;color:var(--muted);font-size:13px}
+.atlh{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:24px 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}.atlh .sub{text-transform:none;letter-spacing:0;font-weight:400}
+.lim{display:block;font:12px var(--f-mono);color:var(--muted);white-space:nowrap}.lim.o{color:var(--s-orange);font-weight:600}.lim.r{color:var(--s-rouge);font-weight:600}
+.atlk{margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.atlk .kpi b{font-size:20px}
+.atllg td{padding:4px 6px}.atllg input{width:100%;min-width:56px;font:14px var(--f-body);border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:var(--surface);color:var(--ink)}.atllg .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:18px}
+#asheet input[type=number]{font:15px var(--f-body);border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--surface);color:var(--ink);min-width:0}#asheet .sem input{width:4.2em}#asheet .sem input[data-wk="y"]{width:5.6em}
 .invrow{display:grid;grid-template-columns:1fr 84px 72px;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding:4px 0}.invrow .cin{min-width:0;text-align:center}
 @media (prefers-reduced-motion:no-preference){.row,.stat,.box{transition:border-color .15s,background .15s}}
 </style>
@@ -268,9 +274,10 @@ textarea{min-height:64px;resize:vertical}
     <h1>Chantiers MGDS<small id="sum">Chargement des chantiers…</small></h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="newBtn" hidden>Nouveau chantier</button></div>
   </header>
-  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button><button role="tab" data-tab="direction" id="tabDir" aria-selected="false" hidden>Direction</button></nav>
+  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button><button role="tab" data-tab="atelier" id="tabAtl" aria-selected="false" hidden>Atelier</button><button role="tab" data-tab="direction" id="tabDir" aria-selected="false" hidden>Direction</button></nav>
   <div id="tab-planning" hidden></div>
   <div id="tab-stock" hidden></div>
+  <section id="tab-atelier" hidden aria-label="Atelier"></section>
   <section id="tab-direction" hidden aria-label="Direction"></section>
   <div id="tab-chantiers">
   <div class="stats" id="stats"></div>
@@ -348,6 +355,7 @@ function gate(mode,note){
 async function start(){
   const {data}=await sb.from("profils").select("id,email,nom,role").eq("id",session.user.id).maybeSingle();
   profil=data||{id:session.user.id,email:session.user.email,role:"lecteur"};
+  window.mgdsProfil=profil;
   const w=document.createElement("div");w.className="who";
   w.innerHTML=`<span>${(profil.nom||profil.email||"").replace(/[<>&]/g,"")}${profil.role==="lecteur"?" · consultation":""}</span><button type="button">Déconnexion</button>`;
   w.querySelector("button").onclick=async()=>{await sb.auth.signOut();location.reload()};
@@ -679,11 +687,11 @@ async function renderSheet(){
       ${canWrite?`<button class="btn ${sent?"ghost":""}" data-sent="${m[0]}">${sent?"Annuler « envoyé »":"Marquer envoyé"}</button>`:""}</div></div></details>`}).join("");
   const lkArc=locked(j,"arc");
   const arcs=arcsOf(j).map((a,i)=>{const ok=a.ok&&a.ok.d,lv=a.livre&&a.livre.d;
-    return `<li class="arc ${ok?"ok":""}"><div class="arch"><b>${esc(a.four||"Fournisseur ?")}</b><span class="mono">${a.ref?"ARC "+esc(a.ref):"ARC pas encore reçu"}</span>${a.objet?`<span class="sub">${esc(a.objet)}</span>`:""}${canWrite?`<button class="x" data-delarc="${i}" aria-label="Retirer cet ARC">×</button>`:""}</div>
+    return `<li class="arc ${ok?"ok":""}"><div class="arch"><b>${esc(a.four||"Fournisseur ?")}</b><span class="mono">${a.ref?"ARC "+esc(a.ref):"ARC pas encore reçu"}</span>${a.objet?`<span class="sub">${esc(a.objet)}</span>`:""}${a.aid?`<span class="state ok">suivi par l'atelier</span>`:""}${canWrite&&!a.aid?`<button class="x" data-delarc="${i}" aria-label="Retirer cet ARC">×</button>`:""}</div>
      <div class="arcf"><label>Livraison<select data-arcfield="lieu" data-i="${i}" ${ro}>${[["","à préciser"],["depot","Dépôt MGDS"],["chantier","Chantier"]].map(([v,t])=>`<option value="${v}" ${v===(a.lieu||"")?"selected":""}>${t}</option>`).join("")}</select></label>
-      <label>Semaine prévue${semInput(`data-arcwk="${i}" ${ro}`,a.prev)}</label>
-      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-arc="${i}" data-arck="ok" aria-label="ARC ${esc(a.four)} validé" ${ro||(lkArc&&!ok?"disabled":"")}>${ok?tick:""}</button>Validé<span class="mono">${fr(ok)}</span></span>
-      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!lv}" data-arc="${i}" data-arck="livre" aria-label="${esc(a.four)} livré" ${ro}>${lv?tick:""}</button>Livré<span class="mono">${fr(lv)}</span></span></div>
+      <label>Semaine prévue${semInput(`data-arcwk="${i}" ${ro||(a.aid?"disabled":"")}`,a.prev)}</label>
+      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-arc="${i}" data-arck="ok" aria-label="ARC ${esc(a.four)} validé" ${ro||(a.aid||lkArc&&!ok?"disabled":"")}>${ok?tick:""}</button>Validé<span class="mono">${fr(ok)}</span></span>
+      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!lv}" data-arc="${i}" data-arck="livre" aria-label="${esc(a.four)} livré" ${ro||(a.aid?"disabled":"")}>${lv?tick:""}</button>Livré<span class="mono">${fr(lv)}</span></span></div>
      ${a.adr?`<div class="sub">Adresse de livraison lue sur l'ARC : ${esc(a.adr)} ${a.adrok===false?'<span class="state blk">ne correspond pas</span>':a.adrok?'<span class="state ok">conforme</span>':""}</div>`:""}
      ${!a.lieu?`<div class="sub"><span class="state late">lieu de livraison à préciser</span></div>`:""}</li>`}).join("");
   const phases=phasesOf(j).map((x,i)=>{const ok=x.pose&&x.pose.d;
@@ -724,6 +732,7 @@ async function renderSheet(){
    ${lkArc?`<p class="sub">Les ARC se valident après la validation des plans par le MOE.</p>`:""}
    <ul class="arcs">${arcs||`<li class="sub">Aucun ARC pour l'instant. Ajoutez une ligne par fournisseur, ou déposez l'ARC dans Documents : Claude le lira.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="arc"><input type="text" id="add-arc-four" placeholder="Fournisseur" aria-label="Fournisseur"><input type="text" id="add-arc-ref" placeholder="N° d'ARC" aria-label="N° d'ARC"><input type="text" id="add-arc" placeholder="Contenu (ex. 2 portes de garage)" aria-label="Contenu"><button class="btn">+</button></form>`:""}
+   ${window.atlSection?atlSection(j.id):""}
    <h3>Location, voirie, transport<span class="sub" style="text-transform:none;letter-spacing:0">alerte avant la date si ce n'est pas commandé</span></h3>
    <ul class="arcs">${logi||`<li class="sub">Rien à commander pour l'instant. Ajoutez une ligne pour une location de machine, un échafaudage, une demande de voirie ou un transport : l'appli vous alertera à temps.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="logi"><select id="add-logi-type" aria-label="Type">${Object.entries(LOGI).map(([v,[t]])=>`<option value="${v}">${t}</option>`).join("")}</select><input type="text" id="add-logi" placeholder="Détail (facultatif)" aria-label="Détail"><button class="btn">+</button></form>`:""}
@@ -748,14 +757,17 @@ async function renderSheet(){
 }
 // ---- onglets (version en ligne seulement) ----
 function showTab(t){
-  if(!["chantiers","planning","stock","direction"].includes(t)||(t==="direction"&&$("tabDir").hidden))t="chantiers";
+  if(window.mgdsProfil&&mgdsProfil.role==="atelier")t="atelier";
+  if(!["chantiers","planning","stock","atelier","direction"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="atelier"&&$("tabAtl").hidden))t="chantiers";
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
-  for(const k of ["chantiers","planning","stock","direction"])$("tab-"+k).hidden=k!==t;
+  for(const k of ["chantiers","planning","stock","atelier","direction"])$("tab-"+k).hidden=k!==t;
   if(t==="planning"&&!$("tab-planning").firstChild)$("tab-planning").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`;
   if(t==="stock")loadStock();
   if(t==="direction")renderDir();
+  if(t==="atelier"&&window.atlRender)atlRender();
   try{history.replaceState(null,"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
 }
+window.mgdsHash0=location.hash;
 if(window.sbClient){$("tabs").hidden=false;$("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b)showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
 // ---- terrain : ce que les poseurs ont noté pour ce chantier ----
 const CAT={avant:"Avant chantier",fin:"Fin de chantier",conso_sortie:"Consommables sortis",conso_retour:"Consommables remis",autre:"Autres"};
@@ -2492,7 +2504,7 @@ async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=
   $("newBtn").hidden=!canWrite;
   if(window.dirDb&&dirDb.ok())await loadDir();
   db.collection("chantiers").onSnapshot(snap=>{
-    jobs=new Map(snap.docs.map(d=>[d.id,d.data()]));render();renderDir();
+    jobs=new Map(snap.docs.map(d=>[d.id,d.data()]));render();renderDir();if(window.atlRender)atlRender();
     if(openId&&openId!=="__new"){
       if(document.activeElement&&$("sheet").contains(document.activeElement)&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))pendingSheet=true;
       else renderSheet();
@@ -2500,5 +2512,354 @@ async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=
   },err=>{$("list").innerHTML=`<div class="empty">Les chantiers ne peuvent pas s'afficher pour le moment. Rechargez la page.</div>`});
 })();
 $("sheet").addEventListener("focusout",()=>{if(pendingSheet){pendingSheet=false;setTimeout(()=>{if(!$("sheet").contains(document.activeElement))renderSheet()},50)}});
+</script>
+<script>
+// ---------- onglet Atelier (outil/atelier.sql) ----------
+// Une commande atelier par fabrication (chantier MGDS ou revente). Étapes : devis validé, matière alu (Technal) et accessoires
+// commandés tout de suite ; métré (Yannick) ; ARC validé avec les cotes définitives ; puis vitrages, volets / stores (plus modifiables) ;
+// réception ; production ; livraison. Rétro-planning depuis la date de pose : « au plus tard » pour chaque étape.
+// Quand l'ARC atelier est validé, la base le recopie dans « ARC et livraisons » de la fiche chantier (semaine = fin de production).
+const ATL_H_JOUR=7;   // heures de production par jour ouvré
+const ATL_H_SEM=35;   // capacité de l'atelier par semaine (charge)
+const ATL_DEST={mgds:"Chantier MGDS",revente:"Revente artisan / chantier annexe"};
+const ATL_CMDS={
+ mat:{l:"Matière aluminium",four:"Technal",sem:2,on:true,hint:"barres : commandées dès le devis validé, coupées après le métré"},
+ acc:{l:"Accessoires",four:"Foussier",sem:1,on:false,hint:"si besoin, en plus de Technal"},
+ vitr:{l:"Vitrages",four:"",sem:2,on:true,hint:"après l'ARC : plus modifiables ensuite"},
+ volet:{l:"Volets roulants / stores",four:"",sem:3,on:false,hint:"après l'ARC : plus modifiables ensuite"}};
+const ATL_STEPS=[
+ {k:"devis",l:"Devis validé",ph:"Lancement"},
+ {k:"mat",l:"Commande matière alu (Technal)",ph:"Matière"},
+ {k:"acc",l:"Commande accessoires (Foussier, autres)",ph:"Matière"},
+ {k:"metre",l:"Métré réalisé (Yannick)",ph:"Métré"},
+ {k:"arc",l:"ARC validé (cotes définitives)",ph:"ARC"},
+ {k:"vitr",l:"Commande vitrages",ph:"Commandes"},
+ {k:"volet",l:"Commande volets roulants / stores",ph:"Commandes"},
+ {k:"recu",l:"Tout est reçu à l'atelier",ph:"Réception"},
+ {k:"debut",l:"Production lancée (débit des barres)",ph:"Production"},
+ {k:"fin",l:"Production terminée",ph:"Production"},
+ {k:"livre",l:"Livré / enlevé",ph:"Livraison"}];
+const ATL_SK=Object.fromEntries(ATL_STEPS.map(s=>[s.k,s]));
+const ATL_DO={mat:"Commander la matière",acc:"Commander les accessoires",metre:"Faire le métré",arc:"Valider l'ARC",vitr:"Commander les vitrages",volet:"Commander les volets / stores",recu:"Tout recevoir",debut:"Lancer la production",fin:"Finir la production"};
+const ATL_DOCS=["Bon de commande matière","Bon de commande accessoires","Bon de commande vitrages","Bon de commande volets / stores","ARC","Plan / débit","Autre"];
+const atl={rows:new Map(),ok:null,open:null,dest:"",q:"",filter:"encours",pending:false,built:false};
+const atlRole=()=>(window.mgdsProfil||{}).role||"lecteur";
+const atlCanW=()=>["editeur","atelier"].includes(atlRole());
+const atlCanStep=k=>atlCanW()||(atlRole()==="terrain"&&(k==="metre"||k==="arc"));
+// jours ouvrés (lundi-vendredi, jours fériés non comptés)
+const aD=s=>new Date(s+"T12:00");
+const aIso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const aWe=d=>d.getDay()===0||d.getDay()===6;
+const addDays=(s,n)=>{const d=aD(s);d.setDate(d.getDate()+n);return aIso(d)};
+const nextJo=s=>{const d=aD(s);while(aWe(d))d.setDate(d.getDate()+1);return aIso(d)};
+const prevJo=s=>{const d=aD(s);while(aWe(d))d.setDate(d.getDate()-1);return aIso(d)};
+function addJo(s,n){const st=n<0?-1:1,d=aD(n<0?prevJo(s):nextJo(s));for(let k=Math.abs(n);k>0;){d.setDate(d.getDate()+st);if(!aWe(d))k--}return aIso(d)}
+const maxS=(...x)=>x.filter(Boolean).sort().pop()||"";
+const minS=(...x)=>x.filter(Boolean).sort()[0]||"";
+const aFri=s=>{const k=isoWeek(s);return weekFri(k.y,k.w)};
+
+const atlJob=a=>a&&a.chantier?jobs.get(a.chantier)||null:null;
+const atlName=a=>a.client||(atlJob(a)||{}).client||a.chantier||"Sans nom";
+const atlCmd=(a,k)=>({...ATL_CMDS[k],...((a.cmds||{})[k]||{})});
+const atlOn=a=>Object.keys(ATL_CMDS).filter(k=>atlCmd(a,k).on);
+const atlStepsOf=a=>ATL_STEPS.filter(s=>!ATL_CMDS[s.k]||atlCmd(a,s.k).on);
+const atlLab=(a,s)=>s.k==="metre"&&a.dest==="revente"?"Cotes reçues de l'artisan":s.k==="livre"&&a.dest==="revente"?"Enlevé / livré à l'artisan":s.l;
+function atlD(a,k){
+  if(ATL_CMDS[k]){const x=atlCmd(a,k);return x.cmd&&x.cmd.d||""}
+  if(k==="recu"){const ks=atlOn(a);if(ks.length){const r=ks.map(q=>atlCmd(a,q).recu);return r.every(x=>x&&x.d)?maxS(...r.map(x=>x.d)):""}}
+  if(k==="metre"){const c=atlJob(a);if(c&&sd(c,"metre"))return sd(c,"metre")}
+  const v=(a.steps||{})[k];return v&&v.d||""}
+const atlCur=a=>(atlStepsOf(a).find(s=>!atlD(a,s.k))||{}).k||null;
+const atlDone=a=>!!atlD(a,"livre");
+// rétro-planning : L = au plus tard (depuis la date de besoin), P = prévu (depuis aujourd'hui et ce qui est fait)
+function atlPlan(a){
+  const t=today(),c=atlJob(a),besoin=a.besoin||(c?poseRef(c):"")||"",pj=Math.max(1,Math.ceil((+a.heures||0)/ATL_H_JOUR)),ks=atlOn(a),L={},P={};
+  if(besoin){
+    L.livre=besoin;L.fin=addJo(besoin,-1);L.debut=addJo(L.fin,-(pj-1));L.recu=addJo(L.debut,-1);
+    ks.forEach(k=>L[k]=prevJo(addDays(L.recu,-7*(+atlCmd(a,k).sem||0))));
+    const apres=ks.filter(k=>k==="vitr"||k==="volet").map(k=>L[k]);
+    L.arc=apres.length?minS(...apres):addJo(L.debut,-1);L.metre=addJo(L.arc,-2);
+  }
+  const arcD=atlD(a,"arc");
+  ks.forEach(k=>{const x=atlCmd(a,k);P[k]=x.recu&&x.recu.d?x.recu.d:x.prev?x.prev:nextJo(addDays(x.cmd&&x.cmd.d?x.cmd.d:(k==="vitr"||k==="volet")?maxS(t,arcD):t,7*(+x.sem||0)))});
+  P.recu=atlD(a,"recu")||maxS(t,...ks.map(k=>P[k]));
+  const deb=atlD(a,"debut"),fin=atlD(a,"fin");
+  P.debut=deb||maxS(nextJo(t),addJo(P.recu,1));
+  P.fin=fin||a.finManu||maxS(nextJo(t),addJo(P.debut,pj-1));
+  return{besoin,pj,L,P,fin:P.fin,finSem:aFri(P.fin),retard:!fin&&!!(besoin&&L.fin&&P.fin>L.fin)};
+}
+function atlAlerts(a){
+  const out=[];if(atlDone(a))return out;
+  const p=atlPlan(a);
+  if(a.bloque)out.push(["r","Bloqué : "+a.bloque]);
+  atlStepsOf(a).forEach(s=>{const lim=p.L[s.k];if(!lim||!ATL_DO[s.k]||atlD(a,s.k))return;const n=-days(lim);
+    if(n<0)out.push(["r",ATL_DO[s.k]+" : date limite dépassée ("+fr(lim)+")"]);else if(n<=7)out.push(["o",ATL_DO[s.k]+(n===0?" aujourd'hui":" avant le "+fr(lim))])});
+  atlOn(a).forEach(k=>{const x=atlCmd(a,k);if(x.cmd&&x.cmd.d&&!(x.recu&&x.recu.d)&&x.prev&&x.prev<today())out.push(["r",x.l+" prévus "+sem(x.prev)+" non reçus"])});
+  if(p.retard)out.push(["r","Fin prévue "+sem(p.fin)+" après le besoin ("+sem(p.L.fin)+")"]);
+  if(!p.besoin)out.push(["b",a.dest==="revente"?"Date d'enlèvement à fixer":"Date de pose non fixée : pas de rétro-planning"]);
+  return out}
+const atlRed=a=>atlAlerts(a).some(x=>x[0]==="r");
+const atlSoon=a=>atlAlerts(a).some(x=>x[0]!=="b"&&/^Commander/.test(x[1]));
+
+// ---- base ----
+function atlMerge(a,b){const o=a&&typeof a==="object"&&!Array.isArray(a)?{...a}:{};for(const[k,v]of Object.entries(b))o[k]=v&&typeof v==="object"&&!Array.isArray(v)&&o[k]&&typeof o[k]==="object"&&!Array.isArray(o[k])?atlMerge(o[k],v):v;return o}
+const atlCalc=a=>{const p=atlPlan(a);return{fin:p.fin,finSem:p.finSem,besoin:p.besoin}};
+async function atlWrite(id,patch){const sb=window.sbClient;
+  for(let n=0;n<6;n++){
+    const {data:row,error:e1}=await sb.from("atelier").select("data,version").eq("id",id).single();if(e1)throw e1;
+    const {data:u,error:e2}=await sb.from("atelier").update({data:atlMerge(row.data,patch)}).eq("id",id).eq("version",row.version).select("id");if(e2)throw e2;
+    if(u&&u.length)return}
+  throw new Error("conflit")}
+const atlChains={};
+function atlSave(id,patch){
+  const a0=atl.rows.get(id)||{};let a=atlMerge(a0,patch);const calc=atlCalc(a);
+  if(JSON.stringify(calc)!==JSON.stringify(a0.calc||{})){patch={...patch,calc};a={...a,calc}}
+  atl.rows.set(id,a);atlRender();atlSheet();
+  atlChains[id]=(atlChains[id]||Promise.resolve()).then(()=>atlWrite(id,patch)).catch(()=>toast("Enregistrement impossible, réessayez dans un instant."));
+  return atlChains[id]}
+async function atlLoad(){
+  const sb=window.sbClient;if(!sb)return;
+  const {data,error}=await sb.from("atelier").select("id,data");
+  if(error){atl.ok=false;atlRender();return}
+  atl.ok=true;atl.rows=new Map(data.map(r=>[r.id,r.data]));atlRefresh();
+  sb.channel("atelier").on("postgres_changes",{event:"*",schema:"public",table:"atelier"},p=>{
+    if(p.eventType==="DELETE")atl.rows.delete(p.old.id);else atl.rows.set(p.new.id,p.new.data);atlRefresh()}).subscribe();
+  document.addEventListener("visibilitychange",async()=>{if(document.hidden)return;const {data}=await sb.from("atelier").select("id,data");if(data){atl.rows=new Map(data.map(r=>[r.id,r.data]));atlRefresh()}});
+  // la fin prévue glisse avec le temps : on la remet à jour pour l'ARC de la fiche chantier (une fois par jour au plus)
+  if(atlCanW())setTimeout(()=>{for(const[id,a]of atl.rows)if(!atlDone(a)&&a.chantier&&atlD(a,"arc")&&atlCalc(a).finSem!==(a.calc||{}).finSem)atlSave(id,{})},4000);
+}
+function atlRefresh(){atlRender();const s=$("asheet");
+  if(s&&!s.hidden){if(document.activeElement&&s.contains(document.activeElement)&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))atl.pending=true;else atlSheet()}
+  if(openId&&openId!=="__new"&&!$("sheet").hidden&&!(document.activeElement&&$("sheet").contains(document.activeElement)&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)))renderSheet()}
+
+// ---- liste ----
+function atlBuild(){
+  const el=$("tab-atelier");if(atl.built)return;atl.built=true;
+  el.innerHTML=`<div class="stats" id="atlStats"></div>
+   <div class="tools"><div id="atlChips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input type="search" id="atlQ" placeholder="Chercher un client, un n° de commande ou de devis">${atlCanW()?`<button class="btn" id="atlNew">Nouvelle commande atelier</button>`:""}</div>
+   <div class="list" id="atlList"></div>
+   <h3 class="atlh">Charge de l'atelier<span class="sub">temps de production réparti sur les jours prévus · ${ATL_H_SEM} h par semaine</span></h3><div id="atlLoad"></div>`;
+  $("atlQ").addEventListener("input",e=>{atl.q=e.target.value.trim().toLowerCase();atlRender()});
+}
+function atlRender(){
+  const el=$("tab-atelier");if(!el||el.hidden)return;
+  if(atl.ok!==true){atl.built=false;el.innerHTML=atl.ok===false?`<div class="empty">L'espace atelier n'est pas encore activé dans la base : il faut lancer <span class="mono">outil/atelier.sql</span> dans Supabase. Claude s'en occupe.</div>`:`<span class="sub">Chargement…</span>`;return}
+  atlBuild();
+  const all=[...atl.rows.entries()].map(([id,a])=>({id,...a})),live=all.filter(a=>!atlDone(a));
+  const cnt={encours:live.length,cmd:live.filter(atlSoon).length,retard:live.filter(atlRed).length,prod:live.filter(a=>atlD(a,"debut")&&!atlD(a,"fin")).length,termine:all.length-live.length};
+  const S=[["encours","En cours",""],["cmd","À commander sous 7 j","o"],["retard","En retard","r"],["prod","En production","bl"],["termine","Livrées",""]];
+  $("atlStats").innerHTML=S.map(([k,l,c])=>`<button class="stat ${c}" data-afilter="${k}" aria-pressed="${atl.filter===k}"><b>${cnt[k]}</b><span>${l}</span></button>`).join("");
+  $("atlChips").innerHTML=[["","Toutes"],...Object.entries(ATL_DEST)].map(([k,l])=>`<button class="chip" data-adest="${k}" aria-pressed="${atl.dest===k}">${l}</button>`).join("");
+  let vis=atl.filter==="termine"?all.filter(atlDone):live;
+  if(atl.filter==="cmd")vis=vis.filter(atlSoon);if(atl.filter==="retard")vis=vis.filter(atlRed);if(atl.filter==="prod")vis=vis.filter(a=>atlD(a,"debut")&&!atlD(a,"fin"));
+  if(atl.dest)vis=vis.filter(a=>(a.dest||"mgds")===atl.dest);
+  if(atl.q)vis=vis.filter(a=>(atlName(a)+" "+a.id+" "+(a.chantier||"")+" "+(a.devis||"")+" "+(a.objet||"")).toLowerCase().includes(atl.q));
+  vis.sort((x,y)=>(!!y.bloque-!!x.bloque)||(atlRed(y)-atlRed(x))||String(atlPlan(x).fin).localeCompare(atlPlan(y).fin));
+  $("atlList").innerHTML=!all.length?`<div class="empty">Aucune commande atelier pour l'instant.${atlCanW()?" Cliquez sur « Nouvelle commande atelier ».":""}</div>`:vis.length?vis.map(atlRow).join(""):`<div class="empty">Aucune commande dans ce filtre.</div>`;
+  $("atlLoad").innerHTML=atlLoadHtml(live);
+}
+function atlRow(a){
+  const ss=atlStepsOf(a),c=atlCur(a),p=atlPlan(a),al=atlAlerts(a),red=al.some(x=>x[0]==="r"),fin=atlD(a,"fin");
+  const st=k=>atlD(a,k)?"done":a.bloque&&k===c?"blk":p.L[k]&&p.L[k]<today()?"late":"";
+  const bar=ss.map(s=>`<i class="${st(s.k)} ${s.k===c?"cur":""}" title="${esc(atlLab(a,s))}${atlD(a,s.k)?" : "+fr(atlD(a,s.k)):p.L[s.k]?" : au plus tard "+fr(p.L[s.k]):""}"></i>`).join("");
+  return `<button class="row ${a.bloque?"blocked":red?"late":""}" data-aopen="${esc(a.id)}">
+    <div><div class="client">${esc(atlName(a))}</div><div class="mono">${esc(a.id)}${a.chantier?" · "+esc(a.chantier):""}</div><div class="sub">${esc(ATL_DEST[a.dest||"mgds"])}${a.objet?" · "+esc(a.objet):""}${+a.heures?" · "+(+a.heures)+" h":""}</div></div>
+    <div class="prog"><div class="bar" style="grid-template-columns:repeat(${ss.length},1fr)" aria-label="${ss.filter(s=>atlD(a,s.k)).length} étapes sur ${ss.length}">${bar}</div>
+      <div class="phase"><span class="pill ${a.bloque?"rouge":red?"orange":""}">${c?ATL_SK[c].ph:"Livré"}</span><span>${c?"Étape : "+esc(atlLab(a,ATL_SK[c])):"Commande livrée"}</span></div></div>
+    <div class="next">${atlDone(a)?"Livré le "+fr(atlD(a,"livre")):fin?`Production terminée le <strong>${fr(fin)}</strong>`:`Fin de production prévue : <strong>${sem(p.fin)} (${fr(p.fin)})</strong>`}
+      ${p.besoin&&!atlDone(a)?`<div class="sub">${a.dest==="revente"?"Enlèvement":"Pose"} le ${fr(p.besoin)} · ${sem(p.besoin)}</div>`:""}
+      ${al.length?`<div class="flags">${al.map(([c,t])=>`<span class="flag ${c}">${esc(t)}</span>`).join("")}</div>`:""}</div>
+  </button>`}
+// charge : temps de production réparti sur les jours ouvrés prévus, semaine par semaine (8 semaines)
+function atlLoadHtml(live){
+  const wk={},who={},mon=addJo(addDays(today(),-((aD(today()).getDay()+6)%7)),0);
+  live.forEach(a=>{const p=atlPlan(a),h=+a.heures||0;if(!h||atlD(a,"fin"))return;
+    let d=atlD(a,"debut")?maxS(nextJo(today()),p.P.debut):p.P.debut;const ds=[];while(d<=p.P.fin&&ds.length<60){ds.push(d);d=addJo(d,1)}
+    const restant=atlD(a,"debut")?h*ds.length/Math.max(ds.length,p.pj):h;
+    ds.forEach(x=>{const f=aFri(x);wk[f]=(wk[f]||0)+restant/ds.length;(who[f]=who[f]||new Set).add(atlName(a))})});
+  let h="";for(let i=0;i<8;i++){const f=aFri(addDays(mon,7*i)),v=Math.round(wk[f]||0),pc=Math.min(100,v/ATL_H_SEM*100);
+    h+=`<div class="atlwk"><b class="mono">${sem(f)}</b><span class="g"><i class="${v>ATL_H_SEM?"r":v>ATL_H_SEM*.85?"o":""}" style="width:${pc}%"></i></span><span class="mono">${v} h / ${ATL_H_SEM} h</span>${who[f]?`<small>${[...who[f]].map(esc).join(", ")}</small>`:""}</div>`}
+  return h+`<p class="sub">Les commandes sans temps de production ne comptent pas dans la charge.</p>`}
+
+// ---- fiche d'une commande ----
+function atlOpen(id){if(openId)closeSheet();atl.open=id;const s=$("asheet");s.hidden=false;$("scrim").hidden=false;atlSheet();s.scrollTop=0}
+function atlClose(){atl.open=null;$("asheet").hidden=true;if(!openId)$("scrim").hidden=true}
+function atlNewForm(){
+  const jl=[...jobs.entries()].filter(([id,j])=>!done(j)||id===atl.preset).sort((x,y)=>String(x[1].client).localeCompare(y[1].client));
+  $("asheet").innerHTML=`<div class="head"><h2>Nouvelle commande atelier</h2><button class="btn ghost" data-aclose>Fermer</button></div>
+  <form id="atlNewForm" class="fields">
+   <label>Pour<select id="an-dest">${Object.entries(ATL_DEST).map(([k,l])=>`<option value="${k}">${l}</option>`).join("")}</select></label>
+   <label>Chantier MGDS<select id="an-ch"><option value="">—</option>${jl.map(([id,j])=>`<option value="${esc(id)}" ${id===atl.preset?"selected":""}>${esc(j.client)} · ${esc(id)}</option>`).join("")}</select></label>
+   <label>Client / artisan (revente)<input type="text" id="an-cl" placeholder="vide = client du chantier"></label>
+   <label>Objet<input type="text" id="an-obj" placeholder="ex. 6 châssis alu RAL 7016"></label>
+   <label>Temps de production (h)<input type="number" min="0" step="0.5" inputmode="decimal" id="an-h"></label>
+   <label>N° de devis<input type="text" id="an-dv" placeholder="vide = n° du chantier"></label>
+   <div class="wide sub">Matière aluminium et vitrages sont prévus d'office ; accessoires, volets et stores s'ajoutent dans la fiche si besoin.</div>
+   <div class="wide"><button class="btn">Créer la commande</button></div></form>`}
+async function atlCreate(){
+  const dest=$("an-dest").value,ch=$("an-ch").value,cl=$("an-cl").value.trim(),obj=$("an-obj").value.trim(),h=+$("an-h").value||0,dv=$("an-dv").value.trim();
+  if(!ch&&!cl){toast("Choisissez le chantier, ou indiquez le client / l'artisan.");return}
+  const j=ch?jobs.get(ch):null,yy=today().slice(2,4),pre="AT"+yy+"-";
+  let n=Math.max(0,...[...atl.rows.keys()].filter(k=>k.startsWith(pre)).map(k=>+k.slice(pre.length)||0));
+  const data={dest,chantier:ch,client:cl,objet:obj,heures:h,devis:dv||ch,besoin:"",finManu:"",bloque:"",notes:"",cmds:{},lignes:[],docs:[],
+    steps:{devis:{d:(j&&sd(j,"signe"))||today(),by:me||""}},cree:today()};
+  for(let k=0;k<5;k++){const id=pre+String(++n).padStart(3,"0");data.arcRef=id;data.calc=atlCalc(data);
+    const {error}=await window.sbClient.from("atelier").insert({id,data});
+    if(!error){atl.rows.set(id,data);atl.open=id;atlRender();atlSheet();return}
+    if(error.code!=="23505"){toast("Création impossible. Vérifiez que vous avez le droit de modifier l'atelier.");return}}
+  toast("Création impossible, réessayez.")}
+function atlSheet(){
+  const el=$("asheet");if(!el||el.hidden||!atl.open)return;
+  if(atl.open==="__new"){atlNewForm();return}
+  const a0=atl.rows.get(atl.open);if(!a0){atlClose();return}
+  const a={id:atl.open,...a0},W=atlCanW(),ro=W?"":"disabled",c=atlJob(a),p=atlPlan(a),cur=atlCur(a),arcOk=atlD(a,"arc");
+  const lim=k=>{const l=p.L[k];if(!l||atlD(a,k))return"";const n=-days(l);return `<span class="lim ${n<0?"r":n<=7?"o":""}">au plus tard ${fr(l)} · ${sem(l)}</span>`};
+  const steps=atlStepsOf(a).map(s=>{const k=s.k,d=atlD(a,k);
+    const autoMetre=k==="metre"&&c&&sd(c,"metre"),auto=ATL_CMDS[k]||(k==="recu"&&atlOn(a).length)||autoMetre;
+    const hint=ATL_CMDS[k]?"se coche dans Commandes fournisseurs":k==="recu"&&atlOn(a).length?"se coche quand tout est reçu":autoMetre?"repris de la fiche chantier":k==="metre"&&c&&c.type!=="neuf"?"se coche aussi avec le métré du chantier":k==="arc"?"les vitrages et volets se commandent ensuite":"";
+    const tag=!d&&a.bloque&&k===cur?'<span class="state blk">bloqué</span>':!d&&p.L[k]&&p.L[k]<today()?'<span class="state late">en retard</span>':k===cur?'<span class="state cur">à faire</span>':"";
+    return `<li><button class="box" role="checkbox" aria-checked="${!!d}" data-astep="${k}" aria-label="${esc(atlLab(a,s))}" ${atlCanStep(k)&&!auto?"":"disabled"}>${d?tick:""}</button><span class="lab">${esc(atlLab(a,s))}${hint?`<em>${hint}</em>`:""}${tag}</span><span class="date">${fr(d)}${lim(k)}</span></li>`}).join("");
+  const cmds=Object.keys(ATL_CMDS).map(k=>{const x=atlCmd(a,k),ok=x.cmd&&x.cmd.d,rc=x.recu&&x.recu.d,apres=k==="vitr"||k==="volet",lockC=apres&&!arcOk&&!ok;
+    if(!x.on)return `<li class="arc"><div class="arch"><b>${x.l}</b><span class="sub">pas nécessaire pour cette commande</span>${W?`<button class="btn ghost" data-acmdon="${k}" style="margin-left:auto">Ajouter</button>`:""}</div></li>`;
+    const dl=k==="vitr"?`<select data-acmd="${k}" data-ack="sem" ${ro}>${[[2,"2 semaines (verre standard)"],[3,"3 semaines (verre technique)"]].map(([v,t])=>`<option value="${v}" ${+x.sem===v?"selected":""}>${t}</option>`).join("")}</select>`
+      :`<span class="sem"><input type="number" min="0" max="26" inputmode="numeric" data-acmd="${k}" data-ack="sem" value="${esc(x.sem)}" ${ro}> sem.</span>`;
+    const info=[!ok&&p.L[k]?`À commander au plus tard le <b>${fr(p.L[k])}</b> (${sem(p.L[k])})`:"",!ok&&!p.L[k]?"Pas de date de besoin : pas de date limite":"",ok&&!rc?"Arrivée "+(x.prev?"prévue ":"estimée ")+sem(p.P[k]):"",lockC?"Se commande après la validation de l'ARC":""].filter(Boolean).join(" · ");
+    return `<li class="arc ${rc?"ok":!ok&&p.L[k]&&-days(p.L[k])<=7?"part":""}"><div class="arch"><b>${x.l}</b><span class="sub">${esc(x.hint)}</span>${W&&k!=="mat"?`<button class="x" data-acmdoff="${k}" aria-label="Pas nécessaire">×</button>`:""}</div>
+     <div class="arcf"><label>Fournisseur<input type="text" data-acmd="${k}" data-ack="four" value="${esc(x.four)}" ${ro}></label>
+      <label>N° de commande<input type="text" data-acmd="${k}" data-ack="bon" value="${esc(x.bon)}" ${ro}></label>
+      <label>Délai${dl}</label><label>Livraison prévue${semInput(`data-acmdwk="${k}" ${ro}`,x.prev)}</label>
+      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-acbox="${k}" data-ack="cmd" aria-label="${x.l} commandé" ${ro||(lockC?"disabled":"")}>${ok?tick:""}</button>Commandé<span class="mono">${fr(ok)}</span></span>
+      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!rc}" data-acbox="${k}" data-ack="recu" aria-label="${x.l} reçu" ${ro||(!ok&&!rc?"disabled":"")}>${rc?tick:""}</button>Reçu<span class="mono">${fr(rc)}</span></span></div>
+     ${info?`<div class="sub">${info}</div>`:""}</li>`}).join("");
+  const lg=(a.lignes||[]),lro=ro||(arcOk?"disabled":"");
+  const lignes=lg.map((l,i)=>`<tr>${["rep","des","l","h","q"].map(f=>`<td><input type="${f==="rep"||f==="des"?"text":"number"}" ${f==="rep"||f==="des"?"":'inputmode="numeric" min="0"'} data-alg="${i}" data-alk="${f}" value="${esc(l[f])}" aria-label="${f}" ${lro}></td>`).join("")}<td>${W&&!arcOk?`<button class="x" data-adelg="${i}" aria-label="Retirer la ligne">×</button>`:""}</td></tr>`).join("");
+  const arcInfo=c?(arcOk?`Reporté dans la fiche chantier ${esc(c.client)} (ARC et livraisons) : livraison ${sem(p.finSem)}.`:`Sera reporté dans la fiche chantier ${esc(c.client)} dès la validation de l'ARC.`):"Pas de chantier MGDS lié : l'ARC reste ici.";
+  const docs=(a.docs||[]).map((d,i)=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-adoc="${i}">${esc(d.name)}</button> <span class="mono">${fr(d.at)}</span></span>${W?`<select data-adoctype="${i}" aria-label="Type de document">${ATL_DOCS.map(t=>`<option ${t===d.type?"selected":""}>${t}</option>`).join("")}</select>`:""}</li>`).join("");
+  const jl=[...jobs.entries()].filter(([id,j])=>!done(j)||id===a.chantier).sort((x,y)=>String(x[1].client).localeCompare(y[1].client));
+  const pose=c?poseRef(c):"";
+  el.innerHTML=`<div class="head"><div><h2>${esc(atlName(a))}</h2><div class="mono">${esc(a.id)}${a.chantier?" · chantier "+esc(a.chantier):""}</div></div><button class="btn ghost" data-aclose>Fermer</button></div>
+   <div class="kpis atlk"><div class="kpi"><b>${p.besoin?sem(p.besoin):"?"}</b><span>${a.dest==="revente"?"Enlèvement":"Pose"}${p.besoin?" le "+fr(p.besoin):" non fixée"}</span></div>
+    <div class="kpi ${p.retard?"r":""}"><b>${atlD(a,"fin")?"✓":sem(p.fin)}</b><span>${atlD(a,"fin")?"Production terminée le "+fr(atlD(a,"fin")):"Fin de production prévue"+(a.finManu?" (à la main)":"")}</span></div>
+    <div class="kpi"><b>${p.L.fin?sem(p.L.fin):"–"}</b><span>Fin au plus tard${p.L.fin?" ("+fr(p.L.fin)+")":""}</span></div>
+    <div class="kpi"><b>${p.pj} j</b><span>Production${+a.heures?" ("+(+a.heures)+" h)":" : temps à saisir"}</span></div></div>
+   <div class="fields">
+    <label>Pour<select data-af="dest" ${ro}>${Object.entries(ATL_DEST).map(([k,l])=>`<option value="${k}" ${k===(a.dest||"mgds")?"selected":""}>${l}</option>`).join("")}</select></label>
+    <label>Chantier MGDS<select data-af="chantier" ${ro}><option value="">—</option>${jl.map(([id,j])=>`<option value="${esc(id)}" ${id===a.chantier?"selected":""}>${esc(j.client)} · ${esc(id)}</option>`).join("")}</select></label>
+    <label>Client / artisan<input type="text" data-af="client" value="${esc(a.client)}" placeholder="${esc((c||{}).client||"")}" ${ro}></label>
+    <label>N° de devis<input type="text" data-af="devis" value="${esc(a.devis)}" ${ro}></label>
+    <label class="wide">Objet<input type="text" data-af="objet" value="${esc(a.objet)}" placeholder="ex. 6 châssis alu RAL 7016" ${ro}></label>
+    <label>Temps de production (h)<input type="number" min="0" step="0.5" inputmode="decimal" data-af="heures" value="${esc(a.heures||"")}" ${ro}><span class="sub">${p.pj} jour${p.pj>1?"s":""} à ${ATL_H_JOUR} h</span></label>
+    <label>${a.dest==="revente"?"Date d'enlèvement":"Date de besoin"}<input type="date" min="2000-01-01" max="2099-12-31" data-af="besoin" value="${esc(a.besoin)}" ${ro}><span class="sub">${a.besoin?"":pose?"vide = date de pose de la fiche chantier ("+fr(pose)+")":c?"la fiche chantier n'a pas encore de date de pose":""}</span></label>
+    <label>Fin de production fixée à la main<input type="date" min="2000-01-01" max="2099-12-31" data-af="finManu" value="${esc(a.finManu)}" ${ro}><span class="sub">vide = calculée</span></label>
+    <label class="wide">Bloqué (le motif fait passer la commande en rouge)<input type="text" data-af="bloque" value="${esc(a.bloque)}" ${ro}></label>
+    <label class="wide">Remarques<textarea data-af="notes" ${ro}>${esc(a.notes)}</textarea></label></div>
+   <h3>Étapes<span class="sub" style="text-transform:none;letter-spacing:0">« au plus tard » : rétro-planning depuis la date de ${a.dest==="revente"?"besoin":"pose"}</span></h3><ul class="steps">${steps}</ul>
+   <h3>Commandes fournisseurs<span class="sub" style="text-transform:none;letter-spacing:0">matière tout de suite, vitrages et volets après l'ARC</span></h3><ul class="arcs">${cmds}</ul>
+   <h3>ARC atelier<span class="sub" style="text-transform:none;letter-spacing:0">cotes validées après le métré</span></h3>
+   <div class="fields"><label>N° d'ARC<input type="text" data-af="arcRef" value="${esc(a.arcRef||a.id)}" ${ro}></label><div class="sub" style="align-self:end">${arcInfo}</div></div>
+   ${arcOk?`<p class="sub">ARC validé le ${fr(arcOk)} : les lignes ne se modifient plus (décochez « ARC validé » pour corriger).</p>`:""}
+   <div class="tbl"><table class="atllg"><thead><tr><th>Repère</th><th>Désignation</th><th>L (mm)</th><th>H (mm)</th><th>Qté</th><th></th></tr></thead><tbody>${lignes||`<tr><td colspan="6" class="sub">Aucune ligne. Ajoutez les menuiseries avec leurs cotes, ou déposez l'ARC du logiciel dans Documents.</td></tr>`}</tbody></table></div>
+   ${W&&!arcOk?`<form class="add arcadd" id="atlLigne"><input type="text" id="al-rep" placeholder="Repère" aria-label="Repère" style="flex:0 1 80px"><input type="text" id="al-des" placeholder="Désignation (ex. fenêtre 2 vantaux)" aria-label="Désignation"><input type="number" id="al-l" placeholder="L" aria-label="Largeur" inputmode="numeric" style="flex:0 1 80px"><input type="number" id="al-h" placeholder="H" aria-label="Hauteur" inputmode="numeric" style="flex:0 1 80px"><input type="number" id="al-q" placeholder="Qté" value="1" aria-label="Quantité" inputmode="numeric" style="flex:0 1 64px"><button class="btn">+</button></form>`:""}
+   <div class="acts" style="margin-top:8px"><button class="btn ghost" data-aprint>🖨️ Imprimer l'ARC</button></div>
+   <h3>Documents<span class="sub" style="text-transform:none;letter-spacing:0">bons de commande, ARC, plans de débit</span></h3>
+   ${W?`<div class="drop" id="atlDrop">Glissez ici les bons de commande (matière, vitrages, volets…) ou <label for="atlFile">choisissez des fichiers</label><input type="file" id="atlFile" multiple hidden accept=".pdf,image/*"></div>`:""}
+   <ul class="docs">${docs||`<li style="grid-template-columns:1fr"><span class="sub">Aucun document pour l'instant.</span></li>`}</ul>
+   ${W?`<div class="acts" style="margin-top:24px"><button class="btn ghost" data-adel style="color:var(--s-rouge)">Supprimer cette commande</button></div>`:""}`;
+  const dz=$("atlDrop");if(dz){["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("over")}));["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("over")}));
+    dz.addEventListener("drop",e=>atlUpload([...e.dataTransfer.files]));$("atlFile").addEventListener("change",e=>atlUpload([...e.target.files]))}
+}
+function atlGuess(n){n=n.toLowerCase();return/vitr|verre|glass|saint.?gobain/.test(n)?"Bon de commande vitrages":/volet|store|bubendorff|somfy|profalux/.test(n)?"Bon de commande volets / stores":/technal|alu|barre|profil/.test(n)?"Bon de commande matière":/fouss|access/.test(n)?"Bon de commande accessoires":/\barc\b|accus/.test(n)?"ARC":/d[eé]bit|plan/.test(n)?"Plan / débit":"Autre"}
+async function atlUpload(files){const id=atl.open,sb=window.sbClient;if(!id||!atlCanW())return;
+  for(const f of files){toast("Envoi de « "+f.name+" »…");
+    try{if(f.size>20*1024*1024)throw new Error("too_large");
+      const safe=f.name.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\w.-]+/g,"_").slice(-80),rid=crypto.randomUUID?crypto.randomUUID():Date.now().toString(36);
+      const path=`atelier/${id}/${rid}-${safe}`;const {error}=await sb.storage.from("documents").upload(path,f,{contentType:f.type||"application/octet-stream",upsert:false});if(error)throw error;
+      const a=atl.rows.get(id);await atlSave(id,{docs:[...(a.docs||[]),{id:path,name:f.name,type:atlGuess(f.name),size:f.size,at:today(),by:me||""}]});toast("« "+f.name+" » est déposé.")}
+    catch(e){toast(e&&e.message==="too_large"?"« "+f.name+" » dépasse 20 Mo.":"« "+f.name+" » n'a pas pu être envoyé. Réessayez.")}}}
+async function atlDoc(d){const w=window.open("","_blank");const {data}=await window.sbClient.storage.from("documents").createSignedUrl(d.id,600);
+  if(data&&data.signedUrl){if(w)w.location=data.signedUrl;else location.href=data.signedUrl}else{if(w)w.close();toast("Document introuvable.")}}
+function atlPrint(a){const w=window.open("","_blank");if(!w){toast("Autorisez l'ouverture des fenêtres pour imprimer l'ARC.");return}
+  const c=atlJob(a),p=atlPlan(a),fin=atlD(a,"fin")||p.fin;
+  w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>ARC ${esc(a.arcRef||a.id)}</title><style>body{font:14px Arial,sans-serif;margin:28px;color:#222}h1{font-size:22px;margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{border:1px solid #999;padding:6px 8px;text-align:left}.n{text-align:right}.g{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;margin-top:18px}.s{color:#666}button{margin-top:18px;font-size:15px;padding:8px 16px}@media print{button{display:none}}</style></head><body>
+  <h1>MGDS · Accusé de réception de commande atelier</h1><div class="s">ARC n° ${esc(a.arcRef||a.id)} · commande ${esc(a.id)} · édité le ${fr(today())}${atlD(a,"arc")?" · validé le "+fr(atlD(a,"arc")):" · NON VALIDÉ"}</div>
+  <div class="g"><div><b>Client</b><br>${esc(atlName(a))}</div><div><b>Chantier</b><br>${c?esc(c.client)+" · "+esc(a.chantier)+(c.adresse||c.ville?"<br>"+esc(c.adresse||"")+" "+esc(c.ville||""):""):"—"}</div>
+  <div><b>Objet</b><br>${esc(a.objet||"")}</div><div><b>Fin de production ${atlD(a,"fin")?"":"prévue"}</b><br>semaine ${isoWeek(fin).w} (${fr(fin)}) · ${a.dest==="revente"?"enlèvement":"livraison"} au dépôt MGDS</div></div>
+  <table><thead><tr><th>Repère</th><th>Désignation</th><th class="n">L (mm)</th><th class="n">H (mm)</th><th class="n">Qté</th></tr></thead><tbody>${(a.lignes||[]).map(l=>`<tr><td>${esc(l.rep)}</td><td>${esc(l.des)}</td><td class="n">${esc(l.l)}</td><td class="n">${esc(l.h)}</td><td class="n">${esc(l.q)}</td></tr>`).join("")||`<tr><td colspan="5" class="s">Détail : voir l'ARC joint.</td></tr>`}</tbody></table>
+  ${a.notes?`<p><b>Remarques</b><br>${esc(a.notes).replace(/\n/g,"<br>")}</p>`:""}
+  <p class="s">Cotes validées après le métré : vitrages, volets roulants et stores sont commandés sur ces dimensions et ne peuvent plus être modifiés.</p>
+  <button onclick="print()">Imprimer</button></body></html>`);w.document.close()}
+
+// ---- dans la fiche chantier : les commandes atelier liées ----
+window.atlSection=cid=>{
+  if(atl.ok!==true)return"";
+  const L=[...atl.rows.entries()].filter(([,a])=>a.chantier===cid);if(!L.length&&!atlCanW())return"";
+  return `<h3>Atelier<span class="sub" style="text-transform:none;letter-spacing:0">fabrication MGDS (Christophe)</span></h3><ul class="arcs">${L.map(([id,a])=>{const c=atlCur(a),p=atlPlan(a),al=atlAlerts(a).filter(x=>x[0]!=="b");
+    return `<li class="arc ${atlDone(a)||atlD(a,"fin")?"ok":al.some(x=>x[0]==="r")?"part":""}"><div class="arch"><b>${esc(a.objet||"Commande atelier")}</b><span class="mono">${esc(id)}</span><button class="btn ghost" data-aopen="${esc(id)}" style="margin-left:auto">Voir</button></div>
+     <div class="sub">${c?"Étape : "+esc(atlLab(a,ATL_SK[c])):"Livré"} · ${atlD(a,"fin")?"production terminée le "+fr(atlD(a,"fin")):"fin de production prévue "+sem(p.fin)+" ("+fr(p.fin)+")"}</div>
+     ${al.length?`<div class="flags">${al.map(([c,t])=>`<span class="flag ${c}">${esc(t)}</span>`).join("")}</div>`:""}</li>`}).join("")||`<li class="sub">Aucune fabrication atelier pour ce chantier.</li>`}</ul>
+   ${atlCanW()?`<button class="btn ghost" data-anew="${esc(cid)}">+ Commande atelier pour ce chantier</button>`:""}`};
+
+// ---- événements ----
+function atlClick(e){
+  const t=e.target.closest("[data-aopen],[data-anew],[data-afilter],[data-adest],#atlNew,[data-aclose],[data-astep],[data-acbox],[data-acmdon],[data-acmdoff],[data-adelg],[data-adoc],[data-aprint],[data-adel]");
+  if(!t)return false;e.stopPropagation();
+  const id=atl.open,a=id&&atl.rows.get(id)?{id,...atl.rows.get(id)}:null;
+  if(t.dataset.aopen){if($("tab-atelier").hidden)showTab("atelier");atlOpen(t.dataset.aopen)}
+  else if(t.dataset.anew!==undefined){atl.preset=t.dataset.anew;showTab("atelier");atlOpen("__new")}
+  else if(t.id==="atlNew"){atl.preset="";atlOpen("__new")}
+  else if(t.dataset.afilter){atl.filter=atl.filter===t.dataset.afilter&&t.dataset.afilter!=="encours"?"encours":t.dataset.afilter;atlRender()}
+  else if(t.dataset.adest!==undefined){atl.dest=t.dataset.adest;atlRender()}
+  else if(t.dataset.aclose!==undefined)atlClose();
+  else if(!a)return true;
+  else if(t.dataset.astep){const k=t.dataset.astep;if(!atlCanStep(k))return true;
+    if(k==="arc"&&atlD(a,"arc")&&["vitr","volet"].some(q=>atlCmd(a,q).on&&atlD(a,q))&&!confirm("Vitrages ou volets déjà commandés sur ces cotes. Annuler quand même la validation de l'ARC ?"))return true;atlSave(id,{steps:{[k]:atlD(a,k)?null:{d:today(),by:me||""}}})}
+  else if(t.dataset.acbox){const k=t.dataset.acbox,f=t.dataset.ack,x=atlCmd(a,k),on=!(x[f]&&x[f].d);
+    if(on&&f==="cmd"&&(k==="vitr"||k==="volet")&&!atlD(a,"arc")){toast("Validez d'abord l'ARC : les cotes ne pourront plus changer.");return true}
+    const v=on?{d:today(),by:me||""}:null,patch={[f]:v};if(f==="cmd"&&!on)patch.recu=null;atlSave(id,{cmds:{[k]:patch}})}
+  else if(t.dataset.acmdon)atlSave(id,{cmds:{[t.dataset.acmdon]:{on:true}}});
+  else if(t.dataset.acmdoff){const x=atlCmd(a,t.dataset.acmdoff);if(x.cmd&&x.cmd.d&&!confirm("Cette commande est déjà passée. La retirer quand même ?"))return true;atlSave(id,{cmds:{[t.dataset.acmdoff]:{on:false}}})}
+  else if(t.dataset.adelg!==undefined){const lg=[...(a.lignes||[])];lg.splice(+t.dataset.adelg,1);atlSave(id,{lignes:lg})}
+  else if(t.dataset.adoc!==undefined)atlDoc((a.docs||[])[+t.dataset.adoc]);
+  else if(t.dataset.aprint!==undefined)atlPrint(a);
+  else if(t.dataset.adel!==undefined){if(!confirm("Supprimer la commande "+id+" ? Son ARC sera retiré de la fiche chantier."))return true;
+    window.sbClient.from("atelier").delete().eq("id",id).then(({error})=>{if(error)toast("Suppression impossible.");else{atl.rows.delete(id);atlClose();atlRender()}})}
+  return true}
+function atlChange(e){
+  const t=e.target,id=atl.open,a=id&&atl.rows.get(id);if(!a)return;e.stopPropagation();
+  if(t.type==="date"&&t.value&&!/^20\d\d-/.test(t.value))return;
+  if(t.dataset.af){const k=t.dataset.af;let v=k==="heures"?Math.max(0,+String(t.value).replace(",",".")||0):t.value.trim();if((a[k]??"")===v)return;
+    const patch={[k]:v};if(k==="chantier"&&v&&!a.devis)patch.devis=v;atlSave(id,patch)}
+  else if(t.dataset.acmd){const k=t.dataset.acmd,f=t.dataset.ack;atlSave(id,{cmds:{[k]:{[f]:f==="sem"?Math.max(0,+t.value||0):t.value.trim()}}})}
+  else if(t.dataset.wk&&t.dataset.acmdwk){const box=t.closest(".sem"),w=+box.querySelector('[data-wk="w"]').value,y=+box.querySelector('[data-wk="y"]').value;
+    const d=w>=1&&w<=53&&y>=2000?weekFri(y,w):"";if(!d&&box.querySelector('[data-wk="w"]').value)return;atlSave(id,{cmds:{[t.dataset.acmdwk]:{prev:d}}})}
+  else if(t.dataset.alg!==undefined){const lg=(a.lignes||[]).map(x=>({...x}));lg[+t.dataset.alg][t.dataset.alk]=t.value.trim();atlSave(id,{lignes:lg})}
+  else if(t.dataset.adoctype!==undefined){const ds=(a.docs||[]).map(x=>({...x}));ds[+t.dataset.adoctype].type=t.value;atlSave(id,{docs:ds})}
+}
+function atlSubmit(e){e.preventDefault();e.stopPropagation();
+  if(e.target.id==="atlNewForm"){atlCreate();return}
+  if(e.target.id==="atlLigne"){const a=atl.rows.get(atl.open);if(!a)return;const l={rep:$("al-rep").value.trim(),des:$("al-des").value.trim(),l:$("al-l").value,h:$("al-h").value,q:$("al-q").value||"1"};
+    if(!l.des&&!l.rep){toast("Indiquez au moins le repère ou la désignation.");return}atlSave(atl.open,{lignes:[...(a.lignes||[]),l]})}}
+(async()=>{
+  if(!window.sbClient)return;
+  const s=document.createElement("aside");s.className="sheet";s.id="asheet";s.hidden=true;s.setAttribute("aria-label","Commande atelier");document.body.appendChild(s);
+  s.addEventListener("click",atlClick);s.addEventListener("change",atlChange);s.addEventListener("submit",atlSubmit);
+  s.addEventListener("focusout",()=>{if(atl.pending){atl.pending=false;setTimeout(()=>{if(!s.contains(document.activeElement))atlSheet()},50)}});
+  $("tab-atelier").addEventListener("click",atlClick);
+  $("sheet").addEventListener("click",e=>{atlClick(e)});
+  $("scrim").addEventListener("click",()=>{if(atl.open)atlClose()});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&atl.open&&$("viewer").hidden)atlClose()});
+  await claude.use("db");
+  const r=atlRole();
+  if(r==="poseur")return;
+  $("tabAtl").hidden=false;
+  if(r==="atelier"){
+    // Christophe : seulement l'atelier
+    document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.hidden=b.dataset.tab!=="atelier");
+    $("newBtn").style.display="none";document.querySelector(".top h1").firstChild.textContent="Atelier MGDS";$("sum").style.display="none";
+    document.title="Atelier MGDS";showTab("atelier");
+  }
+  await atlLoad();
+  if(window.mgdsHash0==="#atelier")showTab("atelier");
+})();
 </script>
 </html>
