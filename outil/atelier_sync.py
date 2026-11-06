@@ -64,44 +64,65 @@ def week_fri(y, w):
 
 
 # ---------- étape 1 : export (Mac, sans réseau) ----------
+TECHNAL = re.compile(r"^20(20|45)\d{6}\.PDF$")   # confirmations Technal : 2045xxxxxx.PDF, 2020xxxxxx.PDF
+
+
 def classe(nom):
-    n = plain(nom)
-    if re.search(r"VITR|VERRE|GLASS|GOBAIN|RIOU|VITRAGE", n): return "vitr"
-    if re.search(r"VOLET|STORE|BUBENDORFF|SOMFY|PROFALUX|ROMA", n): return "volet"
-    if re.search(r"FOUSS|ACCESS|QUINCAIL|WURTH", n): return "acc"
-    if re.search(r"TECHNAL|ALU|BARRE|PROFIL|MATIERE", n): return "mat"
-    if re.search(r"\bARC\b|ACCUSE", n): return "arc"
+    """Type d'un document du dossier ATELIER, d'après son nom (relevé sur le serveur le 06/11/2026).
+    Seuls mat, acc, vitr, volet font avancer les dates ; les autres sont affichés pour information."""
+    n = plain(os.path.basename(nom))
+    if re.search(r"\bARC\b.*RIOU|RIOU.*\bARC\b", n) or re.search(r"COMMANDE.*VITR|VITR.*COMMANDE", n): return "vitr"
+    if re.search(r"VITR|VERRE|GLASS|PERFOGLASS", n): return "vitrp"          # étude / consultation vitrages
+    if TECHNAL.match(n) or re.search(r"\bTECHNAL\b", n): return "mat"
+    if re.search(r"VOLET|STORE|BUBENDORFF|SOMFY|PROFALUX", n): return "volet"
+    if re.search(r"FOUSS|QUINCAIL|ACCESSOIRE", n): return "acc"
+    if n.startswith("DEVIS"): return "devis"
+    if n.startswith("OFFRE"): return "offre"
+    if re.search(r"^COUPES?\b|\.DWG$|\.DXF", n): return "plan"
     return ""
 
 
+def termine(rel):
+    return plain(rel.split("/")[0]).startswith("Z.TERMIN")
+
+
 def export(racine, liste):
+    """Production MGDS = sous-dossier « ATELIER » (nom exact) non vide d'un dossier chantier ;
+    production hors pose MGDS = dossier « ATELIER <client> » à la racine des commandes.
+    Tout ce qui est rangé dans Z.TERMINÉS est ignoré (dossiers clos)."""
     racine = racine.rstrip("/")
-    ateliers, fichiers, sous = [], [], []
+    ateliers, fichiers = [], []
     for ligne in open(liste, encoding="utf-8", errors="replace"):
         ligne = ligne.rstrip("\n")
         if ligne.startswith("A|"): ateliers.append(ligne[2:].rstrip("/"))
-        elif ligne.startswith("D|"): sous.append(ligne[2:].rstrip("/"))
         elif ligne.startswith("F|"):
             p = ligne.split("|", 3)
             if len(p) == 4: fichiers.append({"d": p[1], "taille": p[2], "chemin": p[3]})
-    # on garde les dossiers atelier les plus hauts (pas les sous-dossiers « atelier » d'un dossier atelier)
-    ateliers = sorted(set(a for a in ateliers if not any(a != b and a.startswith(b + "/") for b in ateliers)))
-    hors_racine = [a for a in ateliers if os.path.dirname(a) == racine]
     out = {"genere": datetime.datetime.now().isoformat(timespec="minutes"), "productions": [], "hors": []}
     def docs(dossier):
-        fs = [f for f in fichiers if f["chemin"].startswith(dossier + "/")]
+        fs = [f for f in fichiers if f["chemin"].startswith(dossier + "/") and not plain(f["chemin"]).endswith("THUMBS.DB")]
         fs.sort(key=lambda f: f["d"], reverse=True)   # les plus récents d'abord
         return [{"n": os.path.relpath(f["chemin"], dossier), "d": f["d"], "t": classe(f["chemin"])} for f in fs[:25]]
-    for a in ateliers:
-        if a in hors_racine:
-            for s in sorted(x for x in sous if os.path.dirname(x) == a):
-                out["hors"].append({"nom": os.path.basename(s), "src": os.path.relpath(s, racine), "docs": docs(s)})
-            continue
-        ds = docs(a)
-        if not ds: continue   # dossier atelier vide : pas de production
-        chantier_dossier = os.path.dirname(a)
-        out["productions"].append({"dossier": os.path.basename(chantier_dossier), "src": os.path.relpath(a, racine), "docs": ds})
+    for a in sorted(set(ateliers)):
+        rel = os.path.relpath(a, racine)
+        if rel.startswith("..") or termine(rel): continue
+        nom = plain(os.path.basename(a))
+        if nom == "ATELIER" and os.path.dirname(a) != racine:
+            ds = docs(a)
+            if ds: out["productions"].append({"dossier": os.path.relpath(os.path.dirname(a), racine), "src": rel, "docs": ds})
+        elif nom.startswith("ATELIER ") and os.path.dirname(a) == racine:
+            out["hors"].append({"nom": os.path.basename(a)[len("ATELIER "):].strip(" -"), "src": rel, "docs": docs(a)})
     json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
+
+
+def depuis_ancien(j):
+    """Liste produite avant le 06/11/2026 14 h : retire Z.TERMINÉS et récupère les sous-dossiers ATELIER mal rangés."""
+    prods = [p for p in j.get("productions", []) if not termine(p["src"]) and plain(os.path.basename(p["src"])) == "ATELIER"]
+    for h in j.get("hors", []):
+        if plain(os.path.basename(h["src"])) == "ATELIER" and h.get("docs") and not termine(h["src"]):
+            prods.append({"dossier": os.path.dirname(h["src"]).strip(), "src": h["src"], "docs": h["docs"]})
+    hors = [h for h in j.get("hors", []) if plain(os.path.basename(h["src"])).startswith("ATELIER ") and not termine(h["src"])]
+    return {**j, "productions": prods, "hors": hors}
 
 
 # ---------- étape 2 : import (environnement MGDS Supabase) ----------
@@ -184,15 +205,20 @@ def trouve_chantier(texte, chantiers):
     m = DEVIS.search(plain(texte))
     if m and ("D" + m.group(1)) in chantiers: return "D" + m.group(1)
     p = plain(texte)
-    meilleurs = []
+    score = {}
     for cid, c in chantiers.items():
-        mots = [w for w in re.findall(r"[A-Z]{4,}", plain(c.get("client"))) if w not in VIDES]
-        if any(re.search(r"\b" + re.escape(w) + r"\b", p) for w in mots): meilleurs.append(cid)
-    return meilleurs[0] if len(meilleurs) == 1 else ""
+        mots = set(w for w in re.findall(r"[A-Z]{4,}", plain(c.get("client"))) if w not in VIDES)
+        n = sum(1 for w in mots if re.search(r"\b" + re.escape(w) + r"\b", p))
+        if n: score[cid] = n
+    if not score: return ""
+    best = max(score.values()); top = [k for k, v in score.items() if v == best]
+    return top[0] if len(top) == 1 else ""   # le chantier qui partage le plus de mots, s'il est seul
 
 
 def importe(fichier, essai):
-    j = json.load(open(fichier, encoding="utf-8"))
+    j = depuis_ancien(json.load(open(fichier, encoding="utf-8")))
+    for p in j.get("productions", []) + j.get("hors", []):
+        for d in p.get("docs", []): d["t"] = classe(d["n"])   # classement à jour, même pour une liste ancienne
     chantiers = {r["id"]: r["data"] for r in req("GET", "/chantiers?select=id,data")}
     rows = {r["id"]: r for r in req("GET", "/atelier?select=id,data,version")}
     today = datetime.date.today().isoformat()
@@ -238,8 +264,6 @@ def importe(fichier, essai):
                     patch.setdefault("cmds", {})[t] = {"on": True, "cmd": {"d": d["d"], "by": "serveur"}}
                 elif not x["on"]:
                     patch.setdefault("cmds", {})[t] = {"on": True}
-            if t == "arc" and not done_d(a, "arc", chantiers) and "arc" not in vus:
-                vus.add("arc"); resume["a_valider"].append(f"{a.get('_id')} : ARC trouvé sur le serveur ({d['n']}, {d['d']}) à valider dans l'appli")
         return patch
 
     # 1. dossiers ATELIER des chantiers MGDS
@@ -252,7 +276,7 @@ def importe(fichier, essai):
             c = chantiers.get(cid) or {}
             a = {"dest": "mgds", "chantier": cid, "client": "" if cid else p["dossier"], "objet": "", "heures": 0,
                  "devis": cid, "besoin": "", "finManu": "", "bloque": "", "notes": "", "cmds": {}, "lignes": [], "docs": [],
-                 "steps": {"devis": {"d": sd(c, "signe") or min(d["d"] for d in p["docs"]), "by": "serveur"}},
+                 "steps": {"devis": {"d": sd(c, "signe") or next((d["d"] for d in p["docs"] if d["t"] == "devis"), p["docs"][-1]["d"]), "by": "serveur"}},
                  "cree": today, "arcRef": aid, "src": p["src"], "serveur": serveur, "serveurLe": j.get("genere", "")}
             a["_id"] = aid; patch = depuis_docs(a, p["docs"]); a.pop("_id")
             ecrit(aid, merge(a, patch), nouveau=True)
@@ -265,24 +289,18 @@ def importe(fichier, essai):
             if cid and not a.get("chantier"): patch["chantier"] = cid
             if ecrit(aid, patch) and set(patch) - {"serveur", "serveurLe"}: resume["maj"].append(f"{aid} : {p['dossier']} (documents du serveur)")
 
-    # 2. dossiers hors pose MGDS : ceux du premier passage sont clos
-    veille = rows.get("_veille")
-    noms = [h["nom"] for h in j.get("hors", [])]
-    if not veille:
-        if not essai: req("POST", "/atelier", {"id": "_veille", "data": {"clos": noms, "le": today}})
-        resume["hors_clos"] = len(noms)
-    else:
-        clos = set(veille["data"].get("clos") or [])
-        for h in j.get("hors", []):
-            if h["nom"] in clos or par_src(h["src"]): continue
-            aid = nouveau_id()
-            a = {"dest": "revente", "chantier": "", "client": h["nom"], "objet": "", "heures": 0, "devis": "", "besoin": "",
-                 "finManu": "", "bloque": "", "notes": "", "cmds": {}, "lignes": [], "docs": [],
-                 "steps": {"devis": {"d": min([d["d"] for d in h["docs"]] or [today]), "by": "serveur"}},
-                 "cree": today, "arcRef": aid, "src": h["src"], "serveur": h["docs"][:40], "serveurLe": j.get("genere", "")}
-            a["_id"] = aid; patch = depuis_docs(a, h["docs"]); a.pop("_id")
-            ecrit(aid, merge(a, patch), nouveau=True)
-            resume["hors_nouveaux"].append(f"{aid} : {h['nom']}")
+    # 2. dossiers « ATELIER <client> » à la racine des commandes : productions hors pose MGDS (revente, chantiers annexes).
+    #    Ceux d'avant sont rangés dans Z.TERMINÉS (clos, ignorés) : tout dossier présent à la racine est donc en cours.
+    for h in j.get("hors", []):
+        if par_src(h["src"]): continue
+        aid = nouveau_id()
+        a = {"dest": "revente", "chantier": "", "client": h["nom"], "objet": "", "heures": 0, "devis": "", "besoin": "",
+             "finManu": "", "bloque": "", "notes": "", "cmds": {}, "lignes": [], "docs": [],
+             "steps": {"devis": {"d": next((d["d"] for d in h["docs"] if d["t"] == "devis"), today), "by": "serveur"}},
+             "cree": today, "arcRef": aid, "src": h["src"], "serveur": h["docs"][:40], "serveurLe": j.get("genere", "")}
+        a["_id"] = aid; patch = depuis_docs(a, h["docs"]); a.pop("_id")
+        ecrit(aid, merge(a, patch), nouveau=True)
+        resume["hors_nouveaux"].append(f"{aid} : {h['nom']}")
 
     print(json.dumps(resume, ensure_ascii=False, indent=1))
 
