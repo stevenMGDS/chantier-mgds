@@ -356,8 +356,8 @@ function gate(mode,note){
   const close=()=>{g.remove();others.forEach(el=>el.inert=false)};
   const chg=mode==="change",pw=mode==="setpw"||chg;
   g.innerHTML=`<form novalidate><h1>Chantiers MGDS</h1>
-   <p>${pw?"Choisissez votre mot de passe (8 caractères minimum).":"Connectez-vous avec l'adresse e-mail que Steven a enregistrée."}</p>
-   ${pw?"":`<label>E-mail<input type="email" name="email" autocomplete="username" required></label>`}
+   <p>${pw?"Choisissez votre mot de passe (8 caractères minimum).":"Connectez-vous avec l'identifiant et le mot de passe donnés par Steven."}</p>
+   ${pw?"":`<label>Identifiant (votre prénom) ou e-mail<input type="text" name="email" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>`}
    <label>${pw?"Nouveau mot de passe":"Mot de passe"}<input type="password" name="pw" autocomplete="${pw?"new-password":"current-password"}" minlength="8" required></label>
    <button type="submit">${chg?"Enregistrer":pw?"Enregistrer et entrer":"Se connecter"}</button>
    ${chg?`<button type="button" class="link" data-annuler>Annuler</button>`:""}
@@ -393,10 +393,17 @@ function gate(mode,note){
     if(pw){const {error}=await sb.auth.updateUser({password:p});if(error){say("Mot de passe refusé : "+(error.message||"réessayez."));return}
       if(chg){say("Mot de passe changé.",true);setTimeout(close,1500);return}
       close();start();return}
-    const email=f.email.value.trim();
-    if(!okMail(email)){say("Indiquez un e-mail valide.");f.email.focus();return}
+    if(!f.email.value.trim()){say("Indiquez votre identifiant.");f.email.focus();return}
+    if(f.email.value.includes("@")&&!okMail(f.email.value.trim())){say("Indiquez un e-mail valide.");f.email.focus();return}
+    let email=f.email.value.trim();
+    // identifiant (prénom donné par Steven) ou e-mail : l'identifiant est traduit en e-mail par la base
+    if(!email.includes("@")){
+      const {data:em,error:er}=await sb.rpc("email_connexion",{ident:email});
+      if(er||!em){say(er?"Connexion par identifiant indisponible : utilisez votre e-mail.":"Identifiant ou mot de passe incorrect.");return}
+      email=em;
+    }
     const {data,error}=await sb.auth.signInWithPassword({email,password:p});
-    if(error){say("E-mail ou mot de passe incorrect.");return}
+    if(error){say("Identifiant ou mot de passe incorrect.");return}
     session=data.session;close();start();
   });
 }

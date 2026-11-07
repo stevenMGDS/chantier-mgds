@@ -6,6 +6,7 @@ Accès sur invitation uniquement ; les données sont dans une base Supabase prot
 - `index.html` : l'appli, modifiée directement dans le dépôt (l'ancien build.sh depuis l'appli claude.ai est supprimé)
 - `outil/schema.sql` : structure de la base et droits (éditeurs / terrain / lecteurs)
 - `outil/mots-de-passe.sql` : Steven donne un mot de passe à chaque compte (à lancer dans Supabase > SQL Editor ; tous les comptes ou une liste d'e-mails) ; plus de lien par e-mail. Chacun peut ensuite le changer avec le bouton « Mot de passe » en bas à droite de l'appli
+- `outil/identifiants.sql` : connexion par identifiant (prénom, minuscules sans accent) en plus de l'e-mail : colonne profils.identifiant et fonction email_connexion appelée par l'écran de connexion
 - `poseurs.html` : espace poseurs (planning, fiches, heures, photos chantier et consommables) ; vue Planning / Heures / Photos pour Marine
 - `outil/releve_conso.py` : Claude relit les photos de consommables (sorties / retours au stock) et enregistre ce qu'il voit ; l'appli le reprend dans la fiche (fenêtre Consommables) et dans l'onglet Stock. Atelier : photos « Entrée en stock » (barres en trop, chutes réutilisables marquées réf. + longueur) et « Sortie » (chute reprise), sans chantier ni déboursé ; les barres neuves restent liées à leur chantier. Bouton « Bac vide » (double bac) : l'article passe « à commander » jusqu'à la prochaine livraison
 - `outil/poseurs.sql` : tables planning, heures, photos et rôle « poseur »
