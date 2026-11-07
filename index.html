@@ -338,6 +338,7 @@ const css=`.gate{position:fixed;inset:0;z-index:100;background:var(--bg,#EEF0F1)
 .gate input{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line,#D3D8DC);border-radius:8px;background:var(--surface,#fff);color:inherit}
 .gate button{font:600 15px var(--f-body,Arial);padding:11px;border-radius:8px;border:0;background:var(--accent,#1F5F8B);color:var(--accent-ink,#fff);cursor:pointer}
 .gate button.link{background:none;color:var(--accent,#1F5F8B);padding:4px;font-weight:500}
+.gate .confirm{display:grid;gap:8px;font-size:14px;border:1px solid var(--line,#D3D8DC);border-radius:8px;padding:10px 12px;background:var(--sunk,#E3E6E8)}.gate .confirm b{word-break:break-all}.gate .confirm div{display:flex;gap:8px;align-items:center}.gate .confirm button[data-ok]{padding:8px 14px}
 .gate .msg{min-height:1.2em;font-size:14px;color:var(--s-rouge,#CC4141)}.gate .msg.ok{color:var(--s-vert,#469A61)}
 .who{position:fixed;right:12px;bottom:12px;z-index:30;font:500 12px var(--f-body,Arial);background:var(--surface,#fff);border:1px solid var(--line,#D3D8DC);border-radius:999px;padding:6px 10px;color:var(--muted,#5F6A73);display:flex;gap:8px;align-items:center}
 .who button{font:inherit;background:none;border:0;color:var(--accent,#1F5F8B);cursor:pointer;padding:0}`;
@@ -346,6 +347,10 @@ document.head.insertAdjacentHTML("beforeend",`<style>${css}</style>`);
 function gate(mode,note){
   document.querySelector(".gate")?.remove();
   const g=document.createElement("div");g.className="gate";
+  g.setAttribute("role","dialog");g.setAttribute("aria-modal","true");g.setAttribute("aria-label","Connexion");
+  // tant que l'écran de connexion est affiché, le reste de la page est inerte : Tab reste dans le formulaire
+  const others=[...document.body.children];others.forEach(el=>el.inert=true);
+  const close=()=>{g.remove();others.forEach(el=>el.inert=false)};
   const pw=mode==="setpw";
   g.innerHTML=`<form novalidate><h1>Chantiers MGDS</h1>
    <p>${pw?"Choisissez votre mot de passe (8 caractères minimum).":"Connectez-vous avec l'adresse e-mail que Steven a enregistrée."}</p>
@@ -357,18 +362,35 @@ function gate(mode,note){
   document.body.appendChild(g);
   const f=g.querySelector("form"),msg=g.querySelector(".msg"),say=(t,ok)=>{msg.textContent=t;msg.className="msg"+(ok?" ok":"")};
   f.querySelector("input").focus();
-  g.querySelector("[data-lien]")?.addEventListener("click",async()=>{
-    const email=f.email.value.trim();if(!email){say("Indiquez d'abord votre e-mail.");return}
-    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
-    say(error?"Envoi impossible pour le moment, réessayez plus tard.":"Si cette adresse est enregistrée, un lien vient de partir. Ouvrez-le sur cet appareil.",!error);
+  const okMail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const lien=g.querySelector("[data-lien]");
+  lien?.addEventListener("click",()=>{
+    const email=f.email.value.trim();
+    if(!okMail(email)){say("Indiquez d'abord votre e-mail.");f.email.focus();return}
+    // on demande confirmation avant d'envoyer : une faute de frappe ne part pas
+    msg.className="msg";msg.textContent="";
+    const c=document.createElement("div");c.className="confirm";
+    c.innerHTML=`<span>Envoyer un lien de connexion à <b></b> ?</span><div><button type="button" data-ok>Envoyer</button><button type="button" class="link" data-no>Annuler</button></div>`;
+    c.querySelector("b").textContent=email;
+    lien.hidden=true;msg.before(c);c.querySelector("[data-ok]").focus();
+    const fin=()=>{c.remove();lien.hidden=false};
+    c.querySelector("[data-no]").onclick=()=>{fin();lien.focus()};
+    c.querySelector("[data-ok]").onclick=async e=>{
+      e.target.disabled=true;
+      const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+      fin();
+      say(error?"Envoi impossible pour le moment, réessayez plus tard.":"Si cette adresse est enregistrée, un lien vient de partir. Ouvrez-le sur cet appareil.",!error);
+    };
   });
   f.addEventListener("submit",async e=>{
     e.preventDefault();const p=f.pw.value;
     if(p.length<8){say("8 caractères minimum.");return}
-    if(pw){const {error}=await sb.auth.updateUser({password:p});if(error){say("Mot de passe refusé : "+(error.message||"réessayez."));return}g.remove();start();return}
-    const {data,error}=await sb.auth.signInWithPassword({email:f.email.value.trim(),password:p});
+    if(pw){const {error}=await sb.auth.updateUser({password:p});if(error){say("Mot de passe refusé : "+(error.message||"réessayez."));return}close();start();return}
+    const email=f.email.value.trim();
+    if(!okMail(email)){say("Indiquez un e-mail valide.");f.email.focus();return}
+    const {data,error}=await sb.auth.signInWithPassword({email,password:p});
     if(error){say("E-mail ou mot de passe incorrect.");return}
-    session=data.session;g.remove();start();
+    session=data.session;close();start();
   });
 }
 
