@@ -32,15 +32,17 @@ document.head.insertAdjacentHTML("beforeend",`<style>${css}</style>`);
 function gate(mode,note){
   document.querySelector(".gate")?.remove();
   const g=document.createElement("div");g.className="gate";
-  const pw=mode==="setpw";
+  const chg=mode==="change",pw=mode==="setpw"||chg;
   g.innerHTML=`<form novalidate><h1>Chantiers MGDS</h1>
    <p>${pw?"Choisissez votre mot de passe (8 caractères minimum).":"Connectez-vous avec l'adresse e-mail que Steven a enregistrée."}</p>
    ${pw?"":`<label>E-mail<input type="email" name="email" autocomplete="username" required></label>`}
    <label>${pw?"Nouveau mot de passe":"Mot de passe"}<input type="password" name="pw" autocomplete="${pw?"new-password":"current-password"}" minlength="8" required></label>
-   <button type="submit">${pw?"Enregistrer et entrer":"Se connecter"}</button>
-   ${pw?"":`<button type="button" class="link" data-lien>Première connexion ou mot de passe oublié</button>`}
+   <button type="submit">${chg?"Enregistrer":pw?"Enregistrer et entrer":"Se connecter"}</button>
+   ${chg?`<button type="button" class="link" data-annuler>Annuler</button>`:""}
+   ${pw?"":`<p>Mot de passe oublié ? Demandez-en un nouveau à Steven.</p>`}
    <div class="msg" role="status">${note||""}</div></form>`;
   document.body.appendChild(g);
+  const close=()=>g.remove();
   const f=g.querySelector("form"),msg=g.querySelector(".msg"),say=(t,ok)=>{msg.textContent=t;msg.className="msg"+(ok?" ok":"")};
   f.querySelector("input").focus();
   g.querySelector("[data-lien]")?.addEventListener("click",async()=>{
@@ -48,10 +50,13 @@ function gate(mode,note){
     const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
     say(error?"Envoi impossible pour le moment, réessayez plus tard.":"Si cette adresse est enregistrée, un lien vient de partir. Ouvrez-le sur cet appareil.",!error);
   });
+  g.querySelector("[data-annuler]")?.addEventListener("click",close);
   f.addEventListener("submit",async e=>{
     e.preventDefault();const p=f.pw.value;
     if(p.length<8){say("8 caractères minimum.");return}
-    if(pw){const {error}=await sb.auth.updateUser({password:p});if(error){say("Mot de passe refusé : "+(error.message||"réessayez."));return}g.remove();start();return}
+    if(pw){const {error}=await sb.auth.updateUser({password:p});if(error){say("Mot de passe refusé : "+(error.message||"réessayez."));return}
+      if(chg){say("Mot de passe changé.",true);setTimeout(close,1500);return}
+      close();start();return}
     const {data,error}=await sb.auth.signInWithPassword({email:f.email.value.trim(),password:p});
     if(error){say("E-mail ou mot de passe incorrect.");return}
     session=data.session;g.remove();start();
@@ -62,8 +67,9 @@ async function start(){
   const {data}=await sb.from("profils").select("id,email,nom,role").eq("id",session.user.id).maybeSingle();
   profil=data||{id:session.user.id,email:session.user.email,role:"lecteur"};
   const w=document.createElement("div");w.className="who";
-  w.innerHTML=`<span>${(profil.nom||profil.email||"").replace(/[<>&]/g,"")}${profil.role==="lecteur"?" · consultation":""}</span><button type="button">Déconnexion</button>`;
-  w.querySelector("button").onclick=async()=>{await sb.auth.signOut();location.reload()};
+  w.innerHTML=`<span>${(profil.nom||profil.email||"").replace(/[<>&]/g,"")}${profil.role==="lecteur"?" · consultation":""}</span><button type="button" data-mdp>Mot de passe</button><button type="button" data-out>Déconnexion</button>`;
+  w.querySelector("[data-mdp]").onclick=()=>gate("change");
+  w.querySelector("[data-out]").onclick=async()=>{await sb.auth.signOut();location.reload()};
   document.body.appendChild(w);
   readyRes(true);
 }
