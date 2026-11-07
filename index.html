@@ -323,6 +323,9 @@ const SB_KEY="sb_publishable_Is-KNNP223DIxMk8kzrYww_PynSCb23"; // clé publique,
 const BUCKET="documents";
 // lien d'invitation ou de mot de passe oublié : à lire avant que supabase-js ne nettoie l'adresse
 const fromLink=/type=(invite|recovery|signup)/.test(location.hash)||/type=(invite|recovery)/.test(location.search);
+// lien périmé ou déjà utilisé (souvent ouvert une première fois par l'antivirus de la messagerie) : Supabase renvoie error_code dans l'adresse
+const linkErr=/error_code=|error=access_denied/.test(location.hash+location.search);
+if(linkErr)history.replaceState(null,"",location.pathname);
 const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 window.sbClient=sb;
 
@@ -410,7 +413,7 @@ sb.auth.onAuthStateChange((ev,s)=>{if(ev==="PASSWORD_RECOVERY"){session=s;gate("
   const {data}=await sb.auth.getSession();session=data.session;
   if(session&&fromLink)gate("setpw");
   else if(session)start();
-  else gate("login");
+  else gate("login",linkErr?"Ce lien n'est plus valable (déjà utilisé ou expiré). Saisissez votre e-mail puis redemandez un lien ci-dessous.":"");
 })();
 
 // ---------- base ----------
