@@ -260,7 +260,19 @@ textarea{min-height:64px;resize:vertical}
 .stkq{text-align:right;font:600 15px var(--f-mono);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;flex:none}.stkq.r{color:var(--s-rouge)}.stkq.o{color:var(--s-orange)}
 .stktags{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}.stkpl{font:600 12px var(--f-mono);padding:0 7px;border-radius:9px;background:var(--t-orange);color:var(--ink)}
 .stkcol{align-self:flex-start;display:inline-block;font:500 12px var(--f-body);padding:0 7px;border-radius:9px;background:var(--t-bleu);color:var(--ink);vertical-align:1px}
-.dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;background:var(--s-gris)}.dot.r{background:var(--s-rouge)}.dot.o{background:var(--s-orange)}.dot.v{background:var(--s-vert)}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;background:var(--s-gris)}.dot.r{background:var(--s-rouge)}.dot.o{background:var(--s-orange)}.dot.v{background:var(--s-vert)}.dot.b{background:var(--s-bleu)}
+.stksante{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.stksante .sf{display:grid;grid-template-columns:minmax(110px,220px) 1fr 40px;gap:10px;align-items:center;font-size:14px}
+.stksante .sf>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stksante .sf .nb{font:500 13px var(--f-mono);color:var(--muted);text-align:right}
+.sbar{display:flex;gap:2px;height:18px}
+.sseg{border:0;padding:0;cursor:pointer;min-width:4px;height:100%}.sseg:first-child{border-radius:4px 0 0 4px}.sseg:last-child{border-radius:0 4px 4px 0}.sseg:only-child{border-radius:4px}
+.sseg.r{background:var(--s-rouge)}.sseg.o{background:var(--s-orange)}.sseg.v{background:var(--s-vert)}.sseg.b{background:var(--s-bleu)}.sseg.g{background:var(--s-gris)}
+.sseg:hover,.sseg:focus-visible{filter:brightness(1.12);outline:2px solid var(--ink);outline-offset:1px}
+.sseg[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:1px}
+.stkleg{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}.stkleg span{display:flex;gap:5px;align-items:center}
+.stat.v b{color:var(--s-vert)}.stat.b b{color:var(--s-bleu)}
+@media (max-width:560px){.stksante .sf{grid-template-columns:minmax(80px,120px) 1fr 32px}}
 .spanel{position:fixed;z-index:60}.stkbig{font:700 28px var(--f-mono)}.stkbig.r{color:var(--s-rouge)}.stkbig.o{color:var(--s-orange)}
 .stkform{display:flex;flex-direction:column;gap:8px;margin-top:8px}.stkform .clab{display:flex;flex-direction:column;gap:2px}
 .atlwk{display:grid;grid-template-columns:64px 1fr 96px;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}.atlwk .g{height:12px;background:var(--sunk);border-radius:3px;overflow:hidden}.atlwk .g i{display:block;height:100%;background:var(--s-bleu)}.atlwk .g i.o{background:var(--s-orange)}.atlwk .g i.r{background:var(--s-rouge)}.atlwk small{grid-column:2/-1;color:var(--muted);font-size:13px}
@@ -1406,8 +1418,9 @@ const STK_TYPES={inventaire:"Comptage",livraison:"Livraison",sortie:"Sortie",ret
 const stkNum=s=>{const v=parseFloat(String(s??"").replace(/\s/g,"").replace(",","."));return isFinite(v)?v:null};
 const stkLvl=a=>stk.niv.get(a.id)??0;
 // rouge : à commander (ou épuisé) · orange : bientôt · vert : bon · gris : pas de seuil
-function stkEtat(a){const n=stkLvl(a)-stkResQ(a),s=a.seuil;if(a.a_commander)return"r";if(n<=0&&(s!=null||n<0))return"r";if(s==null)return"g";if(n<=s)return"r";if(n<=s*1.5)return"o";return"v"}
-const STK_ETAT={r:"À commander",o:"Bientôt",v:"Suffisant",g:"Pas de seuil"};
+function stkEtat(a){const n=stkLvl(a)-stkResQ(a),s=a.seuil;if(a.a_commander)return"r";if(n<=0&&(s!=null||n<0))return"r";if(s==null)return"g";if(n<=s)return"r";if(n<=s*1.5)return"o";if(s>0&&n>4*s&&(a.reassort==null||n>s+2*a.reassort))return"b";return"v"}
+const STK_ETAT={r:"À commander",o:"Bientôt",v:"En flux",b:"En trop",g:"Pas de seuil"};
+const STK_ICO={r:"!",o:"~",v:"✓",b:"▲",g:"–"};
 const stkU=(a,n)=>{const u=a.unite||"unité";return(n>1&&!/s$|x$|\d/.test(u)&&!/ de /i.test(u))?u+"s":u};
 const stkQ=(a,n)=>`${nb(n)} ${esc(stkU(a,Math.abs(n)))}${a.contenance&&a.detail?` <span class="sub">≈ ${nb(n*a.contenance)} ${esc(a.detail)}</span>`:""}`;
 const stkName=a=>esc(a.nom)+(a.longueur?` <span class="sub">${nb(a.longueur)} m</span>`:"")+(a.coloris||a.emplacement?`<span class="stktags">${a.coloris?`<span class="stkcol">${esc(a.coloris)}</span>`:""}${a.emplacement?`<span class="stkpl" title="Emplacement">📍 ${esc(a.emplacement)}</span>`:""}</span>`:"");
@@ -1458,7 +1471,7 @@ async function loadStock(){
     <div id="stk-acam"></div><label class="fld">Précision (facultatif)<input type="text" id="stk-anote" placeholder="ex. 3 chutes rangées ce matin"></label></div>
     <div class="stkcard stkatl" id="stk-alist"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>`;
   const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll(".stkatl").forEach(x=>x.hidden=stk.which!=="atelier");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
-  el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw();stkDirs()});
+  el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";stk.et="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw();stkDirs()});
   $("stk-ch").onchange=e=>{stockSel=e.target.value};
   $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>{loadStockList(nameOf);stkRefresh()},$("stk-note")));
   $("stk-acam").appendChild(consoCamera(()=>null,()=>stkAtlPhotos(nameOf),$("stk-anote"),ATL_PHOTO_BTN));
@@ -1485,18 +1498,22 @@ async function stkRefresh(){
 }
 function stkDraw(){
   const A=stk.arts.filter(a=>a.actif!==false),q=nrm(stk.q);
-  const cnt={r:0,o:0,v:0,g:0};A.forEach(a=>cnt[stkEtat(a)]++);
+  const cnt={r:0,o:0,v:0,b:0,g:0};A.forEach(a=>cnt[stkEtat(a)]++);
   const fams=[...new Set(A.map(a=>a.famille))];
-  const vis=A.filter(a=>(!stk.fam||(stk.fam==="!"?stkEtat(a)==="r"||stkEtat(a)==="o":a.famille===stk.fam))&&(!q||nrm([a.nom,a.coloris,a.fournisseur,a.ref,a.emplacement].join(" ")).includes(q)));
+  const vis=A.filter(a=>(!stk.fam||(stk.fam==="!"?stkEtat(a)==="r"||stkEtat(a)==="o":a.famille===stk.fam))&&(!stk.et||stkEtat(a)===stk.et)&&(!q||nrm([a.nom,a.coloris,a.fournisseur,a.ref,a.emplacement].join(" ")).includes(q)));
   const lastInv=A.map(a=>stk.inv.get(a.id)).filter(Boolean).sort().pop();
   let h=`<div class="stkhead"><div class="stats">
-      <button class="stat r" data-sf="!" aria-pressed="${stk.fam==="!"}"><b>${cnt.r}</b><span>à commander</span></button>
-      <button class="stat o" data-sf="!" aria-pressed="false"><b>${cnt.o}</b><span>bientôt</span></button>
-      <button class="stat" data-sf="" aria-pressed="${!stk.fam}"><b>${A.length}</b><span>articles${lastInv?" · inventaire du "+fr(lastInv.slice(0,10)):""}</span></button></div>
+      ${["r","o","v","b"].map(e=>`<button class="stat ${e}" data-se="${e}" aria-pressed="${stk.et===e&&!stk.fam}"><b>${cnt[e]}</b><span>${STK_ICO[e]} ${STK_ETAT[e].toLowerCase()}</span></button>`).join("")}
+      <button class="stat" data-sf="" data-se="" aria-pressed="${!stk.fam&&!stk.et}"><b>${A.length}</b><span>articles${lastInv?" · inventaire du "+fr(lastInv.slice(0,10)):""}</span></button></div>
     <div class="tools"><input type="search" id="stk-q" placeholder="Chercher un article, une réf., un coloris, un emplacement…" value="${esc(stk.q)}" aria-label="Chercher un article">
       ${canWrite?`<button class="btn" id="stk-inv">📋 Faire l'inventaire</button><button class="btn ghost" id="stk-add">＋ Nouvel article</button>`:""}<button class="btn ghost" id="stk-xls" title="Inventaire valorisé au format de l'Excel du serveur, quantités du jour">📥 Exporter l'Excel</button></div>
     <div class="tools stkfam"><button class="chip" data-sf="" aria-pressed="${!stk.fam}">Tout</button>${fams.map(f=>`<button class="chip" data-sf="${esc(f)}" aria-pressed="${stk.fam===f}">${esc(f)}</button>`).join("")}</div>
     ${cnt.g===A.length&&A.length?`<p class="sub">Aucun seuil d'alerte n'est encore fixé : touchez un article pour lui donner un seuil, ou fixez-les tous d'un coup dans « Faire l'inventaire ».</p>`:""}</div>`;
+  // santé par famille : une barre par famille découpée par état ; un segment filtre la liste (famille + état)
+  const byF=new Map();A.forEach(a=>{if(!byF.has(a.famille))byF.set(a.famille,{r:0,o:0,v:0,b:0,g:0,n:0});const c=byF.get(a.famille);c[stkEtat(a)]++;c.n++});
+  if(A.length)h+=`<div class="stkcard stksante"><div class="row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;justify-content:space-between"><h3>Santé par famille</h3><div class="stkleg">${["r","o","v","b","g"].map(e=>`<span><i class="dot ${e}"></i>${STK_ICO[e]} ${STK_ETAT[e]}</span>`).join("")}</div></div>
+    ${[...byF].sort((x,y)=>(y[1].r+y[1].o)-(x[1].r+x[1].o)||y[1].n-x[1].n).map(([f,c])=>`<div class="sf"><span title="${esc(f)}">${esc(f)}</span><div class="sbar">${["r","o","v","b","g"].filter(e=>c[e]).map(e=>`<button class="sseg ${e}" style="flex:${c[e]}" data-sseg="${esc(f)}" data-se="${e}" aria-pressed="${stk.fam===f&&stk.et===e}" aria-label="${esc(f)} : ${c[e]} ${STK_ETAT[e]}" title="${esc(f)} · ${STK_ETAT[e]} : ${c[e]} article${c[e]>1?"s":""}"></button>`).join("")}</div><span class="nb">${c.n}</span></div>`).join("")}
+    ${stk.et||stk.fam?`<div><button class="chip" data-sf="" data-se="">✕ Retirer le filtre${stk.fam&&stk.fam!=="!"?" « "+esc(stk.fam)+" »":""}${stk.et?" · "+STK_ETAT[stk.et]:""}</button></div>`:`<span class="sub">Touchez un segment pour voir les articles de cette famille dans cet état.</span>`}</div>`;
   // contrôle des réservations atelier : ce qui manque pour une fabrication (réservé > en stock)
   const KO=stk.which==="atelier"?A.filter(a=>stkResManque(a)>0):[];
   if(KO.length)h+=`<div class="stkcard" style="border-color:var(--s-rouge);margin-bottom:14px"><h3>⚠️ Réservations à vérifier</h3><span class="sub">Plus de réservé que de stock : il manquera ces éléments pour une fabrication.</span><div class="stkrows">${KO.map(a=>`<button class="stkrow" data-art="${a.id}"><span class="dot r"></span><span class="stkn">${stkName(a)}<small>${esc(stk.res.filter(r=>r.article===a.id).map(r=>r.commande+" : "+nb(r.qte)).join(" · "))}</small></span><span class="stkq r">manque ${nb(stkResManque(a))}<small>en stock ${nb(stkLvl(a))}</small></span></button>`).join("")}</div></div>`;
@@ -1509,7 +1526,11 @@ function stkDraw(){
   if(fam!==null)h+=`</div>`;
   h+=`</div>`;
   $("stk-top").innerHTML=h;
-  $("stk-top").querySelectorAll("[data-sf]").forEach(b=>b.onclick=()=>{stk.fam=b.dataset.sf;stkDraw()});
+  $("stk-top").querySelectorAll("[data-sf],[data-se]").forEach(b=>b.onclick=()=>{
+    if(b.dataset.sseg!==undefined){const same=stk.fam===b.dataset.sseg&&stk.et===b.dataset.se;stk.fam=same?"":b.dataset.sseg;stk.et=same?"":b.dataset.se}
+    else if(b.dataset.se!==undefined&&b.dataset.sf===undefined){stk.et=stk.et===b.dataset.se&&!stk.fam?"":b.dataset.se;stk.fam=""}
+    else{stk.fam=b.dataset.sf;if(b.dataset.se!==undefined||b.dataset.sf==="")stk.et=""}
+    stkDraw();if(b.dataset.sseg!==undefined||b.dataset.se){const l=document.querySelector(".stkniv");if(l)l.scrollIntoView({behavior:"smooth",block:"start"})}});
   $("stk-top").querySelectorAll("[data-art]").forEach(b=>b.onclick=()=>stkSheet(+b.dataset.art));
   const qi=$("stk-q");qi.oninput=()=>{stk.q=qi.value;clearTimeout(stkDraw.t);stkDraw.t=setTimeout(()=>{const p=qi.selectionStart;stkDraw();const n=$("stk-q");n.focus();n.setSelectionRange(p,p)},250)};
   if($("stk-inv"))$("stk-inv").onclick=stkInventaire;
