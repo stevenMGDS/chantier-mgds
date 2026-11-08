@@ -1,0 +1,202 @@
+/* Thème « Mac » (08/11/2026) : polices du système Apple, couleurs et arrondis façon macOS, barre du haut translucide,
+   onglets en contrôle segmenté. Chargé après le style de chaque page : il ne change que l'aspect, pas le fonctionnement.
+   Pour revenir à l'ancien aspect : retirer la ligne <link rel="stylesheet" href="theme-mac.css"> des pages. */
+:root{
+  --bg:#F5F5F7; --surface:#FFFFFF; --sunk:#EDEDF0; --ink:#1D1D1F; --muted:#6E6E73; --line:#E3E3E8;
+  --accent:#007AFF; --accent-ink:#FFFFFF;
+  --s-gris:#C7C7CC; --s-orange:#FF9500; --s-bleu:#007AFF; --s-vert:#34C759; --s-rouge:#FF3B30;
+  --t-orange:#FFF1DE; --t-bleu:#E6F0FF; --t-vert:#E4F7E9; --t-rouge:#FFE6E4; --t-gris:#F0F0F3;
+  --f-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --f-body:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --f-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  --ombre:0 1px 2px rgba(0,0,0,.04),0 1px 1px rgba(0,0,0,.03);
+  --ombre-haute:0 10px 30px rgba(0,0,0,.12),0 2px 6px rgba(0,0,0,.06);
+  --anneau:0 0 0 4px rgba(0,122,255,.22);
+  --verre:rgba(245,245,247,.78);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1E1E1E; --surface:#2C2C2E; --sunk:#3A3A3C; --ink:#F5F5F7; --muted:#98989D; --line:#3D3D40;
+  --accent:#0A84FF; --accent-ink:#FFFFFF;
+  --s-gris:#636366; --s-orange:#FF9F0A; --s-bleu:#0A84FF; --s-vert:#30D158; --s-rouge:#FF453A;
+  --t-orange:#3D2E1A; --t-bleu:#1A2F4A; --t-vert:#1D3A26; --t-rouge:#45201E; --t-gris:#333336;
+  --ombre:0 1px 2px rgba(0,0,0,.4); --ombre-haute:0 12px 36px rgba(0,0,0,.55);
+  --anneau:0 0 0 4px rgba(10,132,255,.35); --verre:rgba(30,30,30,.75); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1E1E1E; --surface:#2C2C2E; --sunk:#3A3A3C; --ink:#F5F5F7; --muted:#98989D; --line:#3D3D40;
+  --accent:#0A84FF; --accent-ink:#FFFFFF;
+  --s-gris:#636366; --s-orange:#FF9F0A; --s-bleu:#0A84FF; --s-vert:#30D158; --s-rouge:#FF453A;
+  --t-orange:#3D2E1A; --t-bleu:#1A2F4A; --t-vert:#1D3A26; --t-rouge:#45201E; --t-gris:#333336;
+  --ombre:0 1px 2px rgba(0,0,0,.4); --ombre-haute:0 12px 36px rgba(0,0,0,.55);
+  --anneau:0 0 0 4px rgba(10,132,255,.35); --verre:rgba(30,30,30,.75); color-scheme:dark}
+
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.005em}
+:focus-visible{outline:none;box-shadow:var(--anneau)}
+
+/* titres : plus fins et plus sobres */
+h1{font-weight:700;letter-spacing:-.02em;font-size:30px}
+.client{font-weight:600;font-size:18px;letter-spacing:-.01em}
+.sheet h2{font-weight:700;letter-spacing:-.02em;font-size:28px}
+.sheet h3,.tasks h4{font-weight:600;font-size:13px;letter-spacing:.02em;text-transform:none;color:var(--muted)}
+.mono{font-size:12px}
+
+/* barre du haut translucide, collée en haut */
+header.top{position:sticky;top:0;z-index:15;border-bottom:1px solid var(--line);margin-top:-20px;padding:14px 0 12px;background:var(--verre);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px)}
+
+/* boutons */
+.btn{border-radius:8px;font-weight:500;font-size:14px;padding:7px 14px;box-shadow:var(--ombre);transition:filter .15s,background .15s}
+.btn:hover:not(:disabled){filter:brightness(1.06)}
+.btn:active:not(:disabled){filter:brightness(.92)}
+.btn.ghost{background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.btn.ghost:hover:not(:disabled){filter:none;background:var(--sunk)}
+
+/* onglets : contrôle segmenté */
+.tabs{display:inline-flex;gap:2px;padding:3px;border:0;border-radius:10px;background:var(--sunk);margin:14px 0 16px;max-width:100%;overflow-x:auto}
+.tabs button{border:0;border-radius:8px;padding:6px 18px;margin:0;font-weight:500;font-size:14px;color:var(--ink);white-space:nowrap}
+.stats{margin-top:6px}
+@media (max-width:560px){.tabs{display:flex}.tabs button{flex:1;padding:6px 8px}}
+.tabs button[aria-selected="true"]{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04);font-weight:600}
+
+/* compteurs, filtres, recherche */
+.stat{border-radius:12px;border-color:var(--line);box-shadow:var(--ombre);padding:10px 16px}
+.stat b{font-family:var(--f-display);font-weight:600}
+.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:var(--anneau)}
+.chip{border-radius:99px;font-size:13px;padding:5px 12px;box-shadow:var(--ombre)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tools input[type=search]{border-radius:8px;background:var(--sunk);border-color:transparent;font-size:14px;padding:7px 12px}
+.tools input[type=search]:focus{background:var(--surface);border-color:var(--accent);box-shadow:var(--anneau);outline:none}
+
+/* cartes : arrondis et ombres légères */
+.row,.empty,.stkcard,.kpi,.ccard,.arc,.mail,.spanel{border-radius:12px}
+.row{border-color:var(--line);box-shadow:var(--ombre);transition:box-shadow .15s,border-color .15s}
+.row:hover{border-color:var(--line);box-shadow:var(--ombre-haute)}
+.row.blocked{border-left:4px solid var(--s-rouge)}
+.row.late{border-left:4px solid var(--s-orange)}
+.stkcard{box-shadow:var(--ombre)}
+.bar{gap:3px;height:10px}
+.bar i{border-radius:3px;border-color:transparent}
+.bar i.cur{border:2px solid var(--accent)}
+
+/* étiquettes : plus discrètes, sans majuscules */
+.pill{text-transform:none;letter-spacing:0;font-weight:600;font-size:12px;border-radius:6px;padding:2px 8px}
+.flag{border-radius:6px;font-weight:500;font-size:12px;padding:2px 8px}
+
+/* champs de saisie */
+input[type=text],input[type=email],input[type=tel],input[type=date],input[type=number],input[type=password],input[type=search],select,textarea{
+  border-radius:8px;border-color:var(--line);transition:border-color .15s,box-shadow .15s}
+input[type=text]:focus,input[type=email]:focus,input[type=tel]:focus,input[type=date]:focus,input[type=number]:focus,input[type=password]:focus,select:focus,textarea:focus{
+  border-color:var(--accent);box-shadow:var(--anneau);outline:none}
+input[type=checkbox],input[type=radio]{accent-color:var(--accent)}
+
+/* panneau latéral (fiche chantier) et fond assombri */
+.scrim{background:rgba(0,0,0,.25);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.sheet{border-left:0;box-shadow:var(--ombre-haute);border-radius:14px 0 0 14px}
+@media (max-width:700px){.sheet{border-radius:0}}
+
+/* écran de connexion et pastille du bas */
+body .gate{background:var(--bg)}
+body .gate form{border-radius:16px;border-color:var(--line);box-shadow:var(--ombre-haute);padding:28px 28px 22px}
+body .gate h1{font:700 26px var(--f-display);letter-spacing:-.02em}
+body .gate input{border-radius:8px;font-size:16px}
+body .gate input:focus{border-color:var(--accent);box-shadow:var(--anneau);outline:none}
+body .gate button{border-radius:8px;font-weight:600}
+body .gate button.link{box-shadow:none}
+body .who{background:var(--verre);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:var(--ombre-haute);border-color:var(--line)}
+.toast{border-radius:12px;box-shadow:var(--ombre-haute)}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ===== v2 « plus stylisé » : barre latérale façon Finder, tuiles de compteurs façon Rappels, barre d'onglets en bas sur téléphone ===== */
+:root{--side:248px;--side-bg:rgba(236,236,240,.82);--c:#8E8E93}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--side-bg:rgba(40,40,42,.82)}}
+:root[data-theme="dark"]{--side-bg:rgba(40,40,42,.82)}
+body{background:var(--bg)}
+h1{font-size:34px;letter-spacing:-.025em}
+h1 small{font-size:15px;margin-top:4px;letter-spacing:0}
+
+/* barre latérale (ordinateur et tablette en largeur) */
+@media (min-width:761px){
+  body:has(#tabs:not([hidden])) .wrap{margin-left:var(--side);max-width:calc(1400px + var(--side));padding-left:32px;padding-right:32px}
+  .tabs:not([hidden]){position:fixed;z-index:14;left:0;top:0;bottom:0;width:var(--side);margin:0;padding:58px 12px 16px;border-radius:0;
+    display:flex;flex-direction:column;gap:2px;background:var(--side-bg);border-right:1px solid var(--line);overflow:auto;
+    -webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px)}
+  /* trois pastilles de fenêtre Mac + nom de l'entreprise */
+  .tabs::before{content:"";position:absolute;left:20px;top:20px;width:52px;height:12px;
+    background:radial-gradient(circle at 6px 6px,#FF5F57 5.5px,transparent 6px),radial-gradient(circle at 26px 6px,#FEBC2E 5.5px,transparent 6px),radial-gradient(circle at 46px 6px,#28C840 5.5px,transparent 6px)}
+  .tabs::after{content:"MGDS · Menuiserie";order:-1;font:600 11px var(--f-body);color:var(--muted);letter-spacing:.02em;padding:0 10px 6px}
+  .tabs button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:7px 10px;border-radius:8px;font-size:14px;font-weight:500;background:none;box-shadow:none}
+  .tabs button:hover{background:rgba(0,0,0,.05)}
+  .tabs button[aria-selected="true"]{background:rgba(0,0,0,.08);box-shadow:none;font-weight:600}
+  .tabs button::before{width:20px;height:20px}
+  header.top{padding-top:22px}
+}
+@media (min-width:761px) and (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tabs button:hover{background:rgba(255,255,255,.06)}:root:not([data-theme="light"]) .tabs button[aria-selected="true"]{background:rgba(255,255,255,.12)}}
+.tabs button::before{content:"";flex:none;background:var(--accent);-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
+
+.tabs [data-tab="chantiers"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6'/%3E%3C/svg%3E")}
+.tabs [data-tab="planning"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E")}
+.tabs [data-tab="stock"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10'/%3E%3C/svg%3E")}
+.tabs [data-tab="atelier"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z'/%3E%3C/svg%3E")}
+.tabs [data-tab="direction"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20V11M10 20V4M16 20v-8M21 20H3'/%3E%3C/svg%3E")}
+
+/* barre d'onglets en bas, façon iPhone */
+@media (max-width:760px){
+  body:has(#tabs:not([hidden])){padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  .tabs:not([hidden]){position:fixed;z-index:14;left:0;right:0;bottom:0;margin:0;border-radius:0;display:flex;gap:0;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));
+    background:var(--verre);border-top:1px solid var(--line);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px)}
+  .tabs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 2px;font-size:11px;font-weight:500;color:var(--muted);background:none!important;box-shadow:none!important}
+  .tabs button::before{width:24px;height:24px;background:var(--muted)}
+  .tabs button[aria-selected="true"]{color:var(--accent)}
+  .tabs button[aria-selected="true"]::before{background:var(--accent)}
+  body .who{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  h1{font-size:30px}
+}
+
+/* compteurs en tuiles colorées, façon Rappels */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;margin:18px 0 16px}
+@media (max-width:420px){.stats{grid-template-columns:1fr 1fr;gap:10px}}
+.stat{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"ic nb" "lab lab";align-items:start;gap:10px 8px;padding:12px 14px 12px;border-radius:14px;
+  border:0;background:var(--surface);box-shadow:var(--ombre),0 0 0 .5px var(--line);transition:transform .12s,box-shadow .12s,background .12s}
+.stat:hover{transform:translateY(-1px);box-shadow:var(--ombre-haute)}
+.stat::before{content:"";grid-area:ic;width:32px;height:32px;border-radius:50%;background:var(--c) var(--wi,none) center/18px no-repeat}
+.stat b{grid-area:nb;justify-self:end;font:700 28px/1 var(--f-display);color:var(--ink)!important;letter-spacing:-.02em}
+.stat span{grid-area:lab;font-size:14px;font-weight:600;color:var(--muted);line-height:1.25;text-align:left}
+.stat[aria-pressed="true"]{background:var(--c);box-shadow:0 6px 18px color-mix(in srgb,var(--c) 40%,transparent)}
+.stat[aria-pressed="true"] b,.stat[aria-pressed="true"] span{color:#fff!important}
+.stat[aria-pressed="true"]::before{background-color:rgba(255,255,255,.25)}
+.stat.r{--c:var(--s-rouge)}.stat.o{--c:var(--s-orange)}.stat.bl{--c:var(--s-bleu)}.stat.v{--c:var(--s-vert)}
+
+.stat[data-filter="encours"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6'/%3E%3C/svg%3E");--c:var(--s-bleu)}
+.stat[data-filter="bloque"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3Cpath d='M6.5 6.5l11 11'/%3E%3C/svg%3E")}
+.stat[data-filter="retard"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3Cpath d='M12 8v4l3 2'/%3E%3C/svg%3E")}
+.stat[data-filter="logi"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 7h12v9H2zM14 10h4l3 3v3h-7'/%3E%3Ccircle cx='6' cy='18' r='1.6'/%3E%3Ccircle cx='17' cy='18' r='1.6'/%3E%3C/svg%3E");--c:#AF52DE}
+.stat[data-filter="mails"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='M3 7l9 6 9-6'/%3E%3C/svg%3E");--c:#5AC8FA}
+.stat[data-filter="termines"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");--c:#8E8E93}
+.stat[data-afilter="encours"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z'/%3E%3C/svg%3E");--c:var(--s-bleu)}
+.stat[data-afilter="cmd"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4h2.5l2.2 10.5h10.6L20.5 8H6.4'/%3E%3Ccircle cx='9' cy='19' r='1.4'/%3E%3Ccircle cx='17' cy='19' r='1.4'/%3E%3C/svg%3E")}
+.stat[data-afilter="retard"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3Cpath d='M12 8v4l3 2'/%3E%3C/svg%3E")}
+.stat[data-afilter="prod"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1'/%3E%3C/svg%3E");--c:#AF52DE}
+.stat[data-afilter="termine"]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");--c:var(--s-vert)}
+.stat[data-se]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10'/%3E%3C/svg%3E")}
+.stat[data-se=""]{--wi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10'/%3E%3C/svg%3E");--c:var(--s-bleu)}
+
+/* chantiers : cartes plus aérées, barre d'avancement en gélule */
+.row{border:0;box-shadow:var(--ombre),0 0 0 .5px var(--line);border-radius:14px;padding:14px 18px}
+.row:hover{transform:translateY(-1px);box-shadow:var(--ombre-haute)}
+.row.blocked,.row.late{border-left:0;position:relative;overflow:hidden}
+.row.blocked::before,.row.late::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--s-rouge)}
+.row.late::before{background:var(--s-orange)}
+.row .bar{height:8px;gap:2px;border-radius:99px;overflow:hidden}
+.row .bar i{border-radius:0}
+.client{font-size:17px}
+.list{gap:10px}
+.chip{border:0;box-shadow:var(--ombre),0 0 0 .5px var(--line)}
+.chip[aria-pressed="true"]{box-shadow:none}
+
+
+/* Stock : rangée Stock pose / atelier / plan / fiches / guide qui défile au doigt au lieu d'élargir la page */
+.stkwhich{overflow-x:auto;flex-wrap:nowrap;padding:2px 2px 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.stkwhich::-webkit-scrollbar{display:none}
+.stkwhich .chip{white-space:nowrap;flex:none;font-size:14px;padding:7px 14px;color:var(--ink)!important}
+.stkwhich .chip[aria-pressed="true"]{color:var(--accent-ink)!important}
+html,body{overflow-x:hidden}
