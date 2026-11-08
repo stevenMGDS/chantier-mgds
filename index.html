@@ -409,7 +409,7 @@ function gate(mode,note){
 }
 
 async function start(){
-  const {data}=await sb.from("profils").select("id,email,nom,role").eq("id",session.user.id).maybeSingle();
+  const {data}=await sb.from("profils").select("*").eq("id",session.user.id).maybeSingle();
   profil=data||{id:session.user.id,email:session.user.email,role:"lecteur"};
   window.mgdsProfil=profil;
   const w=document.createElement("div");w.className="who";
@@ -1476,7 +1476,8 @@ async function stkLoad(){
 async function stkResLoad(){const{data,error}=await window.sbClient.from("stock_reservations").select("id,article,commande,qte,note,le").order("le");
   stk.res=error?[]:data||[];stk.resBy=new Map();stk.res.forEach(r=>stk.resBy.set(r.article,(stk.resBy.get(r.article)||0)+ +r.qte));stk.resOk=!error}
 const stkResQ=a=>(stk.resBy&&stk.resBy.get(a.id))||0;
-const stkResW=()=>atlRole()==="atelier";   // seul Christophe réserve (Steven, 06/11/2026)
+// seul Christophe réserve (Steven, 06/11 et 08/11/2026) : case profils.reserve_stock (outil/reservations.sql) ; Manu (atelier) fait seulement les entrées / sorties
+const stkResW=()=>{const p=window.mgdsProfil||{};return p.role==="atelier"&&(p.reserve_stock??true)===true};
 // manque : plus de réservé que de stock (une sortie a eu lieu depuis la réservation)
 const stkResManque=a=>Math.max(0,stkResQ(a)-Math.max(0,stkLvl(a)));
 // réserve q de l'article pour la commande c : une seule ligne par élément et par commande, jamais au-delà du disponible
