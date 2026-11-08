@@ -305,6 +305,7 @@ textarea{min-height:64px;resize:vertical}
   <div class="tools">
     <div id="chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
     <input type="search" id="q" placeholder="Chercher un client, un n° de devis">
+    <select id="tri" aria-label="Trier les chantiers" style="width:auto;flex:none"><option value="pose">Trier : pose la plus proche</option><option value="alertes">Trier : retards et alertes</option><option value="alpha">Trier : ordre alphabétique (A → Z)</option></select>
     <div class="legend"><span><i style="background:var(--s-vert)"></i>fait</span><span><i style="background:var(--s-orange)"></i>en retard</span><span><i style="background:var(--s-rouge)"></i>bloqué</span><span><i style="background:var(--sunk);border:2px solid var(--ink)"></i>étape en cours</span><span><i style="background:var(--sunk);border:1px solid var(--line)"></i>à venir</span></div>
   </div>
   <div class="list" id="list"><div class="empty">Chargement…</div></div>
@@ -609,6 +610,8 @@ const days=s=>Math.round((new Date(today()+"T12:00")-new Date(s+"T12:00"))/864e5
 
 let db=null,assets=null,user=null,me=null,canWrite=true,canFill=false,downloads=null,vBlob=null,vName="",vDoc=null,vPdf=null,vPages=[],vForm=null;
 let jobs=new Map(),openId=null,filter="encours",who="Tous",q="",pendingSheet=false;
+// tri de la liste (Steven, 08/11/2026) : pose la plus proche par défaut, ou retards et alertes, ou alphabétique (demande de Marine) ; retenu sur chaque appareil
+let tri=(()=>{try{return localStorage.getItem("chantiers-tri")||"pose"}catch(e){return"pose"}})();
 
 const sd=(j,k)=>{const v=(j.steps||{})[k];return v&&v.d?v.d:""};
 function stepsOf(j){return STEPS.filter(s=>!s.only||(s.only==="reno"&&j.type!=="neuf")||(s.only==="neuf"&&j.type==="neuf")||(s.only==="plans"&&j.plans))}
@@ -661,7 +664,16 @@ function render(){
   if(filter==="logi")vis=vis.filter(j=>logiDue(j).length);
   if(who!=="Tous")vis=vis.filter(j=>j.commercial===who||j.suivi===who);
   if(q)vis=vis.filter(j=>(j.client+" "+j.id+" "+(j.ville||"")).toLowerCase().includes(q));
-  vis.sort((a,b)=>(!!b.bloque-!!a.bloque)||(!!late(b)-!!late(a))||(ORDER[curStep(a)]??99)-(ORDER[curStep(b)]??99)||String(a.client).localeCompare(b.client));
+  const alpha=(a,b)=>String(a.client||"").localeCompare(String(b.client||""),"fr",{sensitivity:"base",numeric:true});
+  const alerte=j=>(j.bloque?1000:0)+(late(j)?100:0)+logiDue(j).length*10+mailsDue(j)+newDocs(j)*.1;
+  const today=new Date().toISOString().slice(0,10);
+  // pose : d'abord les poses à venir (la plus proche en premier), puis celles dont la date est passée (la plus récente en premier), puis les chantiers sans date
+  const poseRang=j=>{const d=poseRef(j);return d?(d>=today?0:1):2};
+  const parPose=(a,b)=>{const ra=poseRang(a),rb=poseRang(b);if(ra!==rb)return ra-rb;const da=poseRef(a),db2=poseRef(b);return ra===0?da.localeCompare(db2):ra===1?db2.localeCompare(da):0};
+  if(tri==="alpha")vis.sort(alpha);
+  else if(tri==="alertes")vis.sort((a,b)=>alerte(b)-alerte(a)||parPose(a,b)||alpha(a,b));
+  else vis.sort((a,b)=>parPose(a,b)||alerte(b)-alerte(a)||alpha(a,b));
+  if($("tri").value!==tri)$("tri").value=tri;
   if(!jobs.size){$("list").innerHTML=`<div class="empty">Aucun chantier enregistré. ${canWrite?"Cliquez sur « Nouveau chantier » et déposez le devis signé.":""}</div>`;return}
   if(!vis.length){$("list").innerHTML=`<div class="empty">Aucun chantier dans ce filtre.</div>`;return}
   $("list").innerHTML=vis.map(row).join("");
@@ -995,6 +1007,7 @@ document.addEventListener("submit",async e=>{
   const j=jobs.get(openId),arr=[...(j[k]||[]),{t:v,f:""}];jobs.set(openId,{...j,[k]:arr});renderSheet();render();save(openId,{[k]:arr});
 });
 $("q").addEventListener("input",e=>{q=e.target.value.trim().toLowerCase();render()});
+$("tri").addEventListener("change",e=>{tri=e.target.value;try{localStorage.setItem("chantiers-tri",tri)}catch(x){}render()});
 document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("viewer").hidden){$("viewer").hidden=true;$("vpages").innerHTML=""}else if(openId)closeSheet()});
 // Les fiches 01-02-03 portent un champ « adresse_chantier_N » : on y écrit l'adresse saisie dans la fiche
 const ADDR_DOCS=["Préparation","Métré","Réception"];
