@@ -666,9 +666,9 @@ function render(){
   if(q)vis=vis.filter(j=>(j.client+" "+j.id+" "+(j.ville||"")).toLowerCase().includes(q));
   const alpha=(a,b)=>String(a.client||"").localeCompare(String(b.client||""),"fr",{sensitivity:"base",numeric:true});
   const alerte=j=>(j.bloque?1000:0)+(late(j)?100:0)+logiDue(j).length*10+mailsDue(j)+newDocs(j)*.1;
-  const today=new Date().toISOString().slice(0,10);
+  const tj=today();
   // pose : d'abord les poses à venir (la plus proche en premier), puis celles dont la date est passée (la plus récente en premier), puis les chantiers sans date
-  const poseRang=j=>{const d=poseRef(j);return d?(d>=today?0:1):2};
+  const poseRang=j=>{const d=poseRef(j);return d?(d>=tj?0:1):2};
   const parPose=(a,b)=>{const ra=poseRang(a),rb=poseRang(b);if(ra!==rb)return ra-rb;const da=poseRef(a),db2=poseRef(b);return ra===0?da.localeCompare(db2):ra===1?db2.localeCompare(da):0};
   if(tri==="alpha")vis.sort(alpha);
   else if(tri==="alertes")vis.sort((a,b)=>alerte(b)-alerte(a)||parPose(a,b)||alpha(a,b));
@@ -2828,7 +2828,8 @@ const atlTaches=a=>(a.taches&&a.taches.length?a.taches:ATL_TACHES.map(t=>({t,h:"
 const atlNum=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>=0?n:0};
 const atlSum=(T,k)=>Math.round(T.reduce((s,x)=>s+atlNum(x[k]),0)*10)/10;
 const ATL_DOCS=["Bon de commande matière","Bon de commande accessoires","Bon de commande vitrages","Bon de commande volets / stores","ARC","Plan / débit","Autre"];
-const atl={rows:new Map(),ok:null,open:null,dest:"",q:"",filter:"encours",pending:false,built:false};
+const atl={rows:new Map(),ok:null,open:null,dest:"",q:"",filter:"encours",pending:false,built:false,
+  tri:(()=>{try{return localStorage.getItem("atelier-tri")||"pose"}catch(e){return"pose"}})()}; // même tri que la liste des chantiers (Steven, 08/11/2026)
 const atlRole=()=>(window.mgdsProfil||{}).role||"lecteur";
 const atlCanW=()=>["editeur","atelier"].includes(atlRole());
 const atlCanStep=k=>atlCanW()||(atlRole()==="terrain"&&(k==="metre"||k==="arc"));
@@ -2923,10 +2924,11 @@ function atlRefresh(){atlRender();const s=$("asheet");
 function atlBuild(){
   const el=$("tab-atelier");if(atl.built)return;atl.built=true;
   el.innerHTML=`<div class="stats" id="atlStats"></div>
-   <div class="tools"><div id="atlChips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input type="search" id="atlQ" placeholder="Chercher un client, un n° de commande ou de devis">${atlCanW()?`<button class="btn" id="atlNew">Nouvelle commande atelier</button>`:""}</div>
+   <div class="tools"><div id="atlChips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input type="search" id="atlQ" placeholder="Chercher un client, un n° de commande ou de devis"><select id="atlTri" aria-label="Trier les commandes atelier" style="width:auto;flex:none"><option value="pose">Trier : pose la plus proche</option><option value="alertes">Trier : retards et alertes</option><option value="alpha">Trier : ordre alphabétique (A → Z)</option></select>${atlCanW()?`<button class="btn" id="atlNew">Nouvelle commande atelier</button>`:""}</div>
    <div class="list" id="atlList"></div>
    <h3 class="atlh">Charge de l'atelier<span class="sub">temps de production réparti sur les jours prévus · ${ATL_H_SEM} h par semaine</span></h3><div id="atlLoad"></div>`;
   $("atlQ").addEventListener("input",e=>{atl.q=e.target.value.trim().toLowerCase();atlRender()});
+  $("atlTri").value=atl.tri;$("atlTri").addEventListener("change",e=>{atl.tri=e.target.value;try{localStorage.setItem("atelier-tri",atl.tri)}catch(x){}atlRender()});
 }
 function atlRender(){
   const el=$("tab-atelier");if(!el||el.hidden)return;
@@ -2941,7 +2943,14 @@ function atlRender(){
   if(atl.filter==="cmd")vis=vis.filter(atlSoon);if(atl.filter==="retard")vis=vis.filter(atlRed);if(atl.filter==="prod")vis=vis.filter(a=>atlD(a,"debut")&&!atlD(a,"fin"));
   if(atl.dest)vis=vis.filter(a=>(a.dest||"mgds")===atl.dest);
   if(atl.q)vis=vis.filter(a=>(atlName(a)+" "+a.id+" "+(a.chantier||"")+" "+(a.devis||"")+" "+(a.objet||"")).toLowerCase().includes(atl.q));
-  vis.sort((x,y)=>(!!y.bloque-!!x.bloque)||(atlRed(y)-atlRed(x))||String(atlPlan(x).fin).localeCompare(atlPlan(y).fin));
+  const aAlpha=(x,y)=>String(atlName(x)||"").localeCompare(String(atlName(y)||""),"fr",{sensitivity:"base",numeric:true});
+  const aAlerte=a=>(a.bloque?1000:0)+atlAlerts(a).reduce((n,x)=>n+(x[0]==="r"?10:1),0);
+  const aPose=a=>a.besoin||(atlJob(a)?poseRef(atlJob(a)):"")||"",tj=today();
+  const aRang=a=>{const d=aPose(a);return d?(d>=tj?0:1):2};
+  const aParPose=(x,y)=>{const rx=aRang(x),ry=aRang(y);if(rx!==ry)return rx-ry;return rx===0?aPose(x).localeCompare(aPose(y)):rx===1?aPose(y).localeCompare(aPose(x)):0};
+  if(atl.tri==="alpha")vis.sort(aAlpha);
+  else if(atl.tri==="alertes")vis.sort((x,y)=>aAlerte(y)-aAlerte(x)||aParPose(x,y)||aAlpha(x,y));
+  else vis.sort((x,y)=>aParPose(x,y)||aAlerte(y)-aAlerte(x)||aAlpha(x,y));
   $("atlList").innerHTML=!all.length?`<div class="empty">Aucune commande atelier pour l'instant.${atlCanW()?" Cliquez sur « Nouvelle commande atelier ».":""}</div>`:vis.length?vis.map(atlRow).join(""):`<div class="empty">Aucune commande dans ce filtre.</div>`;
   $("atlLoad").innerHTML=atlLoadHtml(live);
 }
