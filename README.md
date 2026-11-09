@@ -22,4 +22,5 @@ Accès sur invitation uniquement ; les données sont dans une base Supabase prot
 - `theme-mac.css` : habillage façon Mac (barre latérale, tuiles de compteurs, onglets en bas sur téléphone, mode sombre) ; pour revenir à l'ancien aspect, retirer la ligne <link … theme-mac.css> de index.html et poseurs.html
 - `outil/reservations.sql` : seul Christophe réserve le stock atelier (case profils.reserve_stock) ; Manu, chef d'atelier (rôle « atelier », identifiant manu), fait les entrées / sorties de stock sans réserver
 - `outil/sauvegarde.py` : sauvegarde hebdomadaire sur le Mac du bureau (tables en JSON/CSV, fichiers devis/fiches/photos, copie du site ; 12 semaines gardées)
+- `outil/sauvegarde.sql` + `outil/installer-sauvegarde.command` : compte sauvegarde@mgds.fr en lecture seule (rôle « sauvegarde ») et installation de la sauvegarde du lundi 7 h 30 sur le Mac (LaunchAgent fr.mgds.sauvegarde)
 - `outil/atelier_sync.py` : veille atelier : dossiers ATELIER des chantiers et dossier ATELIER (hors pose MGDS) du serveur -> commandes de l'onglet Atelier (deux étapes : liste sur le Mac, import dans l'environnement Supabase)

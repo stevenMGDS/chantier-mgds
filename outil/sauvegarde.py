@@ -163,6 +163,9 @@ def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     racine = os.path.abspath(sys.argv[1])
+    if not os.path.isdir(racine):  # serveur non branché : on ne crée surtout pas un dossier local à la place
+        print(f"Dossier de sauvegarde introuvable (serveur non connecté ?) : {racine}")
+        sys.exit(2)
     max_f = int(sys.argv[sys.argv.index("--max-fichiers") + 1]) if "--max-fichiers" in sys.argv else None
     jour = datetime.date.today().isoformat()
     dossier = os.path.join(racine, jour)
