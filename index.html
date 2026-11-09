@@ -1480,7 +1480,7 @@ const STK_TYPES={inventaire:"Comptage",livraison:"Livraison",sortie:"Sortie",ret
 const stkNum=s=>{const v=parseFloat(String(s??"").replace(/\s/g,"").replace(",","."));return isFinite(v)?v:null};
 const stkLvl=a=>stk.niv.get(a.id)??0;
 // rouge : à commander (ou épuisé) · orange : bientôt · vert : bon · gris : pas de seuil
-function stkEtat(a){const n=stkLvl(a)-stkResQ(a),s=a.seuil;if(a.a_commander)return"r";if(n<=0&&(s!=null||n<0))return"r";if(s==null)return"g";if(n<=s)return"r";if(n<=s*1.5)return"o";if(s>0&&n>4*s&&(a.reassort==null||n>s+2*a.reassort))return"b";return"v"}
+function stkEtat(a){const n=stkLvl(a)-stkResQ(a)-stkDemQ(a),s=a.seuil;if(a.a_commander)return"r";if(n<=0&&(s!=null||n<0))return"r";if(s==null)return"g";if(n<=s)return"r";if(n<=s*1.5)return"o";if(s>0&&n>4*s&&(a.reassort==null||n>s+2*a.reassort))return"b";return"v"}
 const STK_ETAT={r:"À commander",o:"Bientôt",v:"En flux",b:"En trop",g:"Pas de seuil"};
 const STK_ICO={r:"!",o:"~",v:"✓",b:"▲",g:"–"};
 const stkU=(a,n)=>{const u=a.unite||"unité";return(n>1&&!/s$|x$|\d/.test(u)&&!/ de /i.test(u))?u+"s":u};
@@ -1496,11 +1496,48 @@ async function stkLoad(){
   const e=A.error||N.error||M.error;if(e){stk.ok=false;throw e}
   stk.all=(A.data||[]).sort((x,y)=>String(x.famille).localeCompare(y.famille,"fr")||String(x.nom).localeCompare(y.nom,"fr"));stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);stk.niv=new Map((N.data||[]).map(x=>[x.id,+x.niveau]));stk.inv=new Map((N.data||[]).map(x=>[x.id,x.inventaire_le]));stk.mv=M.data||[];stk.ok=true;
   await stkResLoad();
+  try{const{data}=await sb.from("stock_mouvements").select("article,chantier,le").eq("type","sortie").not("chantier","is",null).gte("le",new Date(Date.now()-120*864e5).toISOString());stk.sorties=data||[]}catch(_){stk.sorties=[]}
+  stkDemCalc();
 }
 // réservations du stock atelier (outil/atelier.sql) : facultatives tant que la table n'est pas installée
 async function stkResLoad(){const{data,error}=await window.sbClient.from("stock_reservations").select("id,article,commande,qte,note,le").order("le");
   stk.res=error?[]:data||[];stk.resBy=new Map();stk.res.forEach(r=>stk.resBy.set(r.article,(stk.resBy.get(r.article)||0)+ +r.qte));stk.resOk=!error}
 const stkResQ=a=>(stk.resBy&&stk.resBy.get(a.id))||0;
+// ---------- besoins des chantiers à venir (Steven, 09/11/2026) ----------
+// Les quantités prévues des fiches de préparation enregistrées (docs[].besoins) sont réservées dans le stock pose jusqu'à la pose :
+// disponible = en stock − réservé, « à commander » calculé sur le disponible. Une ligne tombe dès qu'une sortie de stock est
+// enregistrée pour ce chantier et cet article, ou quand l'étape « Posé » est cochée.
+// Conversions (factures Foussier) : compribande 15/3-7 = rouleaux de 8 m, 15/4-11 = 5,6 m, 15/5-14 = 4,3 m (cartons de 20) ;
+// silicone : 12 ml par cartouche, cartons de 24 cartouches (poches : 25) ; neuf = silicone transparent.
+const STK_ROUL={"3x7":8,"4x11":5.6,"5x14":4.3},stkDemQ=a=>(stk.dem&&stk.dem.get(a.id)?stk.dem.get(a.id).q:0);
+const demNum=t=>{const m=/(\d+(?:[.,]\d+)?)/.exec(String(t||""));return m?+m[1].replace(",","."):0};
+function stkDemCalc(){
+  stk.dem=new Map();stk.demTodo=[];const pose=stk.all.filter(a=>(a.stock||"pose")==="pose"&&a.actif!==false),byId=new Map(stk.all.map(a=>[a.id,a]));
+  const find=f=>pose.find(a=>f(nrm([a.nom,a.coloris].join(" "))));
+  const per=(a,q)=>{const u=nrm(a.unite||"");const k=/carton|poches?|cart/.test(u)&&/silicone|mastic/.test(nrm(a.nom))?(/poche/.test(nrm(a.nom))?25:24):(/(\d+)/.exec(u)||[])[1];return k?q/+k:q};
+  const add=(a,q,line)=>{if(!a||!(q>0))return;const o=stk.dem.get(a.id)||{q:0,lines:[]};o.q+=q;o.lines.push({...line,q});stk.dem.set(a.id,o)};
+  for(const [id,j] of jobs){
+    if(done(j)||sd(j,"pose"))continue;
+    const prep=[...(j.docs||[])].reverse().find(x=>x.type==="Préparation"&&x.besoins);if(!prep)continue;
+    const out=new Set(stk.sorties.filter(m=>m.chantier===id&&(!prep.at||m.le.slice(0,10)>=prep.at)).map(m=>m.article)),map=prep.bmap||{},when=poseRef(j);
+    const base={job:id,client:j.client||id,pose:when,doc:prep.id};
+    for(const b of prep.besoins){
+      const key=b.l,lab=nrm(b.l),m=map[key];if(m==="ignore"||(!b.q&&!b.r))continue;
+      const go=(a,q,det)=>{if(a&&!out.has(a.id))add(a,q,{...base,label:b.l,det})};
+      if(m){const a=byId.get(+m);if(a){const n=demNum(b.q);if(n)go(a,/^compri/.test(nrm(a.nom))&&/ml/.test(b.q||"")?n/(STK_ROUL[(nrm(a.nom).match(/\d+x\d+/)||[])[0]]||8):/silicone|mastic/.test(nrm(a.nom))&&/ml/.test(b.q||"")?per(a,n/12):per(a,n),b.q)}continue}
+      // compribande : une ligne par dimension trouvée dans la remarque (« compribande 3-7x20 : … (19,8 ml) »)
+      if(/compri|mousse impr/.test(lab)){const parts=String(b.r||"").split(/\s*·\s*/).map(t=>{const d=/(\d+)\s*[-x\/]\s*(\d+)(?:\s*x\s*(\d+))?/.exec(t),ml=/\(([\d,.]+)\s*ml\)/.exec(t);return d&&ml?{k:d[1]+"x"+d[2],w:d[3],ml:+ml[1].replace(",",".")}:null}).filter(Boolean);
+        if(parts.length){parts.forEach(pt=>{const a=find(n=>/compribande/.test(n)&&n.includes(pt.k+(pt.w?"x"+pt.w:"")))||find(n=>/compribande/.test(n)&&n.includes(pt.k));
+          if(a)go(a,pt.ml/(STK_ROUL[pt.k]||8),String(pt.ml).replace(".",",")+" ml");else stk.demTodo.push({...base,label:b.l+" "+pt.k+(pt.w?"x"+pt.w:""),key,q:String(pt.ml).replace(".",",")+" ml"})});continue}}
+      // silicone : ml → cartouches (12 ml) → cartons ; neuf = transparent, sinon coloris cherché dans la remarque
+      if(/silicone|mastic silicone/.test(lab)){const ml=demNum(b.q)||demNum((/\(([\d,.]+)\s*ml\)/.exec(b.r||"")||[])[1]);
+        const col=j.type==="neuf"?"transl":(nrm(b.r||"").match(/blanc|noir|gris|pierre|bronze|transp|transl/)||[])[0];
+        const a=col&&find(n=>/silicone/.test(n)&&n.includes(col==="transp"?"transl":col));
+        if(a&&ml)go(a,per(a,ml/12),b.q);else stk.demTodo.push({...base,label:b.l,key,q:b.q||b.r});continue}
+      if(b.q)stk.demTodo.push({...base,label:b.l,key,q:b.q});
+    }
+  }
+}
 // seul Christophe réserve (Steven, 06/11 et 08/11/2026) : case profils.reserve_stock (outil/reservations.sql) ; Manu (atelier) fait seulement les entrées / sorties
 const stkResW=()=>{const p=window.mgdsProfil||{};return p.role==="atelier"&&(p.reserve_stock??true)===true};
 // manque : plus de réservé que de stock (une sortie a eu lieu depuis la réservation)
@@ -1642,13 +1679,27 @@ async function stkExcel(){
   finally{b.disabled=false;b.textContent=t0}
 }
 // « À commander » : articles rouges et orange, rangés par fournisseur, à copier dans un mail / une commande
+function stkDemCard(){
+  if(stk.which!=="pose"||!stk.dem)return"";const L=[...stk.dem.entries()].map(([id,o])=>[stk.all.find(a=>a.id===id),o]).filter(x=>x[0]);
+  if(!L.length&&!stk.demTodo.length)return`<p class="sub">Besoins des chantiers à venir : aucun pour l'instant (ils viennent des fiches de préparation enregistrées).</p>`;
+  const opts=stk.arts.filter(a=>a.actif!==false).map(a=>`<option value="${a.id}">${esc(a.nom)}${a.coloris?" · "+esc(a.coloris):""}</option>`).join("");
+  return`<details class="stkdem"><summary><b>📋 Réservé pour les chantiers à venir</b> · ${L.length} article${L.length>1?"s":""}${stk.demTodo.length?` · <span style="color:var(--s-orange)">${stk.demTodo.length} ligne${stk.demTodo.length>1?"s":""} à relier</span>`:""}</summary>
+    ${L.length?`<table class="ctab"><tr><th>Article</th><th>Réservé</th><th>Disponible</th></tr>${L.map(([a,o])=>`<tr><td><span class="dot ${stkEtat(a)}"></span> ${stkName(a)}<br><small class="sub">${esc([...new Set(o.lines.map(l=>l.client+(l.pose?" ("+sem(l.pose)+")":"")))].join(", "))}</small></td><td>${nb(Math.round(o.q*10)/10)}</td><td>${nb(Math.round((stkLvl(a)-stkResQ(a)-o.q)*10)/10)}</td></tr>`).join("")}</table>`:""}
+    ${stk.demTodo.length?`<h4>À relier à un article du stock</h4><p class="sub">Choisissez l'article une fois : c'est retenu pour ce chantier.</p>${stk.demTodo.map((t,k)=>`<div class="crow"><div><b>${esc(t.label)}</b> · ${esc(t.q||"")}<br><small class="sub">${esc(t.client)}${t.pose?" · pose "+sem(t.pose):""}</small></div>${canWrite?`<select data-demlink="${k}" aria-label="Article du stock pour ${esc(t.label)}"><option value="">Choisir l'article…</option><option value="ignore">Ne pas réserver</option>${opts}</select>`:""}</div>`).join("")}`:""}</details>`;
+}
+async function stkDemLink(k,v){
+  const t=stk.demTodo[k];if(!t||!v)return;const j=jobs.get(t.job);if(!j)return;
+  const docs=(j.docs||[]).map(x=>x.id===t.doc?{...x,bmap:{...(x.bmap||{}),[t.key]:v}}:x);jobs.set(t.job,{...j,docs});await save(t.job,{docs});
+  stkDemCalc();stkDraw();toast(v==="ignore"?"Ligne ignorée pour ce chantier.":"Ligne reliée : la quantité est réservée dans le stock.")}
+document.addEventListener("change",e=>{const s=e.target.closest("[data-demlink]");if(s)stkDemLink(+s.dataset.demlink,s.value)});
 function stkDrawCmd(){
   const box=$("stk-cmd");box.hidden=false;
   const L=stk.arts.filter(a=>a.actif!==false&&["r","o"].includes(stkEtat(a)));
-  if(!L.length){box.innerHTML=`<h3>🛒 À commander</h3><span class="sub">${stk.arts.some(a=>a.seuil!=null)?"Rien à commander : tout est au-dessus des seuils.":"La liste se remplira dès que les seuils d'alerte seront fixés."}</span>`;return}
+  const dem=stkDemCard();
+  if(!L.length){box.innerHTML=dem+`<h3>🛒 À commander</h3><span class="sub">${stk.arts.some(a=>a.seuil!=null)?"Rien à commander : tout est au-dessus des seuils.":"La liste se remplira dès que les seuils d'alerte seront fixés."}</span>`;return}
   const by=new Map();L.forEach(a=>{const f=a.fournisseur||"Fournisseur à préciser";if(!by.has(f))by.set(f,[]);by.get(f).push(a)});
-  const prop=a=>a.reassort!=null?a.reassort:Math.max(0,Math.ceil((a.seuil||0)*2-stkLvl(a)));
-  let h=`<h3>🛒 À commander</h3>`,txt=[];
+  const prop=a=>{const d=stkDemQ(a);return a.reassort!=null&&!d?a.reassort:Math.max(a.reassort||0,Math.ceil((a.seuil||0)*2-stkLvl(a)+stkResQ(a)+d))};
+  let h=dem+`<h3>🛒 À commander</h3>`,txt=[];
   for(const [f,X] of [...by].sort((a,b)=>a[0].localeCompare(b[0]))){
     h+=`<div class="stkch"><h4>${esc(f)}</h4><table class="ctab"><tr><th>Article</th><th>En stock</th><th>À commander</th></tr>${X.map(a=>`<tr><td><span class="dot ${stkEtat(a)}"></span> ${stkName(a)}</td><td>${nb(stkLvl(a))}</td><td>${!prop(a)&&a.a_commander?`<span class="sub">bac vide</span>`:`<b>${nb(prop(a))}</b> ${esc(stkU(a,prop(a)))}`}</td></tr>`).join("")}</table></div>`;
     txt.push(f+" :\n"+X.map(a=>"- "+a.nom+(a.coloris&&!nrm(a.nom).includes(nrm(a.coloris))?" ("+a.coloris+")":"")+" : "+(!prop(a)&&a.a_commander?"à réassortir (bac vide)":nb(prop(a))+" "+stkU(a,prop(a)))).join("\n"))}
@@ -1678,6 +1729,7 @@ async function stkSheet(id){
   let h="";
   if(id!=null){const e=stkEtat(a);
     h+=`<div class="crow"><div class="stkbig ${e}">${stkQ(a,n)}</div><div class="cinfo"><span class="dot ${e}"></span> ${STK_ETAT[e]}${a.seuil!=null?" · seuil "+nb(a.seuil):""}${stk.inv.get(a.id)?" · compté le "+fr(stk.inv.get(a.id).slice(0,10)):""}</div></div>`;
+    {const D=stk.dem&&stk.dem.get(a.id);if(D)h+=`<div class="crow ccard"><b>Réservé pour les chantiers à venir : ${nb(Math.round(D.q*10)/10)} ${esc(stkU(a,D.q))}</b><div class="cinfo">Disponible : ${nb(Math.round((stkLvl(a)-stkResQ(a)-D.q)*10)/10)}</div>${D.lines.map(l=>`<div class="cinfo">${esc(l.client)}${l.pose?" · pose "+sem(l.pose):""} : ${nb(Math.round(l.q*10)/10)}${l.det?" ("+esc(l.det)+")":""}</div>`).join("")}</div>`}
     if(stkMv())h+=`<div class="crow ccard"><b>Mouvement</b><div class="chips" id="sp-t">${[["livraison","＋ Livraison"],["sortie","− Sortie"],["retour","↩ Retour"],["inventaire","＝ J'ai compté"]].filter(x=>canWrite||x[0]!=="inventaire").map(([k,l],i)=>`<button type="button" class="chip ${i?"":"on"}" data-t="${k}">${l}</button>`).join("")}</div>
       <div class="cline"><input class="cin" id="sp-q" inputmode="decimal" placeholder="Quantité (${esc(a.unite)})" aria-label="Quantité"><select class="cin" id="sp-c" aria-label="Chantier" hidden><option value="">Chantier (facultatif)…</option>${(stkLoad.live||[]).map(j=>`<option value="${esc(j.id)}">${esc(stkLoad.nameOf(j.id))}</option>`).join("")}</select></div>
       <input class="cin" id="sp-n" placeholder="Remarque (facultatif) : n° de bon, fournisseur…" aria-label="Remarque"><button class="btn" id="sp-ok">Enregistrer le mouvement</button></div>`}
@@ -1877,6 +1929,9 @@ async function metreAddRows(doc,n,font){
     X.forEach(x=>pg.drawLine({start:{x,y},end:{x,y:y-RH},thickness:.5,color:line}));
     pg.drawLine({start:{x:X[0],y:y-RH},end:{x:X[X.length-1],y:y-RH},thickness:.5,color:line});y-=RH}
 }
+// consommables prévus d'une fiche de préparation (relus dans le PDF) : réservés dans le stock jusqu'à la pose
+async function prepBesoins(doc){const pages=await consRead(doc);if(!pages)return null;
+  return pages.flatMap(p=>p.rows).filter(r=>!r.head&&(r.qty||r.rem)&&(r.label||r.art)).map(r=>({l:clean(r.label||r.art),q:clean(r.qty),r:clean(r.rem),c:!!r.chk}))}
 async function addConsRow(){
   if(!vForm||vForm.saving||consAdding)return;consAdding=true;$("cpanel").hidden=true;
   try{vForm.addRows=(vForm.addRows||0)+1;vForm.dirty=true;const d0=vDoc;await saveFill({keep:true});if(vDoc===d0||!vDoc)return;
@@ -2409,13 +2464,14 @@ async function saveFill(opts={}){
     let nAuto=null;
     if(d0.type==="Métré"&&vForm.addRows&&window.pdfjsLib){try{await metreAddRows(doc,vForm.addRows,font)}catch(e){console.log("conso métré",e)}vForm.addRows=0}
     if(d0.type==="Préparation"&&vForm.addRows&&window.pdfjsLib){try{const c=await consRedraw(doc,{add:vForm.addRows,auto:d0.auto||{}});if(c)nAuto=c.auto}catch(e){console.log("conso",e)}vForm.addRows=0}
+    let bes=null;if(d0.type==="Préparation"&&window.pdfjsLib)try{bes=await prepBesoins(doc)}catch(_){}
     const file=new File([await doc.save()],d0.name,{type:"application/pdf"});
     const r=await assets.upload(file,{type:"application/pdf"});
     const j=jobs.get(id)||{},docs=(j.docs||[]).map(x=>({...x}));
     const i=docs.findIndex(x=>x.id===d0.id);
     const nd={...d0,id:r.id,size:r.sizeBytes,at:today(),by:me||"",traite:false,rempli:{reste:vForm.reste,total:vForm.total,le:today()}};
     if(inked.size)nd.encre=[...inked].sort((a,b)=>a-b);
-    if(nAuto)nd.auto=nAuto;
+    if(nAuto)nd.auto=nAuto;if(bes)nd.besoins=bes;
     if(d0.type==="Métré"&&cTables.length)nd.conso=consoSummary();
     if(d0.type==="Métré"&&vHab&&vHab.rows.length){nd.hab=vHab.rows.map(r=>({r:r.rep,t:r.text,v:r.v||{},...metreRowInfo(r)}));try{nd.pose=metrePoseData()}catch(_){}}
     if(vForm.photoPages&&vForm.photoPages.length){nd.photos=[...new Set([...(d0.photos||[]),...vForm.photoPages])].sort((a,b)=>a-b);vForm.photoPages=[]}
@@ -2789,7 +2845,7 @@ const pdfFresh=pg=>{pg.contentStream=undefined;pg.contentStreamRef=undefined;ret
 // ---------- chantier neuf : fiche de préparation reprise de la réception de support (Steven, 09/11/2026) ----------
 // « Ce qu'on pose » redessiné à partir de la RS (type de pose applique / tunnel au lieu de Réno / Dépose), fixations et quantité
 // estimée, « Attention à » adapté au neuf (support décrit par la RS, appui / rejingot « à créer » avec hauteur et repères).
-const SUP_V=3; // version du calcul : une fiche reprise avec une version plus ancienne est refaite (fixations montants + traverse haute)
+const SUP_V=4; // version du calcul : une fiche reprise avec une version plus ancienne est refaite (fixations montants + traverse haute)
 const SUP_MAT=["parpaing creux","béton","brique creuse","brique pleine","bois","acier"];
 const SUP_POSE=["applique intérieure","applique extérieure","tunnel au nu intérieur","tunnel au nu extérieur"];
 async function supRead(sup){
@@ -2940,7 +2996,8 @@ async function doJoinSupport(id){
   try{const r=await consRedraw(doc,{auto});if(r)auto=r.auto}catch(e){console.log("conso",e)}
   const file=new File([await doc.save()],prep.name,{type:"application/pdf"}),r=await assets.upload(file,{type:"application/pdf"});
   const j2=jobs.get(id)||{},d2=(j2.docs||[]).map(x=>({...x})),i=d2.findIndex(x=>x.id===prep.id);if(i<0)return;
-  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,auto,poseIns,consV:1,supFrom:sup?sup.id:null,supV:SUP_V,neuf:1};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
+  let bes=null;try{bes=await prepBesoins(doc)}catch(_){}
+  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,auto,poseIns,consV:1,supFrom:sup?sup.id:null,supV:SUP_V,neuf:1,...(bes?{besoins:bes}:{})};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
   if(openId===id)renderSheet();
   toast(sup?"Fiche de préparation mise à jour à partir de la réception de support.":"Fiche de préparation adaptée au chantier neuf. Elle se complétera avec la réception de support.");
 }
