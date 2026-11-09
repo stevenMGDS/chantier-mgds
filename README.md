@@ -3,6 +3,7 @@
 Suivi des chantiers MGDS, consultable sur téléphone, tablette et ordinateur.
 Accès sur invitation uniquement ; les données sont dans une base Supabase protégée par connexion.
 
+- **`MEMOIRE.md` : mémoire partagée des sessions Claude, à lire en premier** (copie de référence : Supabase, bucket outil, memoire/MEMOIRE.md)
 - `index.html` : l'appli, modifiée directement dans le dépôt (l'ancien build.sh depuis l'appli claude.ai est supprimé)
 - `outil/schema.sql` : structure de la base et droits (éditeurs / terrain / lecteurs)
 - `outil/mots-de-passe.sql` : Steven donne un mot de passe à chaque compte (à lancer dans Supabase > SQL Editor ; tous les comptes ou une liste d'e-mails) ; plus de lien par e-mail. Chacun peut ensuite le changer avec le bouton « Mot de passe » en bas à droite de l'appli
