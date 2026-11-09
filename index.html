@@ -2780,7 +2780,7 @@ const pdfFresh=pg=>{pg.contentStream=undefined;pg.contentStreamRef=undefined;ret
 // ---------- chantier neuf : fiche de préparation reprise de la réception de support (Steven, 09/11/2026) ----------
 // « Ce qu'on pose » redessiné à partir de la RS (type de pose applique / tunnel au lieu de Réno / Dépose), fixations et quantité
 // estimée, « Attention à » adapté au neuf (support décrit par la RS, appui / rejingot « à créer » avec hauteur et repères).
-const SUP_V=2; // version du calcul : une fiche reprise avec une version plus ancienne est refaite (fixations montants + traverse haute)
+const SUP_V=3; // version du calcul : une fiche reprise avec une version plus ancienne est refaite (fixations montants + traverse haute)
 const SUP_MAT=["parpaing creux","béton","brique creuse","brique pleine","bois","acier"];
 const SUP_POSE=["applique intérieure","applique extérieure","tunnel au nu intérieur","tunnel au nu extérieur"];
 async function supRead(sup){
@@ -2790,17 +2790,17 @@ async function supRead(sup){
   const cb=n=>{try{return form.getCheckBox(n).isChecked()}catch(_){return false}};
   const pick=(p,labs)=>labs.filter((l,i)=>cb(p+"_"+i));
   const L=(a,b)=>a||b?(a||"?")+" × "+(b||"?"):"";
-  const S={mat:pick("mat",SUP_MAT),pose:pick("pose",SUP_POSE),macon:tx("macon"),fixF:cb("fix_0"),fixM:cb("fix_1"),fixType:tx("rem_fix"),rows:[]};
+  const S={mat:pick("mat",SUP_MAT),pose:pick("pose",SUP_POSE),macon:tx("macon"),fixF:cb("fix_0"),fixM:cb("fix_1"),fixType:tx("rem_fix"),etBase:tx("rem_etanch_base"),rows:[]};
   for(let k=1;has("repere_"+k);k++){
     const def=[["fa_g","montant gauche"],["fa_d","montant droit"],["niv_h","traverse haute"],["niv_b","appui"]].map(([n,l])=>{
       const v=tx(n+"_"+k);if(!v||/^[AN]0\b/.test(v))return"";const mm=tx("rem_"+n+"_"+k);return l+" "+v.split(" ")[0]+(mm?" ("+mm+" mm)":"")}).filter(Boolean);
     const vr=["","VR conforme","VR non conforme"].filter((l,i)=>l&&cb("vr_"+k+"_"+i));
     const rej=["rejingot aligné nu int.","rejingot en débord int.","rejingot non conforme"].filter((l,i)=>cb("rej_"+k+"_"+i)),rc=tx("rem_rej_"+k);
-    const obs=tx("rem_obs_"+k),info=tx("rem_info_"+k),dd=tx("dimdevis_"+k);
+    const obs=tx("rem_obs_"+k),info=tx("rem_info_"+k),dd=tx("dimdevis_"+k),etSp=tx("rem_etanch_"+k),etanch=etSp||S.etBase;
     S.rows.push({rep:tx("repere_"+k)||"Menuiserie n° "+k,des:[tx("designation_"+k),dd&&"devis "+dd].filter(Boolean).join(" · "),
       cde:L(tx("cde_l_"+k),tx("cde_h_"+k)),brut:L(tx("brut_l_"+k),tx("brut_h_"+k)),dims:[L(tx("cde_l_"+k),tx("cde_h_"+k)),L(tx("brut_l_"+k),tx("brut_h_"+k)),dd],
       pose:S.pose.map(p=>p[0].toUpperCase()+p.slice(1)),all:tx("allege_"+k),
-      pts:[...vr,rej.length?rej.join(", ")+(rc?" (cote "+rc+" mm)":""):"",def.length?"Défauts : "+def.join(" · "):"",obs&&"Réserve : "+obs,info].filter(Boolean)});
+      etanch,etSp:!!etSp,pts:[etanch&&"Étanchéité : "+etanch+(etSp&&S.etBase?" (au lieu de la base)":""),...vr,rej.length?rej.join(", ")+(rc?" (cote "+rc+" mm)":""):"",def.length?"Défauts : "+def.join(" · "):"",obs&&"Réserve : "+obs,info].filter(Boolean)});
   }
   return S;
 }
@@ -2906,6 +2906,20 @@ async function doJoinSupport(id){
       const fl=S.rows.reduce((a,r)=>a+supFixLen(r),0),pts=S.rows.reduce((a,r)=>{const p=supFixLen(r);return a+(p?Math.ceil(p/esp):0)},0);
       if(pts)put(vis.qty,String(pts*nv));put(vis.rem,(S.fixType||"à prévoir par MGDS")+(pts?" · "+(fl/1000).toFixed(1).replace(".",",")+" ml (montants + traverse haute)":""))}
     if(S.fixF)put((pat||vis||{}).rem,"Fournies avec les menuiseries (réception de support)");
+    // étanchéité (RS : base + adaptée par menuiserie) : compribande, silicone, membrane… avec repères et linéaire (périmètre)
+    const ET=[[/compri|mousse\s*impr/i,/^compribande/i],[/silicone|mastic/i,/^mastic silicone/i],[/membrane|epdm|pare.?pluie/i,/^membrane/i],[/mousse\s*pu/i,/^mousse pu/i]];
+    const grp=new Map(),mlf=m=>(m/1000).toFixed(1).replace(".",",");
+    S.rows.forEach(r=>{if(!r.etanch)return;const p=supPerim(r);
+      r.etanch.split(/\s*(?:\+|\bplus\b|;)\s*/i).map(c=>clean(c)).filter(Boolean).forEach(c=>{const m=ET.find(([re])=>re.test(c)),key=m?m[1].source:"libre:"+c.toLowerCase();
+        const g=grp.get(key)||{re:m&&m[1],items:new Map()};const it=g.items.get(c.toLowerCase())||{c,reps:[],ml:0};it.reps.push(r.rep);
+        it.ml+=/seuil|appui|bavette/i.test(c)?((supDims(r)||[0])[0]):p;g.items.set(c.toLowerCase(),it);grp.set(key,g)})});  // seuil : largeur seulement
+    const used=new Set([vis,pat].filter(Boolean)),all=S.rows.length;
+    const desc=it=>it.c+" : "+(it.reps.length===all&&all>1?"toutes les menuiseries":it.reps.join(", "))+(it.ml?" ("+mlf(it.ml)+" ml)":"");
+    for(const g of grp.values()){const its=[...g.items.values()];
+      let row=g.re&&rows.find(r=>!used.has(r)&&g.re.test(r.label));
+      if(!row){row=rows.find(r=>!used.has(r)&&r.art&&!r.label);if(!row)continue;put(row.art,its.map(i=>i.c).join(" / "))}
+      used.add(row);const ml=its.reduce((a,i)=>a+i.ml,0);
+      if(ml)put(row.qty,"≈ "+mlf(ml)+" ml");put(row.rem,its.map(desc).join(" · "))}
     form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
   }catch(e){console.log("fix",e)}
   // ligne d'aide au-dessus des consommables : périmètre recalculé sur les cotes de la RS
