@@ -1368,7 +1368,7 @@ function openConso(){
     if(remF&&remF!==visF)card.appendChild(bindText(remF.f,"Remarque (facultatif)"));
     list.appendChild(card);
   }));
-  if(vDoc&&vDoc.type==="Préparation"){const b=mk("button","btn cadd2","＋ Ajouter une ligne");b.type="button";b.dataset.consadd="1";list.appendChild(b)}
+  if(vDoc&&(vDoc.type==="Préparation"||vDoc.type==="Métré")){const b=mk("button","btn cadd2","＋ Ajouter une ligne");b.type="button";b.dataset.consadd="1";list.appendChild(b)}
   $("cpanel").hidden=false;list.scrollTop=0;
 }
 // ---------- photos des consommables : sorties / retours au stock, relues par Claude ----------
@@ -1842,6 +1842,35 @@ async function loadStockList(nameOf){
 }
 // « + » : une ligne libre de plus en bas du tableau des consommables (la fiche est enregistrée puis rouverte)
 let consAdding=false;
+// métré : lignes de consommables ajoutées sur une page « CONSOMMABLES (suite) » en fin de fiche (mêmes colonnes,
+// relue comme le tableau principal : reprise dans la fiche de préparation) — Steven, 09/11/2026
+async function metreAddRows(doc,n,font){
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const pdf=await pdfjsLib.getDocument({data:await doc.save()}).promise;let main=null,suite=null;
+  for(let k=1;k<=pdf.numPages;k++){const page=await pdf.getPage(k),its=(await page.getTextContent({disableCombineTextItems:true})).items.filter(t=>t.str.trim()),vp=page.getViewport({scale:1});
+    if(its.some(t=>/^CONSOMMABLES \(suite\)/.test(t.str.trim()))){const an=(await page.getAnnotations()).filter(a=>a.subtype==="Widget"&&/^consm_/.test(a.fieldName||""));
+      suite={pi:k-1,low:an.length?Math.min(...an.map(a=>Math.min(a.rect[1],a.rect[3]))):vp.height-90,w:vp.width,h:vp.height};continue}
+    if(main)continue;const art=its.find(t=>/^Article/.test(t.str.trim()));if(!art)continue;
+    const hy=art.transform[5],hdr=its.filter(t=>Math.abs(t.transform[5]-hy)<4).map(t=>({x:t.transform[4],s:t.str.trim()})).sort((a,b)=>a.x-b.x);
+    if(!hdr.some(h=>/^Coloris/.test(h.s)))continue;main={pi:k-1,hdr,w:vp.width,h:vp.height}}
+  if(!main)return;
+  const F=font||await doc.embedFont(PDFLib.StandardFonts.Helvetica),B=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold),form=doc.getForm();
+  const ink=PDFLib.rgb(.1,.1,.1),blu=PDFLib.rgb(.12,.25,.45),hdrc=PDFLib.rgb(.91,.93,.96),line=PDFLib.rgb(.72,.76,.82),cell=PDFLib.rgb(.93,.95,.99);
+  const X=[...main.hdr.map(h=>h.x-5),main.w-36],RH=20,stamp=Date.now().toString(36);
+  let pg,y;
+  if(suite&&suite.low-RH*n>40){pg=pdfFresh(doc.getPage(suite.pi));y=suite.low-3}
+  else{pg=doc.addPage([main.w,main.h]);y=main.h-40;  // en fin de document : les n° des pages de croquis et photos déjà notés ne bougent pas
+    
+    pg.drawText("CONSOMMABLES (suite)",{x:X[0],y,size:11,font:B,color:blu});
+    pg.drawText("lignes ajoutées au métré, mêmes colonnes que le tableau principal",{x:X[0]+150,y,size:8,font:F,color:PDFLib.rgb(.4,.43,.48)});y-=12;
+    pg.drawRectangle({x:X[0],y:y-15,width:X[X.length-1]-X[0],height:15,color:hdrc,borderColor:line,borderWidth:.5});
+    main.hdr.forEach((h,i)=>pg.drawText(h.s,{x:X[i]+4,y:y-10.5,size:7.5,font:B,color:ink}));y-=15}
+  for(let r=0;r<n;r++){
+    for(let i=0;i<X.length-1;i++){const tf=form.createTextField("consm_"+stamp+"_"+r+"_"+i);
+      tf.addToPage(pg,{x:X[i]+2,y:y-RH+3,width:X[i+1]-X[i]-4,height:RH-6,borderWidth:0,font:F,backgroundColor:cell});tf.setFontSize(8)}
+    X.forEach(x=>pg.drawLine({start:{x,y},end:{x,y:y-RH},thickness:.5,color:line}));
+    pg.drawLine({start:{x:X[0],y:y-RH},end:{x:X[X.length-1],y:y-RH},thickness:.5,color:line});y-=RH}
+}
 async function addConsRow(){
   if(!vForm||vForm.saving||consAdding)return;consAdding=true;$("cpanel").hidden=true;
   try{vForm.addRows=(vForm.addRows||0)+1;vForm.dirty=true;const d0=vDoc;await saveFill();if(vDoc===d0||!vDoc)return;
@@ -1993,7 +2022,7 @@ function metreRowInfo(r){
 // tout ce que l'équipe doit savoir pour poser, menuiserie par menuiserie (repris pour la fiche découverte)
 function metrePoseData(){
   if(!vHab||!vHab.rows.length)return null;
-  const ty=t=>t.transform[5],tx=t=>t.transform[4],same=(a,b)=>{const k=habNorm(a),n=habNorm(b);return k&&n&&(k===n||n.startsWith(k)||k.startsWith(n))};
+  const ty=t=>t.transform[5],tx=t=>t.transform[4],same=(a,b)=>{const k=habNorm(a),n=habNorm(b),pre=(x,y)=>x.startsWith(y)&&!/\d/.test(x[y.length]||"")&&!/\d$/.test(y)||x.startsWith(y)&&!/\d/.test(x[y.length]||"");return k&&n&&(k===n||pre(n,k)||pre(k,n))};  // « Menuiserie 1 » ≠ « Menuiserie 12 »
   const fval=f=>f?(f.el.value||"").trim():"";
   const after=(its,fs,re,y)=>{const t=its.find(t=>re.test(t.str.trim())&&Math.abs(ty(t)-y)<4);if(!t)return"";
     const f=fs.find(f=>!f.cb&&Math.abs(f.cy-(ty(t)+2.5))<6&&f.x>=tx(t)-2&&f.x<tx(t)+t.width+5);
@@ -2368,6 +2397,7 @@ async function saveFill(){
         const h=st.c.replace("#",""),col=PDFLib.rgb(parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255);
         pg.drawSvgPath(d,{x:cb.x,y:cb.y+cb.height,borderColor:col,borderWidth:st.w,borderLineCap:PDFLib.LineCapStyle.Round})})});
     let nAuto=null;
+    if(d0.type==="Métré"&&vForm.addRows&&window.pdfjsLib){try{await metreAddRows(doc,vForm.addRows,font)}catch(e){console.log("conso métré",e)}vForm.addRows=0}
     if(d0.type==="Préparation"&&vForm.addRows&&window.pdfjsLib){try{const c=await consRedraw(doc,{add:vForm.addRows,auto:d0.auto||{}});if(c)nAuto=c.auto}catch(e){console.log("conso",e)}vForm.addRows=0}
     const file=new File([await doc.save()],d0.name,{type:"application/pdf"});
     const r=await assets.upload(file,{type:"application/pdf"});
