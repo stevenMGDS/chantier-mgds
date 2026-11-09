@@ -636,7 +636,7 @@ const kOf=x=>x.chantier||"~"+(x.libelle||""),labOf=x=>x.chantier?jobShort(x.chan
 // (calc.fin) et le temps de production (7 h par jour ouvré). Lecture seule : le planning de pose (Excel de Marine) n'est pas modifié.
 async function loadAtelier(){try{const{data,error}=await sb.from("atelier").select("id,data");if(error)return[];
   return(data||[]).filter(r=>r.id[0]!=="_"&&r.data&&!(r.data.steps&&r.data.steps.livre&&r.data.steps.livre.d)).map(r=>{const a=r.data,st=a.steps||{};
-    const fin=(st.fin&&st.fin.d)||(a.calc&&a.calc.fin)||"",pj=Math.max(1,Math.ceil((+a.heures||0)/7));let deb=st.debut&&st.debut.d||"";
+    const fin=(st.fin&&st.fin.d)||(a.calc&&a.calc.fin)||"",num=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n:0},pj=Math.max(1,Math.ceil((num(a.heures)||(a.taches||[]).reduce((t,x)=>t+num(x.h),0)*1.2)/7));let deb=st.debut&&st.debut.d||"";
     if(!deb&&fin){let d=parse(fin),k=pj-1;while(k>0){d=addDays(d,-1);if(d.getDay()%6)k--}deb=iso(d)}
     return{id:r.id,chantier:a.chantier||"",nom:a.chantier?jobShort(a.chantier):(a.client||r.id),fin,deb,fait:!!(st.fin&&st.fin.d)}}).filter(x=>x.fin)}catch(_){return[]}}
 const atlPasPret=(A,c,d)=>A.find(x=>x.chantier&&x.chantier===c&&!x.fait&&x.fin>=d);

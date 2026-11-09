@@ -23,6 +23,7 @@ import datetime, json, math, os, re, sys, unicodedata, urllib.request
 URL = "https://azgvzgenfykvlkuwevty.supabase.co/rest/v1"
 H = {"apikey": "x", "Authorization": "Bearer x", "Content-Type": "application/json"}
 H_JOUR = 7
+ALEAS = 0.20   # Christophe saisit le total (aléas compris) ; sinon détail de Manu + 20 %
 DEVIS = re.compile(r"\bD ?(\d{9})(?!\d)")
 DELAIS = {"mat": 2, "acc": 1, "vitr": 2, "volet": 3}
 ON = {"mat": True, "acc": False, "vitr": True, "volet": False}
@@ -82,6 +83,11 @@ def classe(nom):
     return ""
 
 
+def valide(rel):
+    """Sous-dossier des seules pièces validées pour la production (ATELIER/VALIDÉ…, consigne du 09/11/2026)."""
+    return "/" in rel and plain(rel.split("/")[0]).startswith("VALID")
+
+
 def termine(rel):
     return plain(rel.split("/")[0]).startswith("Z.TERMIN")
 
@@ -102,7 +108,9 @@ def export(racine, liste):
     def docs(dossier):
         fs = [f for f in fichiers if f["chemin"].startswith(dossier + "/") and not plain(f["chemin"]).endswith("THUMBS.DB")]
         fs.sort(key=lambda f: f["d"], reverse=True)   # les plus récents d'abord
-        return [{"n": os.path.relpath(f["chemin"], dossier), "d": f["d"], "t": classe(f["chemin"])} for f in fs[:25]]
+        val = [f for f in fs if valide(os.path.relpath(f["chemin"], dossier))]
+        autres = [f for f in fs if f not in val][:25]
+        return [{"n": os.path.relpath(f["chemin"], dossier), "d": f["d"], "t": classe(f["chemin"])} for f in val + autres]
     for a in sorted(set(ateliers)):
         rel = os.path.relpath(a, racine)
         if rel.startswith("..") or termine(rel): continue
@@ -181,7 +189,11 @@ def plan(a, chantiers):
     t = datetime.date.today().isoformat()
     c = chantiers.get(a.get("chantier") or "")
     besoin = a.get("besoin") or pose_ref(c)
-    pj = max(1, math.ceil((float(a.get("heures") or 0)) / H_JOUR))
+    def num(v):
+        try: return max(0.0, float(str(v).replace(",", ".")))
+        except (TypeError, ValueError): return 0.0
+    h = num(a.get("heures")) or sum(num(x.get("h")) for x in (a.get("taches") or [])) * (1 + ALEAS)
+    pj = max(1, math.ceil(h / H_JOUR))
     ks = [k for k in DELAIS if cmd(a, k)["on"]]
     L, P = {}, {}
     if besoin:
@@ -219,6 +231,9 @@ def importe(fichier, essai):
     j = depuis_ancien(json.load(open(fichier, encoding="utf-8")))
     for p in j.get("productions", []) + j.get("hors", []):
         for d in p.get("docs", []): d["t"] = classe(d["n"])   # classement à jour, même pour une liste ancienne
+        v = [d for d in p.get("docs", []) if valide(d["n"])]
+        p["valide"] = bool(v)
+        if v: p["docs"] = sorted(v, key=lambda d: d["d"], reverse=True)   # seules les pièces validées font foi
     chantiers = {r["id"]: r["data"] for r in req("GET", "/chantiers?select=id,data")}
     rows = {r["id"]: r for r in req("GET", "/atelier?select=id,data,version")}
     today = datetime.date.today().isoformat()
@@ -253,14 +268,17 @@ def importe(fichier, essai):
     def par_src(src):
         return next((k for k, r in rows.items() if (r["data"] or {}).get("src") == src), None)
 
-    def depuis_docs(a, docs):
-        """Dates déduites des documents du serveur (le plus récent de chaque type), seulement là où rien n'est noté."""
+    def depuis_docs(a, docs, valide=False):
+        """Dates déduites des documents du serveur (le plus récent de chaque type), seulement là où rien n'est noté.
+        Avec un sous-dossier VALIDÉ, ses pièces remplacent aussi les dates déduites auparavant par Claude (by = serveur),
+        jamais une date cochée par quelqu'un."""
         patch, vus = {}, set()
         for d in docs:   # déjà triés du plus récent au plus ancien
             t = d.get("t")
             if t in DELAIS and t not in vus:
                 vus.add(t); x = cmd(a, t)
-                if not (isinstance(x.get("cmd"), dict) and x["cmd"].get("d")):
+                c0 = x.get("cmd") if isinstance(x.get("cmd"), dict) else {}
+                if not c0.get("d") or (valide and c0.get("by") == "serveur" and c0.get("d") != d["d"]):
                     patch.setdefault("cmds", {})[t] = {"on": True, "cmd": {"d": d["d"], "by": "serveur"}}
                 elif not x["on"]:
                     patch.setdefault("cmds", {})[t] = {"on": True}
@@ -277,17 +295,18 @@ def importe(fichier, essai):
             a = {"dest": "mgds", "chantier": cid, "client": "" if cid else p["dossier"], "objet": "", "heures": 0,
                  "devis": cid, "besoin": "", "finManu": "", "bloque": "", "notes": "", "cmds": {}, "lignes": [], "docs": [],
                  "steps": {"devis": {"d": sd(c, "signe") or next((d["d"] for d in p["docs"] if d["t"] == "devis"), p["docs"][-1]["d"]), "by": "serveur"}},
-                 "cree": today, "arcRef": aid, "src": p["src"], "serveur": serveur, "serveurLe": j.get("genere", "")}
+                 "cree": today, "arcRef": aid, "src": p["src"], "serveur": serveur, "serveurLe": j.get("genere", ""),
+                 "serveurValide": p.get("valide", False)}
             a["_id"] = aid; patch = depuis_docs(a, p["docs"]); a.pop("_id")
             ecrit(aid, merge(a, patch), nouveau=True)
             resume["crees"].append(f"{aid} : {p['dossier']}" + ("" if cid else " (pas de chantier dans l'appli)"))
             if not cid: resume["sans_chantier"].append(p["dossier"])
         else:
             a = dict(rows[aid]["data"]); a["_id"] = aid
-            patch = {"serveur": serveur, "serveurLe": j.get("genere", "")}
-            patch = merge(patch, depuis_docs(a, p["docs"]))
+            patch = {"serveur": serveur, "serveurLe": j.get("genere", ""), "serveurValide": p.get("valide", False)}
+            patch = merge(patch, depuis_docs(a, p["docs"], p.get("valide", False)))
             if cid and not a.get("chantier"): patch["chantier"] = cid
-            if ecrit(aid, patch) and set(patch) - {"serveur", "serveurLe"}: resume["maj"].append(f"{aid} : {p['dossier']} (documents du serveur)")
+            if ecrit(aid, patch) and set(patch) - {"serveur", "serveurLe", "serveurValide"}: resume["maj"].append(f"{aid} : {p['dossier']} (documents du serveur)")
 
     # 2. dossiers « ATELIER <client> » à la racine des commandes : productions hors pose MGDS (revente, chantiers annexes).
     #    Ceux d'avant sont rangés dans Z.TERMINÉS (clos, ignorés) : tout dossier présent à la racine est donc en cours.
