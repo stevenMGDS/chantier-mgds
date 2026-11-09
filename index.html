@@ -1147,7 +1147,9 @@ function tableOf(f){
 // facultatif : colonnes « Remarque », champ précédé de « Remarque(s) : » ou « Observations », tout le tableau des consommables
 function classify(fields){
   fields.forEach(f=>{const t=tableOf(f);f.tab=t;if(!t)return;
-    f.conso=t.h.cols.some(c=>/^Article/.test(c.s));if(f.conso||/^Remarque/.test(t.col.s))f.free=true});
+    f.conso=t.h.cols.some(c=>/^Article/.test(c.s));if(f.conso||/^Remarque/.test(t.col.s))f.free=true;
+    // métré : cotes hors tout facultatives (Steven, 09/11/2026) ; les cotes tableau restent obligatoires
+    if(/^Hors\s*tout/i.test(t.col.s))f.free=true});
   fields.forEach(f=>{if(f.cb||f.free)return;
     if(vPages[f.pi].items.some(t=>/remarque|observation/i.test(t.str)&&Math.abs(t.transform[5]-f.cy)<7&&t.transform[4]<f.x&&t.transform[4]>f.x-160))f.free=true});
 }
