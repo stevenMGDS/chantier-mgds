@@ -2277,7 +2277,9 @@ async function startFill(){
         if(a.fieldValue){const t=document.createElement("div");t.className="fldro";t.textContent=a.fieldValue;Object.assign(t.style,{left:pct(L,w0),top:pct(T,h0),width:pct(W,w0),fontSize:cqw(8,w0),fontWeight:/^client_nom/.test(a.fieldName)?"700":"400"});P.box.appendChild(t)}
         continue}
       if(/^hab(res|conso)?_/.test(a.fieldName)){P.habVals[a.fieldName]=a.fieldValue||"";continue}
-      if(/^consx_/.test(a.fieldName)){P.consX.push({name:a.fieldName,v:a.fieldValue||"",rect:a.rect});continue}
+      // marque « ligne renommée / supprimée » du métré : consx_<page>_<y> (chiffres seulement) ; les cases du tableau
+      // redessiné de la préparation (consx_<horodatage>_<n>, lettres comprises) restent des cases à remplir
+      if(/^consx_\d+_\d+$/.test(a.fieldName)){P.consX.push({name:a.fieldName,v:a.fieldValue||"",rect:a.rect});continue}
       if(/^habp_/.test(a.fieldName)){if(a.fieldValue){const t=document.createElement("div");t.className="fldro habp";t.textContent=a.fieldValue;Object.assign(t.style,{left:pct(L,w0),top:pct(T,h0),width:pct(W,w0),fontSize:`max(10px, ${cqw(6,w0)})`});P.box.appendChild(t)}continue}
       if(a.fieldType==="Btn"){
         // case à cocher : zone de toucher agrandie autour de la petite case du PDF
@@ -2673,6 +2675,7 @@ let joinChain=Promise.resolve();
 const prepTried=new Set();
 async function prepFromMetre(d){
   const id=openId,j=jobs.get(id)||{},docs=j.docs||[];if(!id||!(canWrite||canFill)||!assets||vForm)return;
+  if(j.type==="neuf"&&docs.some(x=>x.type==="Support"))return;
   const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
   if(consAdding||!metre||!metre.rempli||!prep||prep.id!==d.id||(prep.poseIns&&prep.consV&&(!metre.pose||prep.joinFrom===metre.id))||prepTried.has(metre.id+"|"+prep.id))return;
   prepTried.add(metre.id+"|"+prep.id);
@@ -2777,6 +2780,7 @@ const pdfFresh=pg=>{pg.contentStream=undefined;pg.contentStreamRef=undefined;ret
 // ---------- chantier neuf : fiche de préparation reprise de la réception de support (Steven, 09/11/2026) ----------
 // « Ce qu'on pose » redessiné à partir de la RS (type de pose applique / tunnel au lieu de Réno / Dépose), fixations et quantité
 // estimée, « Attention à » adapté au neuf (support décrit par la RS, appui / rejingot « à créer » avec hauteur et repères).
+const SUP_V=2; // version du calcul : une fiche reprise avec une version plus ancienne est refaite (fixations montants + traverse haute)
 const SUP_MAT=["parpaing creux","béton","brique creuse","brique pleine","bois","acier"];
 const SUP_POSE=["applique intérieure","applique extérieure","tunnel au nu intérieur","tunnel au nu extérieur"];
 async function supRead(sup){
@@ -2801,7 +2805,10 @@ async function supRead(sup){
   return S;
 }
 // périmètre d'une menuiserie (mm) : cotes de commande, sinon brutes, sinon devis
-const supPerim=r=>{for(const t of r.dims){const n=String(t||"").match(/\d{3,5}/g);if(n&&n.length>=2)return 2*(+n[0]+ +n[1])}return 0};
+const supDims=r=>{for(const t of r.dims){const n=String(t||"").match(/\d{3,5}/g);if(n&&n.length>=2)return[+n[0],+n[1]]}return null};
+const supPerim=r=>{const d=supDims(r);return d?2*(d[0]+d[1]):0};
+// fixations sur les montants et la traverse haute uniquement (Steven, 09/11/2026) : 2 hauteurs + 1 largeur
+const supFixLen=r=>{const d=supDims(r);return d?2*d[1]+d[0]:0};
 // « Attention à » pour le neuf : rubriques de rénovation masquées, support de la RS, appui / rejingot à créer (hauteur + repères)
 async function prepNeufAttention(doc,S){
   const pdf=await pdfjsLib.getDocument({data:await doc.save()}).promise,form=doc.getForm();
@@ -2831,7 +2838,7 @@ async function prepNeufAttention(doc,S){
     }
     // ligne « dépose de menuiseries anciennes » libérée : support décrit par la réception de support
     const dep=zone.find(t=>/^d[ée]pose de menuiseries anciennes/.test(t.str.trim()));
-    if(dep){const y=dep.transform[5],x=dep.transform[4]-12,txt=clean("Support (réception de support) : "+(S.mat.join(", ")||"non précisé")+(S.macon?" · gros œuvre : "+S.macon:"")).replace(/œ/g,"oe");
+    if(dep){const y=dep.transform[5],x=dep.transform[4]-12,txt=clean("Support (réception de support) : "+(S.mat.join(", ")||"à relever sur la réception de support")+(S.macon?" · gros œuvre : "+S.macon:"")).replace(/œ/g,"oe");
       pg.drawText(txt,{x,y,size:8.5,font:B,color:ink})}
     // appui / rejingot : « à créer », hauteur et repères (demandés seulement si la case est cochée)
     const ap=zone.find(t=>/^appui\s*\/\s*rejingot/.test(t.str.trim()));
@@ -2857,8 +2864,8 @@ const supTried=new Set();
 async function prepFromSupport(d){
   const id=openId,j=jobs.get(id)||{},docs=j.docs||[];if(!id||j.type!=="neuf"||!(canWrite||canFill)||!assets||vForm||!window.pdfjsLib)return;
   const sup=[...docs].reverse().find(x=>x.type==="Support"&&x.rempli&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
-  if(!sup||!prep||prep.id!==d.id||prep.supFrom===sup.id||supTried.has(sup.id+"|"+prep.id))return;
-  supTried.add(sup.id+"|"+prep.id);
+  if(!prep||prep.id!==d.id||(sup?prep.supFrom===sup.id&&prep.supV===SUP_V:prep.neuf))return;
+  const key=(sup?sup.id:"-")+"|"+prep.id;if(supTried.has(key))return;supTried.add(key);
   try{
     joinChain=joinChain.then(()=>doJoinSupport(id)).catch(e=>{console.log("rs",e);toast("La fiche de préparation n'a pas pu être reprise de la réception de support.")});
     await joinChain;
@@ -2870,10 +2877,10 @@ async function prepFromSupport(d){
 async function doJoinSupport(id){
   const j=jobs.get(id)||{},docs=j.docs||[];
   const sup=[...docs].reverse().find(x=>x.type==="Support"&&x.rempli&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
-  if(!sup||!prep)return;
-  toast("Mise à jour de la fiche de préparation à partir de la réception de support…");
+  if(!prep)return;
+  toast(sup?"Mise à jour de la fiche de préparation à partir de la réception de support…":"Fiche de préparation adaptée au chantier neuf…");
   pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-  const S=await supRead(sup);
+  const S=sup?await supRead(sup):{mat:[],pose:[],macon:"",fixF:false,fixM:false,fixType:"",rows:[]};
   const doc=await PDFLib.PDFDocument.load(new Uint8Array(await (await fetch("/_blob/"+prep.id)).arrayBuffer()));
   // « Ce qu'on pose » : une ligne par menuiserie de la RS
   let poseIns=prep.poseIns||[];
@@ -2896,13 +2903,13 @@ async function doJoinSupport(id){
       if(!cur||cur===auto[name]){const t=clean(v).replace(/[^\x20-\x7E\xA0-\xFF€]/g,"");tf.setText(t);auto[name]=t}}catch(_){}};
     const vis=rows.find(r=>/^vis b[ée]ton/i.test(r.label)),pat=rows.find(r=>/^pattes de fixation/i.test(r.label));
     if(S.fixM&&vis){const m=/(\d+)\s*vis\s*tou[st]?\s*les\s*(\d+)\s*(mm|cm)?/i.exec(S.fixType),nv=m?+m[1]:1,esp=m?(+m[2])*(/cm/i.test(m[3]||"")?10:1):400;
-      const pts=S.rows.reduce((a,r)=>{const p=supPerim(r);return a+(p?Math.ceil(p/esp):0)},0);
-      if(pts)put(vis.qty,String(pts*nv));put(vis.rem,(S.fixType||"à prévoir par MGDS")+(pts?" · estimé sur "+ml+" ml":""))}
+      const fl=S.rows.reduce((a,r)=>a+supFixLen(r),0),pts=S.rows.reduce((a,r)=>{const p=supFixLen(r);return a+(p?Math.ceil(p/esp):0)},0);
+      if(pts)put(vis.qty,String(pts*nv));put(vis.rem,(S.fixType||"à prévoir par MGDS")+(pts?" · "+(fl/1000).toFixed(1).replace(".",",")+" ml (montants + traverse haute)":""))}
     if(S.fixF)put((pat||vis||{}).rem,"Fournies avec les menuiseries (réception de support)");
     form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
   }catch(e){console.log("fix",e)}
   // ligne d'aide au-dessus des consommables : périmètre recalculé sur les cotes de la RS
-  try{const pdf=await pdfjsLib.getDocument({data:await doc.save()}).promise;
+  if(S.rows.length)try{const pdf=await pdfjsLib.getDocument({data:await doc.save()}).promise;
     for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n),a=(await page.getTextContent()).items.find(t=>/^Aide\s*:/.test(t.str.trim()));if(!a)continue;
       const pg=pdfFresh(doc.getPage(n-1)),s=Math.abs(a.transform[0])||7.5,F=await doc.embedFont(PDFLib.StandardFonts.HelveticaOblique);
       pg.drawRectangle({x:a.transform[4]-1,y:a.transform[5]-2.5,width:Math.max(a.width,300)+4,height:s+4,color:PDFLib.rgb(1,1,1)});
@@ -2910,9 +2917,9 @@ async function doJoinSupport(id){
   try{const r=await consRedraw(doc,{auto});if(r)auto=r.auto}catch(e){console.log("conso",e)}
   const file=new File([await doc.save()],prep.name,{type:"application/pdf"}),r=await assets.upload(file,{type:"application/pdf"});
   const j2=jobs.get(id)||{},d2=(j2.docs||[]).map(x=>({...x})),i=d2.findIndex(x=>x.id===prep.id);if(i<0)return;
-  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,auto,poseIns,consV:1,supFrom:sup.id,neuf:1};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
+  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,auto,poseIns,consV:1,supFrom:sup?sup.id:null,supV:SUP_V,neuf:1};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
   if(openId===id)renderSheet();
-  toast("Fiche de préparation mise à jour à partir de la réception de support.");
+  toast(sup?"Fiche de préparation mise à jour à partir de la réception de support.":"Fiche de préparation adaptée au chantier neuf. Elle se complétera avec la réception de support.");
 }
 // barre d'outils du visualiseur : zoom, dessin, photo
 $("viewer").addEventListener("click",e=>{
