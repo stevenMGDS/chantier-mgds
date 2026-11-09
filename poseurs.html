@@ -194,7 +194,7 @@ const loadPlanning=(a,b)=>q(sb.from("planning").select("*").gte("jour",a).lte("j
 const loadHeures=(a,b)=>q(sb.from("heures").select("*").gte("jour",a).lte("jour",b).order("jour").order("debut"));
 
 // ---------- navigation ----------
-const TABS={poseur:[["planning","Mon planning"],["heures","Mes heures"]],
+const TABS={poseur:[["planning","Mon planning"],["stockphoto","Stock"],["heures","Mes heures"]], // onglet Stock : photos des consommables (Steven, 09/11/2026)
   editeur:[["gplanning","Planning"],["gheures","Heures"],["gphotos","Photos"]],
   autre:[["gplanning","Planning"],["gphotos","Photos"]]};
 function tabsFor(){return TABS[role==="poseur"?"poseur":role==="editeur"?"editeur":"autre"]}
@@ -243,6 +243,7 @@ async function render(){
   try{
     if(tab==="planning")await vPlanning(v);
     else if(tab==="heures")await vHeures(v);
+    else if(tab==="stockphoto")await vStock(v);
     else if(tab==="gplanning")await vGPlanning(v);
     else if(tab==="gheures")await vGHeures(v);
     else if(tab==="gphotos")await vGPhotos(v);
@@ -273,6 +274,28 @@ const CATS=[["avant","Photos avant chantier","De préférence une fois les prote
   ["conso_sortie","Consommables pris au stock","Photographiez ce que vous emportez (silicone, mousse, vis…)."],
   ["conso_retour","Consommables remis au stock","En fin de chantier, photographiez ce que vous rapportez."]];
 const CAT_L=Object.fromEntries(CATS.map(c=>[c[0],c[1]]));
+// ---------- onglet Stock (poseurs) : photographier ce qu'on prend ou rapporte au stock, sans passer par la fiche du chantier ----------
+let stkJob="";
+async function vStock(v){
+  const t=new Date(),pl=await loadPlanning(iso(addDays(t,-21)),iso(addDays(t,21))),td=today();
+  const mesJours=pl.filter(p=>p.poseur===me&&chantiers.has(p.chantier));
+  // ordre : chantier du jour, puis à venir (le plus proche d'abord), puis passés récents, puis les autres chantiers visibles
+  const rang=new Map();mesJours.forEach(p=>{const d=p.jour,r=d===td?0:d>td?1:2,k=r===2?-Date.parse(d):Date.parse(d);const o=rang.get(p.chantier);if(!o||r<o[0]||(r===o[0]&&k<o[1]))rang.set(p.chantier,[r,k])});
+  const ids=[...chantiers.keys()].sort((a,b)=>{const x=rang.get(a)||[3,0],y=rang.get(b)||[3,0];return x[0]-y[0]||x[1]-y[1]||jobName(a).localeCompare(jobName(b),"fr")});
+  if(!stkJob||!chantiers.has(stkJob))stkJob=ids.find(i=>(rang.get(i)||[3])[0]===0)||"";
+  const ph=await q(sb.from("photos").select("*").eq("poseur",me).in("categorie",["conso_sortie","conso_retour"]).order("pris_le",{ascending:false}).limit(12));
+  const urls=await signed(ph.map(p=>p.chemin));
+  const bt=(k,l,s2)=>`<div style="flex:1;min-width:150px"><label class="btn big" style="display:block;text-align:center">📷 ${l}<br><span style="font-size:13px;font-weight:500;opacity:.85">${s2}</span><input type="file" accept="image/*" capture="environment" hidden data-up="${k}" data-job="1" data-note="stk-note"></label>
+     <label class="btn ghost small" style="display:block;text-align:center;margin-top:8px">ou choisir dans la galerie<input type="file" accept="image/*" multiple hidden data-up="${k}" data-job="1" data-note="stk-note"></label></div>`;
+  v.innerHTML=`<div class="box" style="margin-top:16px"><h3>📷 Photographier des consommables</h3>
+    <div class="sub">Avant de partir, photographiez ce que vous prenez au stock (silicone, mousse, vis…). En fin de chantier, ce que vous rapportez.</div>
+    <label class="fld" style="margin-top:12px">Chantier<select id="stk-job"><option value="">Choisir le chantier…</option>${ids.map(i=>`<option value="${esc(i)}" ${i===stkJob?"selected":""}>${esc(jobName(i))}${(rang.get(i)||[3])[0]===0?" (aujourd'hui)":""}</option>`).join("")}</select></label>
+    <label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">${bt("conso_sortie","Sortie du stock","ce que j'emporte")}${bt("conso_retour","Retour au stock","ce que je rapporte")}</div></div>
+   <div class="box"><h3>Mes dernières photos de stock</h3>${ph.length?`<div class="thumbs">${ph.map(p=>`<button data-photo="${p.id}" aria-label="Voir la photo">${urls[p.chemin]?`<img src="${esc(urls[p.chemin])}" alt="" loading="lazy">`:""}<span class="cap">${p.categorie==="conso_sortie"?"Sortie":"Retour"} · ${esc(jobShort(p.chantier))} · ${esc(fmtTs(p.pris_le))}</span></button>`).join("")}</div>`:`<div class="sub">Aucune pour l'instant.</div>`}</div>`;
+  v._photos=ph;v._urls=urls;
+  $("stk-job").addEventListener("change",e=>{stkJob=e.target.value});
+}
 const FICHES=["Préparation","Métré","Réception","Plans d'exé"];
 const FICHE_L={"Préparation":"Fiche de préparation","Métré":"Fiche de métré","Réception":"Fiche de réception","Plans d'exé":"Plans d'exé"};
 async function openSheet(id){
@@ -327,7 +350,9 @@ async function shrink(file){
   finally{URL.revokeObjectURL(url)}
 }
 document.addEventListener("change",async e=>{const inp=e.target.closest("[data-up]");if(!inp||!inp.files.length)return;
-  const cat=inp.dataset.up,id=openId,files=[...inp.files],note=($("note-"+cat)?.value||"").trim()||null;inp.value="";
+  const cat=inp.dataset.up,id=inp.dataset.job?($("stk-job")||{}).value:openId,files=[...inp.files],note=($(inp.dataset.note||"note-"+cat)?.value||"").trim()||null;inp.value="";
+  if(!id){toast("Choisissez d'abord le chantier.");return}
+  if(inp.dataset.job)stkJob=id;
   let ok=0;
   for(const [n,f] of files.entries()){
     toast(`Envoi de la photo ${n+1} sur ${files.length}…`);

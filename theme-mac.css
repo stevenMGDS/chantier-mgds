@@ -200,3 +200,30 @@ h1 small{font-size:15px;margin-top:4px;letter-spacing:0}
 .stkwhich .chip{white-space:nowrap;flex:none;font-size:14px;padding:7px 14px;color:var(--ink)!important}
 .stkwhich .chip[aria-pressed="true"]{color:var(--accent-ink)!important}
 html,body{overflow-x:hidden}
+
+/* espace poseurs (poseurs.html) : même barre latérale / barre du bas, onglets marqués par aria-pressed */
+.tabs [data-tab="heures"],.tabs [data-tab="gheures"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E")}
+.tabs [data-tab="gplanning"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E")}
+.tabs [data-tab="gphotos"],.tabs [data-tab="photos"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8h4l2-3h6l2 3h4v11H3z'/%3E%3Ccircle cx='12' cy='13' r='3.5'/%3E%3C/svg%3E")}
+.tabs [data-tab="stockphoto"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10'/%3E%3C/svg%3E")}
+.tabs button{border-top:0}
+@media (min-width:761px){
+  .tabs:not([hidden]) button{flex:none}
+  .tabs button[aria-pressed="true"]{background:rgba(0,0,0,.08);color:var(--ink);font-weight:600}
+}
+@media (min-width:761px) and (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tabs button[aria-pressed="true"]{background:rgba(255,255,255,.12)}}
+@media (max-width:760px){
+  .tabs button[aria-pressed="true"]{color:var(--accent)}
+  .tabs button[aria-pressed="true"]::before{background:var(--accent)}
+}
+
+/* planning intégré dans l'appli principale (poseurs.html?embed=1) : onglets en haut, sans barre latérale ni barre du bas */
+html.embed .tabs:not([hidden]){position:fixed;top:0;left:0;right:0;bottom:auto;width:auto;height:auto;margin:0;padding:8px 2px;display:flex;flex-direction:row;gap:6px;
+  background:var(--bg);border:0;border-radius:0;overflow-x:auto;-webkit-backdrop-filter:none;backdrop-filter:none}
+html.embed .tabs::before,html.embed .tabs::after{display:none}
+html.embed .tabs button{flex:none!important;width:auto;flex-direction:row;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:14px;font-weight:500;color:var(--ink);background:none}
+html.embed .tabs button::before{width:16px;height:16px;background:var(--muted)}
+html.embed .tabs button[aria-pressed="true"]{background:var(--surface)!important;box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px var(--line)!important;font-weight:600;color:var(--ink)}
+html.embed .tabs button[aria-pressed="true"]::before{background:var(--accent)}
+html.embed .wrap{margin-left:0!important;padding:52px 0 16px!important;max-width:none!important}
+html.embed body{padding-bottom:0!important}
