@@ -4,6 +4,7 @@
 Steven (gérant de MGDS, menuiserie) n'est pas développeur : lui répondre en français, simplement.
 Plusieurs sessions Claude travaillent en parallèle sans se voir : cette mémoire est le seul fil commun.
 
+- **Page à jour (la plus pratique) : « Mémoire application MGDS », https://claude.ai/artifact/VTDW6pygZPA97raYPibxJL** (doc Claude ; la lire avec l'outil Artifact ou les outils Claude Docs).
 - Copie de référence : stockage Supabase, bucket `outil`, fichier `memoire/MEMOIRE.md`
   (lire : `curl -sS "https://azgvzgenfykvlkuwevty.supabase.co/storage/v1/object/outil/memoire/MEMOIRE.md" -H "apikey: x" -H "Authorization: Bearer x"`).
   Le fichier du même nom dans le code peut être plus ancien : en cas de doute, la copie Supabase fait foi.
