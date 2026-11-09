@@ -404,11 +404,11 @@ async function withAddress(blob,j){
 }
 function showFill(n){const e=$("vfill");e.textContent=n?n+" case"+(n>1?"s":"")+" à remplir":"Fiche complète ✓";e.className=n?"":"ok";$("vnext").hidden=!n||!vForm}
 function closeViewer(){$("viewer").hidden=true;$("vpages").innerHTML="";vForm=null;vPdf=null;vPages=[]}
-async function openFill(docId,edit=true){
+async function openFill(docId,edit=true,push=true){
   const j=chantiers.get(openId)||{},d=(j.docs||[]).find(x=>x.id===docId);if(!d)return;
   vDoc=d;vJob=openId;vForm=null;vPages=[];const pg=$("vpages");$("vname").textContent=FICHE_L[d.type]||d.name;
   pg.innerHTML='<p class="sub">Ouverture de la fiche…</p>';pg.style.alignItems="";$("viewer").hidden=false;["vedit","vsave","vnext"].forEach(x=>$(x).hidden=true);$("vfill").textContent="";
-  history.pushState({viewer:1},"");
+  if(push)history.pushState({viewer:1},"");
   try{
     const{data,error}=await sb.storage.from("documents").download(d.id);if(error)throw error;
     if(!/pdf/.test(data.type)&&!/\.pdf$/i.test(d.name)){pg.innerHTML="";const im=new Image();im.alt=d.name;im.style.maxWidth="100%";im.src=URL.createObjectURL(data);pg.appendChild(im);return}
@@ -511,7 +511,8 @@ async function saveFill(){
     }
     if(!done)throw new Error("conflit");
     vBlob=new Blob([bytes],{type:"application/pdf"});vForm.dirty=false;
-    toast(vForm.reste?`Fiche enregistrée. Il reste ${vForm.reste} case${vForm.reste>1?"s":""} à remplir.`:cocher?"Fiche complète et enregistrée ✓ L'étape est cochée dans l'appli.":"Fiche complète et enregistrée ✓");
+    const msg=vForm.reste?`Fiche enregistrée. Il reste ${vForm.reste} case${vForm.reste>1?"s":""} à remplir.`:cocher?"Fiche complète et enregistrée ✓ L'étape est cochée dans l'appli.":"Fiche complète et enregistrée ✓";
+    await openFill(vDoc.id,false,false);toast(msg);  // fiche refermée en lecture après l'enregistrement
     if(openId===id)renderSheet();
   }catch(e){console.error(e);toast("La fiche n'a pas pu être enregistrée. Vérifiez le réseau et réessayez.")}
   finally{if(vForm)vForm.saving=false;$("vsave").disabled=false}

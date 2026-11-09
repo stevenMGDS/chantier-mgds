@@ -218,7 +218,7 @@ textarea{min-height:64px;resize:vertical}
 .ctl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .ctl li{padding:6px 10px;border-radius:6px;background:var(--t-bleu);font-size:15px}
 .ctl li.alerte{background:var(--t-rouge)}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;z-index:30;font-size:15px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;z-index:60;font-size:15px}
 .who-by{font-size:12px;color:var(--muted);margin-left:6px}
 .dtop{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0 12px}.dtop select{width:auto;margin-left:auto}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
@@ -1879,7 +1879,7 @@ async function metreAddRows(doc,n,font){
 }
 async function addConsRow(){
   if(!vForm||vForm.saving||consAdding)return;consAdding=true;$("cpanel").hidden=true;
-  try{vForm.addRows=(vForm.addRows||0)+1;vForm.dirty=true;const d0=vDoc;await saveFill();if(vDoc===d0||!vDoc)return;
+  try{vForm.addRows=(vForm.addRows||0)+1;vForm.dirty=true;const d0=vDoc;await saveFill({keep:true});if(vDoc===d0||!vDoc)return;
     const top=$("vpages").scrollTop;await viewDoc(vDoc);await startFill();$("vpages").scrollTop=top;toast("Ligne ajoutée en bas du tableau des consommables.")}
   finally{consAdding=false}
 }
@@ -2372,9 +2372,11 @@ async function startFill(){
   $("vsave").hidden=false;$("vdraw").hidden=false;$("vphoto").hidden=vDoc.type!=="Métré";vDraw.stack=[];
   toast("Touchez une case pour la remplir. Les cases en jaune sont obligatoires. « Dessiner » pour tracer au stylet.");
 }
-async function saveFill(){
+// après « Enregistrer » la fiche se referme en lecture (sans les cases à remplir) et le résultat s'affiche — Steven, 09/11/2026 ;
+// keep:true = rester en remplissage (ajout d'une ligne, mises à jour automatiques)
+async function saveFill(opts={}){
   if(!vForm||vForm.saving)return;const id=openId,d0=vDoc;if(!id||!d0)return;
-  vForm.saving=true;$("vsave").disabled=true;toast("Enregistrement de la fiche…");
+  vForm.saving=true;$("vsave").disabled=true;$("vsave").textContent="Enregistrement…";toast("Enregistrement de la fiche…");
   try{
     const doc=await PDFLib.PDFDocument.load(await vBlob.arrayBuffer());const form=doc.getForm();
     const font=await doc.embedFont(PDFLib.StandardFonts.Helvetica);
@@ -2424,10 +2426,11 @@ async function saveFill(){
     if(k&&vForm.reste===0&&!sd(j,k)&&stepsOf(j).some(s=>s.k===k))patch.steps={[k]:{d:today(),by:me||""}};
     jobs.set(id,{...j,docs,steps:{...(j.steps||{}),...(patch.steps||{})}});vDoc=nd;vBlob=file;vForm.dirty=false;
     await save(id,patch);renderSheet();render();
-    toast(vForm.reste?"Fiche enregistrée. Il reste "+vForm.reste+" case"+(vForm.reste>1?"s":"")+" à remplir.":patch.steps?"Fiche complète et enregistrée : l'étape « "+SK[k].l+" » est cochée.":"Fiche complète et enregistrée.");
+    const reste=vForm.reste;if(!opts.keep){await viewDoc(nd);vForm=null}
+    toast(reste?"Fiche enregistrée. Il reste "+reste+" case"+(reste>1?"s":"")+" à remplir.":patch.steps?"Fiche complète et enregistrée : l'étape « "+SK[k].l+" » est cochée.":"Fiche complète et enregistrée.");
     if(d0.type==="Métré")setTimeout(()=>joinPrepa(id),2500);
   }catch(e){toast("La fiche n'a pas pu être enregistrée. Réessayez.")}
-  finally{if(vForm)vForm.saving=false;$("vsave").disabled=false}
+  finally{if(vForm)vForm.saving=false;$("vsave").disabled=false;$("vsave").textContent="Enregistrer"}
 }
 
 // ---------- photos du métré et annexe de la fiche de préparation ----------
@@ -2691,7 +2694,7 @@ async function prepFromMetre(d){
       toast("Mise à jour de la fiche découverte à partir du métré… (quelques secondes)");
       busy.innerHTML='<p class="sub">Mise à jour de la fiche découverte à partir du métré…</p>';
       await viewDoc(metre);if(vDoc!==metre||!vPdf)return;await startFill();if(!vForm)return;
-      vForm.dirty=true;await saveFill();if(vDoc===metre){toast("La fiche découverte n'a pas pu être mise à jour. Ouvrez le métré et appuyez sur « Enregistrer ».");return}
+      vForm.dirty=true;await saveFill({keep:true});if(vDoc===metre){toast("La fiche découverte n'a pas pu être mise à jour. Ouvrez le métré et appuyez sur « Enregistrer ».");return}
       await new Promise(r=>setTimeout(r,2700))}
     else joinPrepa(id);
     await joinChain;
