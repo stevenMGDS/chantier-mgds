@@ -764,6 +764,8 @@ document.addEventListener("click",e=>{const c=e.target.closest("[data-gcat]");if
   role=(profils.find(p=>p.id===me)||{}).role||"lecteur";
   // accès par poste (Steven, 09/11/2026) : l'atelier (Christophe, Manu) n'a que l'appli principale (Atelier + Stock)
   if(role==="atelier"){location.replace("index.html");return}
+  // hors poseurs, l'espace poseurs ne s'ouvre que dans l'onglet Planning de l'appli principale (Yannick tombait sur la page poseurs avec un ancien raccourci, 09/11/2026)
+  if(role!=="poseur"&&!document.documentElement.classList.contains("embed")){location.replace("index.html");return}
   const p=profils.find(x=>x.id===me)||{};
   $("hello").textContent="Bonjour "+(p.nom||(p.email||"").split("@")[0]);
   $("app").hidden=false;$("tabs").hidden=false;week=monday(new Date());
