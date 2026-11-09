@@ -21,4 +21,5 @@ Accès sur invitation uniquement ; les données sont dans une base Supabase prot
 - Listes des chantiers et des commandes atelier : menu « Trier » (pose la plus proche par défaut, retards et alertes, ordre alphabétique), retenu sur chaque appareil
 - `theme-mac.css` : habillage façon Mac (barre latérale, tuiles de compteurs, onglets en bas sur téléphone, mode sombre) ; pour revenir à l'ancien aspect, retirer la ligne <link … theme-mac.css> de index.html et poseurs.html
 - `outil/reservations.sql` : seul Christophe réserve le stock atelier (case profils.reserve_stock) ; Manu, chef d'atelier (rôle « atelier », identifiant manu), fait les entrées / sorties de stock sans réserver
+- `outil/sauvegarde.py` : sauvegarde hebdomadaire sur le Mac du bureau (tables en JSON/CSV, fichiers devis/fiches/photos, copie du site ; 12 semaines gardées)
 - `outil/atelier_sync.py` : veille atelier : dossiers ATELIER des chantiers et dossier ATELIER (hors pose MGDS) du serveur -> commandes de l'onglet Atelier (deux étapes : liste sur le Mac, import dans l'environnement Supabase)
