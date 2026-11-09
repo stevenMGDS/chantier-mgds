@@ -466,9 +466,12 @@ async function startFill(){
     f.group=g&&!cut?g.group:"g"+(++gn)});
   // texte obligatoire, sauf remarques, grands cadres, et petit champ collé juste après une case (« autre : … », nombre de grilles, remarque d'un contrôle)
   fields.forEach(f=>{if(!f.cb)f.req=!f.multi&&!/^rem_/.test(f.name)&&!cbs.some(g=>!/^opt_/.test(g.name)&&near(f,g)&&g.x<f.x&&f.x-g.x<40)});
+  // chantier neuf : hauteur et repères de l'appui / rejingot à créer, demandés seulement si la case est cochée
+  const apH=fields.filter(f=>/^prepn_appui_/.test(f.name)),apCb=apH.length?fields.filter(f=>f.cb&&f.pi===apH[0].pi&&Math.abs(f.cy-apH[0].cy)<6&&f.x<apH[0].x).sort((a,b)=>a.x-b.x)[0]:null;
+  const apSync=()=>apH.forEach(f=>{f.req=!!(apCb&&apCb.el.checked);f.el.classList.toggle("opt",!f.req)});apSync();
   fields.forEach(f=>{if(!f.cb&&!f.req)f.el.classList.add("opt")});
   vForm={fields,dirty:false,saving:false};
-  P0:{const upd=()=>{let n=0;const groups={};
+  P0:{const upd=()=>{apSync();let n=0;const groups={};
     fields.forEach(f=>{if(f.cb){(groups[f.group]=groups[f.group]||[]).push(f)}else{const need=f.req&&!f.el.value.trim();f.el.classList.toggle("need",need);if(need)n++}});
     Object.values(groups).forEach(g=>{const need=!g.some(f=>f.el.checked);g.forEach(f=>f.el.classList.toggle("need",need));if(need)n++});
     vForm.reste=n;vForm.total=fields.filter(f=>f.req).length+Object.keys(groups).length;showFill(n)};

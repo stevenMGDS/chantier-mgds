@@ -1071,7 +1071,7 @@ async function viewDoc(d){
       vPages.push({page,box,c,vp,w0:v0.width,h0:v0.height});
     }
     if((canWrite||canFill)&&assets&&d.type in FORM_TYPES&&!$("viewer").hidden){const fs=(await pdf.getFieldObjects())||{};if(Object.keys(fs).length){$("vedit").hidden=false;if(d.rempli)showFill(d.rempli.reste)}}
-    if(d.type==="Préparation"&&!$("viewer").hidden)setTimeout(()=>prepFromMetre(d),50);
+    if(d.type==="Préparation"&&!$("viewer").hidden)setTimeout(()=>{prepFromMetre(d);prepFromSupport(d)},50);
   }catch(_){pg.innerHTML='<p class="sub">Ce document ne peut pas s\'afficher ici.'+(downloads?' Utilisez « Télécharger ».':'')+'</p>';if(vBlob)$("vdl").hidden=!downloads}
 }
 
@@ -2092,7 +2092,7 @@ function prepXLayout(items,w0,font){
 }
 // à l'ouverture : les questions sont ajoutées au PDF (visibles aussi en simple lecture)
 async function injectPrepX(blob,d){
-  if(d.type!=="Préparation"||!window.PDFLib||!window.pdfjsLib)return blob;
+  if(d.type!=="Préparation"||d.neuf||!window.PDFLib||!window.pdfjsLib)return blob;
   try{
     const data=new Uint8Array(await blob.arrayBuffer()),pdf=await pdfjsLib.getDocument({data:data.slice()}).promise;
     const names=Object.keys((await pdf.getFieldObjects())||{});if(names.some(n=>/^prepx2_/.test(n)))return blob;
@@ -2127,7 +2127,7 @@ function prepXRules(fields){
   tReq();
 }
 function setupPrepX(fields){
-  vPrepX=null;
+  vPrepX=null;if(vDoc&&vDoc.neuf){prepNRules(fields);return}
   vPages.forEach((P,pi)=>{
     if(vPrepX||!(P.items||[]).some(t=>/^ATTENTION [ÀA]/.test(t.str.trim())))return;
     if(fields.some(f=>/^prepx2?_/.test(f.name))){prepXRules(fields);vPrepX={done:true};return}
@@ -2306,7 +2306,7 @@ async function startFill(){
   if(vDoc.type==="Préparation")fields.forEach(f=>{
     if(/^plus_/.test(f.name)){f.free=true;f.el.classList.add("plus");return}
     const t=f.tab;if(!t)return;const cs=t.h.cols.map(c=>c.s).join("|");
-    if((/Type de pose/.test(cs)&&/Rep/.test(cs))||(/^Qt/.test(t.col.s)&&/Article/.test(cs))){f.free=true;f.lock=true;if(f.cb)f.el.disabled=true;else{f.el.readOnly=true;f.el.classList.add("lock")}}});
+    if((/Type de pose/.test(cs)&&/Rep/.test(cs))||(/^Qt/.test(t.col.s)&&/Article/.test(cs)&&(jobs.get(openId)||{}).type!=="neuf")){f.free=true;f.lock=true;if(f.cb)f.el.disabled=true;else{f.el.readOnly=true;f.el.classList.add("lock")}}});
   fields.forEach(f=>{if(f.cb&&f.lock)f.free=true});
   fields.forEach(f=>{if(!f.cb)f.req=!f.free&&!f.multi&&!/^rem_/.test(f.name)&&!cbs.some(g=>!/^opt_/.test(g.name)&&near(f,g)&&g.x<f.x&&f.x-g.x<40)});
   fields.forEach(f=>{if(!f.cb&&!f.req)f.el.classList.add("opt")});
@@ -2497,7 +2497,7 @@ async function prepPoseRegions(data){
   return st?{regs,sub:st.sub}:null;
 }
 // dessine le tableau : Repère | Ce qu'on pose | Pose | Points importants ; pages « suite » ajoutées si besoin (renvoie leurs numéros)
-async function drawPoseTable(doc,R,data){
+async function drawPoseTable(doc,R,data,src="du métré"){
   const F=await doc.embedFont(PDFLib.StandardFonts.Helvetica),B=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
   const ink=PDFLib.rgb(.1,.1,.1),blu=PDFLib.rgb(0,.24,.57),red=PDFLib.rgb(.72,.1,.1),hdr=PDFLib.rgb(.91,.93,.96),line=PDFLib.rgb(.72,.76,.82),white=PDFLib.rgb(1,1,1),grey=PDFLib.rgb(.4,.43,.48);
   const S=x=>String(x||"").replace(/[’‘]/g,"'").replace(/[^\x20-\x7E\xA0-\xFF—–…€]/g,"").replace(/\s+/g," ").trim();
@@ -2508,32 +2508,33 @@ async function drawPoseTable(doc,R,data){
   const real=x=>x&&!/^[-–0.\s]*$/.test(x);
   const blocks=data.rows.map(r=>{const v=r.v||{};return[
     [{t:r.rep||"sans repère",f:B}],
-    [{t:r.des},r.cde&&{t:"Commande : "+r.cde,f:B,c:blu},(r.tab||r.ht)&&{t:[r.tab&&"Tableau "+r.tab,r.ht&&"H.T. "+r.ht].filter(Boolean).join(" · "),c:grey},r.col&&{t:"Coloris : "+r.col}],
+    [{t:r.des},r.cde&&{t:"Commande : "+r.cde,f:B,c:blu},(r.tab||r.ht)&&{t:[r.tab&&"Tableau "+r.tab,r.ht&&"H.T. "+r.ht].filter(Boolean).join(" · "),c:grey},r.brut&&{t:"Cotes brutes "+r.brut,c:grey},r.col&&{t:"Coloris : "+r.col}],
     [{t:(r.pose||[]).join(" + ")||"à préciser",f:B,c:blu},(r.sens||[]).length&&{t:"Sens : "+r.sens.join(" ")},real(r.iso)&&{t:"Isolation "+r.iso+" mm"}],
     [side(v,"Habillage ext. : ","me","the","tbe")&&{t:side(v,"Habillage ext. : ","me","the","tbe")},side(v,"Habillage int. : ","mi","thi","tbi")&&{t:side(v,"Habillage int. : ","mi","thi","tbi")},
      ml(r.ml)&&{t:"Longueurs : "+ml(r.ml),f:B,c:blu},Object.values(v).includes(HAB_FOURNI)&&{t:"Couvre-joints / habillages fournis avec la menuiserie (à poser)",f:B},r.colhab&&{t:"Coloris habillage : "+r.colhab},
      r.sol&&{t:r.sol==="oui"?"ATTENTION : modification du sol intérieur":"ATTENTION : sol intérieur rehaussé de "+r.sol+" mm",f:B,c:red},
-     (r.opts||[]).length&&{t:r.opts.join(" · ")},real(r.vit)&&{t:"Vitrage : "+r.vit},real(r.all)&&{t:"Allège : "+r.all+" mm"},r.rem&&real(r.rem)&&{t:"Remarque : "+r.rem}]
+     ...(r.pts||[]).map(t=>({t})),(r.opts||[]).length&&{t:r.opts.join(" · ")},real(r.vit)&&{t:"Vitrage : "+r.vit},real(r.all)&&{t:"Allège : "+r.all+" mm"},r.rem&&real(r.rem)&&{t:"Remarque : "+r.rem}]
   ].map(c=>c.filter(Boolean))});
   (data.extras||[]).forEach(e=>blocks.push([[{t:"Accessoire",f:B}],[{t:e.des}],[{t:"Qté "+e.q,f:B,c:blu}],[real(e.cote)&&{t:"Cote mesurée : "+e.cote},real(e.rem)&&{t:"Remarque : "+e.rem}].filter(Boolean)]));
   const lay=b=>b.map((c,i)=>c.flatMap(it=>wrap(it.t,X[i+1]-X[i]-6,it.f||F).map(l=>({l,f:it.f||F,c:it.c||ink}))));
   const regs=R.regs.map(g=>({...g})),ins=[];let ri=0,y=0;
-  const pageOf=g=>doc.getPage(g.pi);
+  const fr=new Set(),pageOf=g=>{const pg=doc.getPage(g.pi);if(!fr.has(g.pi)){fr.add(g.pi);pdfFresh(pg)}return pg};
   const head=g=>{const pg=pageOf(g);pg.drawRectangle({x:X[0],y:y-13,width:X[4]-X[0],height:13,color:hdr,borderColor:line,borderWidth:.5});
-    ["Repère","Ce qu'on pose (repris du métré)","Pose","Points importants"].forEach((t,i)=>pg.drawText(t,{x:X[i]+3,y:y-9.5,size:FS,font:B,color:ink}));y-=13};
+    ["Repère","Ce qu'on pose (repris "+src+")","Pose","Points importants"].forEach((t,i)=>pg.drawText(t,{x:X[i]+3,y:y-9.5,size:FS,font:B,color:ink}));y-=13};
   const start=g=>{const pg=pageOf(g);pg.drawRectangle({x:30,y:g.bottom,width:g.w-60,height:g.top-g.bottom,color:white});y=g.top-4;head(g)};
   if(R.sub){const pg=pageOf(regs[0]);pg.drawRectangle({x:R.sub.x-1,y:R.sub.y-3,width:Math.max(R.sub.w,260)+4,height:12,color:white});
-    pg.drawText("repris du métré : ce que l'équipe pose, rien à remplir",{x:R.sub.x,y:R.sub.y,size:8,font:F,color:grey})}
+    pg.drawText("repris "+src+" : ce que l'équipe pose, rien à remplir",{x:R.sub.x,y:R.sub.y,size:8,font:F,color:grey})}
   start(regs[0]);
   for(const b of blocks){const L=lay(b),h=Math.max(1,...L.map(c=>c.length))*LH+5;
     while(y-h<regs[ri].bottom){
+      if(!regs[ri].n)pageOf(regs[ri]).drawText("Détail des menuiseries : voir la page suivante (CE QU'ON POSE, suite).",{x:X[0]+3,y:y-11,size:8,font:F,color:grey});regs[ri].n=1;
       if(ri+1<regs.length){ri++;start(regs[ri]);continue}
       // plus de place : page « suite » ajoutée après la dernière page du tableau
       const at=regs[ri].pi+1,W=regs[0].w,pg=doc.insertPage(at,[W,841.89]);ins.push(at);
       pg.drawText("CE QU'ON POSE (suite)",{x:36,y:800,size:11,font:B,color:blu});
       regs.push({pi:at,top:790,bottom:48,w:W});ri++;y=790;head(regs[ri]);
     }
-    const pg=pageOf(regs[ri]);
+    const pg=pageOf(regs[ri]);regs[ri].n=(regs[ri].n||0)+1;
     L.forEach((c,i)=>c.forEach((it,k)=>pg.drawText(it.l,{x:X[i]+3,y:y-9-k*LH,size:FS,font:it.f,color:it.c})));
     X.forEach(x=>pg.drawLine({start:{x,y},end:{x,y:y-h},thickness:.5,color:line}));
     pg.drawLine({start:{x:X[0],y:y-h},end:{x:X[4],y:y-h},thickness:.5,color:line});y-=h;
@@ -2603,7 +2604,7 @@ async function consRedraw(doc,o={}){
   const S=x=>String(x||"").replace(/[’‘]/g,"'").replace(/[^\x20-\x7E\xA0-\xFF€]/g,"").replace(/\s+/g," ").trim();
   const HH=14,stamp=Date.now().toString(36);let seq=0;
   const avail=main.hy+9.5-main.bottom-HH,RH=Math.min(17.8,Math.max(13,avail/Math.max(1,rows.length)));
-  let pi=main.pi,pg=doc.getPage(pi),y=main.hy+9.5,bottom=main.bottom;
+  let pi=main.pi,pg=pdfFresh(doc.getPage(pi)),y=main.hy+9.5,bottom=main.bottom;
   const tx=(x,yb,w,h,v,{ro,blue,name,bg}={})=>{const tf=form.createTextField(name||"consx_"+stamp+"_"+(seq++)),t=S(v);
     tf.addToPage(pg,{x,y:yb,width:w,height:h,borderWidth:0,font:F,backgroundColor:bg||(ro?white:cell)});
     if(blue)tf.acroField.setDefaultAppearance("0 0.24 0.57 rg /Helv 8 Tf");
@@ -2739,6 +2740,149 @@ async function doJoin(id){
   d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto,poseIns,consV:1,joinFrom:metre?metre.id:null};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
   if(openId===id)renderSheet();
   toast("Fiche de préparation mise à jour"+(nCons?" : consommables repris du métré":"")+(added?(nCons?",":" :")+" "+added+" page"+(added>1?"s":"")+" de croquis et photos":"")+".");
+}
+// pdf-lib garde en cache le contenu d'une page dès le premier doc.save() : ce qu'on dessine ensuite sur cette page serait perdu.
+// pdfFresh ouvre un nouveau flux de dessin sur la page (le précédent, déjà enregistré, est conservé).
+const pdfFresh=pg=>{pg.contentStream=undefined;pg.contentStreamRef=undefined;return pg};
+// ---------- chantier neuf : fiche de préparation reprise de la réception de support (Steven, 09/11/2026) ----------
+// « Ce qu'on pose » redessiné à partir de la RS (type de pose applique / tunnel au lieu de Réno / Dépose), fixations et quantité
+// estimée, « Attention à » adapté au neuf (support décrit par la RS, appui / rejingot « à créer » avec hauteur et repères).
+const SUP_MAT=["parpaing creux","béton","brique creuse","brique pleine","bois","acier"];
+const SUP_POSE=["applique intérieure","applique extérieure","tunnel au nu intérieur","tunnel au nu extérieur"];
+async function supRead(sup){
+  const doc=await PDFLib.PDFDocument.load(new Uint8Array(await (await fetch("/_blob/"+sup.id)).arrayBuffer())),form=doc.getForm();
+  const has=n=>{try{form.getField(n);return true}catch(_){return false}};
+  const tx=n=>{try{const f=form.getField(n);if(f instanceof PDFLib.PDFDropdown)return clean((f.getSelected()||[])[0]||"");if(f instanceof PDFLib.PDFTextField)return clean(f.getText()||"")}catch(_){}return""};
+  const cb=n=>{try{return form.getCheckBox(n).isChecked()}catch(_){return false}};
+  const pick=(p,labs)=>labs.filter((l,i)=>cb(p+"_"+i));
+  const L=(a,b)=>a||b?(a||"?")+" × "+(b||"?"):"";
+  const S={mat:pick("mat",SUP_MAT),pose:pick("pose",SUP_POSE),macon:tx("macon"),fixF:cb("fix_0"),fixM:cb("fix_1"),fixType:tx("rem_fix"),rows:[]};
+  for(let k=1;has("repere_"+k);k++){
+    const def=[["fa_g","montant gauche"],["fa_d","montant droit"],["niv_h","traverse haute"],["niv_b","appui"]].map(([n,l])=>{
+      const v=tx(n+"_"+k);if(!v||/^[AN]0\b/.test(v))return"";const mm=tx("rem_"+n+"_"+k);return l+" "+v.split(" ")[0]+(mm?" ("+mm+" mm)":"")}).filter(Boolean);
+    const vr=["","VR conforme","VR non conforme"].filter((l,i)=>l&&cb("vr_"+k+"_"+i));
+    const rej=["rejingot aligné nu int.","rejingot en débord int.","rejingot non conforme"].filter((l,i)=>cb("rej_"+k+"_"+i)),rc=tx("rem_rej_"+k);
+    const obs=tx("rem_obs_"+k),info=tx("rem_info_"+k),dd=tx("dimdevis_"+k);
+    S.rows.push({rep:tx("repere_"+k)||"Menuiserie n° "+k,des:[tx("designation_"+k),dd&&"devis "+dd].filter(Boolean).join(" · "),
+      cde:L(tx("cde_l_"+k),tx("cde_h_"+k)),brut:L(tx("brut_l_"+k),tx("brut_h_"+k)),dims:[L(tx("cde_l_"+k),tx("cde_h_"+k)),L(tx("brut_l_"+k),tx("brut_h_"+k)),dd],
+      pose:S.pose.map(p=>p[0].toUpperCase()+p.slice(1)),all:tx("allege_"+k),
+      pts:[...vr,rej.length?rej.join(", ")+(rc?" (cote "+rc+" mm)":""):"",def.length?"Défauts : "+def.join(" · "):"",obs&&"Réserve : "+obs,info].filter(Boolean)});
+  }
+  return S;
+}
+// périmètre d'une menuiserie (mm) : cotes de commande, sinon brutes, sinon devis
+const supPerim=r=>{for(const t of r.dims){const n=String(t||"").match(/\d{3,5}/g);if(n&&n.length>=2)return 2*(+n[0]+ +n[1])}return 0};
+// « Attention à » pour le neuf : rubriques de rénovation masquées, support de la RS, appui / rejingot à créer (hauteur + repères)
+async function prepNeufAttention(doc,S){
+  const pdf=await pdfjsLib.getDocument({data:await doc.save()}).promise,form=doc.getForm();
+  for(let n=1;n<=pdf.numPages;n++){
+    // texte non regroupé (sinon le navigateur fusionne parfois cases et libellés d'une même ligne) ; cases ☐ / ☑ ôtées du début
+    const page=await pdf.getPage(n),its=(await page.getTextContent({disableCombineTextItems:true})).items.filter(t=>t.str.trim()).map(t=>{const m=/^[\s☐☑☒✓✔]+/.exec(t.str);
+      if(!m||m[0].length>=t.str.length)return t;const w=t.width*(m[0].length/t.str.length);return{...t,str:t.str.slice(m[0].length),width:t.width-w,transform:[...t.transform.slice(0,4),t.transform[4]+w,t.transform[5]]}});
+    const head=its.find(t=>/^ATTENTION [ÀA]/.test(t.str.trim()));if(!head)continue;
+    const hy=head.transform[5],end=its.filter(t=>t.transform[5]<hy-4&&isCaps(t.str.trim())).sort((a,b)=>b.transform[5]-a.transform[5])[0],bot=end?end.transform[5]+10:0;
+    const zone=its.filter(t=>t.transform[5]<hy-2&&t.transform[5]>bot),an=(await page.getAnnotations()).filter(a=>a.subtype==="Widget");
+    const pg=pdfFresh(doc.getPage(n-1)),white=PDFLib.rgb(1,1,1),ink=PDFLib.rgb(.1,.1,.1),F=await doc.embedFont(PDFLib.StandardFonts.Helvetica),B=await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    const fs=t=>Math.abs(t.transform[0])||8.5;
+    // cases et champs sur la ligne d'un texte, entre deux abscisses
+    const widgetsOn=(y,x0,x1)=>an.filter(a=>Math.abs((a.rect[1]+a.rect[3])/2-(y+3))<6&&a.rect[0]>=x0-2&&a.rect[0]<=x1);
+    const drop=as=>as.forEach(a=>{try{form.removeField(form.getField(a.fieldName))}catch(_){}});
+    const hide=(x0,y,x1,h)=>pg.drawRectangle({x:x0,y:y-3,width:x1-x0,height:h+5,color:white});
+    // 1) rubriques sans objet sur du neuf (case comprise) ; « Peinture client », « Mur », « mur autre » (oui / non, placo…) avec
+    const KILL=[/^reprise doublage/,/^ma[çc]onnerie ou GO/,/^d[ée]pose de menuiseries anciennes/,/^Peinture client/,/^Mur\s*:/,/^mur autre/];
+    for(const t of zone){
+      const k=KILL.findIndex(re=>re.test(t.str.trim()));if(k<0)continue;
+      const y=t.transform[5],x0=t.transform[4],box=widgetsOn(y,x0-16,x0).filter(a=>a.checkBox);
+      // fin de la rubrique : début de la rubrique suivante sur la même ligne (ou fin de ligne pour peinture / mur)
+      const next=zone.filter(u=>Math.abs(u.transform[5]-y)<2&&u.transform[4]>x0+t.width+2&&!/^(oui|non|placo|brique|autre|☐|\.\.?)$/.test(u.str.trim())&&!KILL.some(re=>re.test(u.str.trim()))).sort((a,b)=>a.transform[4]-b.transform[4])[0];
+      const mur=zone.find(u=>Math.abs(u.transform[5]-y)<2&&/^Mur\s*:/.test(u.str.trim()));
+      const x1=k>=3?pg.getWidth()-30:k===2?(mur?mur.transform[4]-6:pg.getWidth()-30):(next?next.transform[4]-14:x0+t.width+4);
+      drop([...box,...widgetsOn(y,x0,x1)]);hide(box.length?box[0].rect[0]-1:x0-12,y,x1,fs(t));
+    }
+    // ligne « dépose de menuiseries anciennes » libérée : support décrit par la réception de support
+    const dep=zone.find(t=>/^d[ée]pose de menuiseries anciennes/.test(t.str.trim()));
+    if(dep){const y=dep.transform[5],x=dep.transform[4]-12,txt=clean("Support (réception de support) : "+(S.mat.join(", ")||"non précisé")+(S.macon?" · gros œuvre : "+S.macon:"")).replace(/œ/g,"oe");
+      pg.drawText(txt,{x,y,size:8.5,font:B,color:ink})}
+    // appui / rejingot : « à créer », hauteur et repères (demandés seulement si la case est cochée)
+    const ap=zone.find(t=>/^appui\s*\/\s*rejingot/.test(t.str.trim()));
+    if(ap){const y=ap.transform[5],x=ap.transform[4],s=fs(ap);hide(x-1,y,x+ap.width+2,s);
+      const lab="appui / rejingot à créer : hauteur";pg.drawText(lab,{x,y,size:s,font:F,color:ink});let cx=x+F.widthOfTextAtSize(lab,s)+3;
+      const mk=(name,w)=>{const tf=form.createTextField(name);tf.addToPage(pg,{x:cx,y:y-2,width:w,height:s+3.5,borderWidth:0,font:F,backgroundColor:PDFLib.rgb(.93,.95,.99)});tf.setFontSize(s);cx+=w+3;return tf};
+      mk("prepn_appui_h",34);pg.drawText("mm · repère(s)",{x:cx,y,size:s,font:F,color:ink});cx+=F.widthOfTextAtSize("mm · repère(s)",s)+3;
+      mk("prepn_appui_rep",Math.max(60,(zone.filter(u=>Math.abs(u.transform[5]-y)<2&&u.transform[4]>x+ap.width).sort((a,b)=>a.transform[4]-b.transform[4])[0]||{transform:[0,0,0,0,pg.getWidth()-40]}).transform[4]-cx-16))}
+    doc.getPages().forEach(p2=>{const an2=p2.node.Annots();if(!an2)return;for(let k=an2.size()-1;k>=0;k--){const x=an2.get(k);if(x instanceof PDFLib.PDFRef&&!doc.context.lookup(x))an2.remove(k)}});
+    form.updateFieldAppearances(F);
+    return true;
+  }
+  return false;
+}
+// remplissage : hauteur et repères de l'appui à créer obligatoires seulement si la case est cochée
+function prepNRules(fields){
+  const h=fields.find(f=>f.name==="prepn_appui_h"),r=fields.find(f=>f.name==="prepn_appui_rep");if(!h)return;
+  const cb=fields.filter(f=>f.cb&&f.pi===h.pi&&Math.abs(f.cy-h.cy)<6&&f.x<h.x).sort((a,b)=>b.x-a.x).pop();
+  const sync=()=>{const on=!!(cb&&cb.el.checked);[h,r].forEach(f=>{if(!f)return;f.req=on;f.free=!on;f.el.classList.toggle("opt",!on)});if(vForm)vForm.upd()};
+  if(cb)cb.el.addEventListener("change",sync);sync();
+}
+const supTried=new Set();
+async function prepFromSupport(d){
+  const id=openId,j=jobs.get(id)||{},docs=j.docs||[];if(!id||j.type!=="neuf"||!(canWrite||canFill)||!assets||vForm||!window.pdfjsLib)return;
+  const sup=[...docs].reverse().find(x=>x.type==="Support"&&x.rempli&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
+  if(!sup||!prep||prep.id!==d.id||prep.supFrom===sup.id||supTried.has(sup.id+"|"+prep.id))return;
+  supTried.add(sup.id+"|"+prep.id);
+  try{
+    joinChain=joinChain.then(()=>doJoinSupport(id)).catch(e=>{console.log("rs",e);toast("La fiche de préparation n'a pas pu être reprise de la réception de support.")});
+    await joinChain;
+    if($("viewer").hidden||vForm)return;
+    const p2=[...((jobs.get(id)||{}).docs||[])].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
+    if(p2&&p2.id!==d.id)await viewDoc(p2);
+  }catch(_){}
+}
+async function doJoinSupport(id){
+  const j=jobs.get(id)||{},docs=j.docs||[];
+  const sup=[...docs].reverse().find(x=>x.type==="Support"&&x.rempli&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
+  if(!sup||!prep)return;
+  toast("Mise à jour de la fiche de préparation à partir de la réception de support…");
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const S=await supRead(sup);
+  const doc=await PDFLib.PDFDocument.load(new Uint8Array(await (await fetch("/_blob/"+prep.id)).arrayBuffer()));
+  // « Ce qu'on pose » : une ligne par menuiserie de la RS
+  let poseIns=prep.poseIns||[];
+  if(S.rows.length){
+    [...poseIns].sort((x,y)=>y-x).forEach(k=>{if(k<doc.getPageCount())doc.removePage(k)});poseIns=[];
+    const R=await prepPoseRegions(await doc.save());
+    if(R){const form=doc.getForm(),refs=doc.getPages().map(pg=>{const an=pg.node.Annots();return an?an.asArray().map(x=>String(x)):[]});
+      form.getFields().forEach(f=>{const ws=f.acroField.getWidgets();
+        if(ws.length&&ws.every(w=>{const ref=doc.context.getObjectRef(w.dict),pi=ref?refs.findIndex(l=>l.includes(String(ref))):-1,r=w.getRectangle();
+          return R.regs.some(g=>g.pi===pi&&r.y>=g.bottom-3&&r.y+r.height<=g.top+3)}))try{form.removeField(f)}catch(_){}});
+      doc.getPages().forEach(pg=>{const an=pg.node.Annots();if(!an)return;for(let k=an.size()-1;k>=0;k--){const x=an.get(k);if(x instanceof PDFLib.PDFRef&&!doc.context.lookup(x))an.remove(k)}});
+      poseIns=await drawPoseTable(doc,R,{rows:S.rows},"de la réception de support")}
+  }
+  // « Attention à » adapté au neuf (une seule fois)
+  if(!prep.neuf)await prepNeufAttention(doc,S);
+  // fixations : choix de la RS et quantité estimée sur le périmètre (sans écraser ce que l'équipe a écrit)
+  let auto={...(prep.auto||{})};
+  const per=S.rows.reduce((a,r)=>a+supPerim(r),0),ml=(per/1000).toFixed(1).replace(".",",");
+  try{const rows=await prepRows(await doc.save()),form=doc.getForm(),put=(name,v)=>{if(!name||!v)return;try{const tf=form.getTextField(name),cur=(tf.getText()||"").trim();
+      if(!cur||cur===auto[name]){const t=clean(v).replace(/[^\x20-\x7E\xA0-\xFF€]/g,"");tf.setText(t);auto[name]=t}}catch(_){}};
+    const vis=rows.find(r=>/^vis b[ée]ton/i.test(r.label)),pat=rows.find(r=>/^pattes de fixation/i.test(r.label));
+    if(S.fixM&&vis){const m=/(\d+)\s*vis\s*tou[st]?\s*les\s*(\d+)\s*(mm|cm)?/i.exec(S.fixType),nv=m?+m[1]:1,esp=m?(+m[2])*(/cm/i.test(m[3]||"")?10:1):400;
+      const pts=S.rows.reduce((a,r)=>{const p=supPerim(r);return a+(p?Math.ceil(p/esp):0)},0);
+      if(pts)put(vis.qty,String(pts*nv));put(vis.rem,(S.fixType||"à prévoir par MGDS")+(pts?" · estimé sur "+ml+" ml":""))}
+    if(S.fixF)put((pat||vis||{}).rem,"Fournies avec les menuiseries (réception de support)");
+    form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
+  }catch(e){console.log("fix",e)}
+  // ligne d'aide au-dessus des consommables : périmètre recalculé sur les cotes de la RS
+  try{const pdf=await pdfjsLib.getDocument({data:await doc.save()}).promise;
+    for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n),a=(await page.getTextContent()).items.find(t=>/^Aide\s*:/.test(t.str.trim()));if(!a)continue;
+      const pg=pdfFresh(doc.getPage(n-1)),s=Math.abs(a.transform[0])||7.5,F=await doc.embedFont(PDFLib.StandardFonts.HelveticaOblique);
+      pg.drawRectangle({x:a.transform[4]-1,y:a.transform[5]-2.5,width:Math.max(a.width,300)+4,height:s+4,color:PDFLib.rgb(1,1,1)});
+      pg.drawText("Aide : "+S.rows.length+" menuiserie"+(S.rows.length>1?"s":"")+", "+ml+" ml de périmètre (cotes de la réception de support).",{x:a.transform[4],y:a.transform[5],size:s,font:F,color:PDFLib.rgb(.25,.25,.25)});break}}catch(_){}
+  try{const r=await consRedraw(doc,{auto});if(r)auto=r.auto}catch(e){console.log("conso",e)}
+  const file=new File([await doc.save()],prep.name,{type:"application/pdf"}),r=await assets.upload(file,{type:"application/pdf"});
+  const j2=jobs.get(id)||{},d2=(j2.docs||[]).map(x=>({...x})),i=d2.findIndex(x=>x.id===prep.id);if(i<0)return;
+  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,auto,poseIns,consV:1,supFrom:sup.id,neuf:1};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
+  if(openId===id)renderSheet();
+  toast("Fiche de préparation mise à jour à partir de la réception de support.");
 }
 // barre d'outils du visualiseur : zoom, dessin, photo
 $("viewer").addEventListener("click",e=>{
