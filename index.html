@@ -414,6 +414,8 @@ async function start(){
   const {data}=await sb.from("profils").select("*").eq("id",session.user.id).maybeSingle();
   profil=data||{id:session.user.id,email:session.user.email,role:"lecteur"};
   window.mgdsProfil=profil;
+  // accès par poste (Steven, 09/11/2026) : les poseurs n'ont que leur espace
+  if(profil.role==="poseur"){location.replace("poseurs.html");return}
   const w=document.createElement("div");w.className="who";
   w.innerHTML=`<span>${(profil.nom||profil.email||"").replace(/[<>&]/g,"")}${profil.role==="lecteur"?" · consultation":""}</span><button type="button" data-mdp>Mot de passe</button><button type="button" data-out>Déconnexion</button>`;
   w.querySelector("[data-mdp]").onclick=()=>gate("change");

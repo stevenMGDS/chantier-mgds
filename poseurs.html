@@ -598,7 +598,7 @@ function modal(html){
 }
 
 // ---------- gestion : planning ----------
-// équipes (Steven, 03/11) : 1 = Allan + Jordi, 2 = Yannis + Youssef, 3 = Steven ou Yannick + équipe 2 (chantiers Minimaliste)
+// équipes (Steven, 03/11) : 1 = Allan + Jordi, 2 = Yanis + Youssef, 3 = Steven ou Yannick + équipe 2 (chantiers Minimaliste)
 const EQUIPES=[
   {k:"1",l:"Équipe 1",m:["allan.poseur@mgds.fr","jordi.poseur@mgds.fr"]},
   {k:"2",l:"Équipe 2",m:["yannis.poseur@mgds.fr","yousef.poseur@mgds.fr"]},
@@ -737,6 +737,8 @@ document.addEventListener("click",e=>{const c=e.target.closest("[data-gcat]");if
   const{data:{session}}=await sb.auth.getSession();me=session.user.id;
   profils=(await sb.from("profils").select("id,email,nom,role")).data||[];
   role=(profils.find(p=>p.id===me)||{}).role||"lecteur";
+  // accès par poste (Steven, 09/11/2026) : l'atelier (Christophe, Manu) n'a que l'appli principale (Atelier + Stock)
+  if(role==="atelier"){location.replace("index.html");return}
   const p=profils.find(x=>x.id===me)||{};
   $("hello").textContent="Bonjour "+(p.nom||(p.email||"").split("@")[0]);
   $("app").hidden=false;$("tabs").hidden=false;week=monday(new Date());
