@@ -296,7 +296,7 @@ async function vStock(v){
   v._photos=ph;v._urls=urls;
   $("stk-job").addEventListener("change",e=>{stkJob=e.target.value});
 }
-const FICHES=["Préparation","Métré","Réception","Plans d'exé"];
+const FICHES=["Préparation","Métré","Plans d'exé","Réception"]; // réception de fin de chantier en dernier
 const FICHE_L={"Préparation":"Fiche de préparation","Métré":"Fiche de métré","Réception":"Fiche de réception","Plans d'exé":"Plans d'exé"};
 async function openSheet(id){
   openId=id;const s=$("sheet");s.hidden=false;document.body.style.overflow="hidden";
