@@ -747,9 +747,13 @@ async function renderSheet(){
     if(s.man)return `<li><span></span><span class="lab">${s.l}<em>date à saisir</em>${m}${tag(i)}</span><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${v&&v.d||""}" ${ro}></li>`;
     return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" data-step="${i}" aria-label="${lab(j,s)}" ${ro||(lk||fl?"disabled":"")}>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}${m}${note}${tag(i)}<span class="who-by" data-by="${v&&v.by||""}"></span></span><span class="date">${fr(v&&v.d)}</span></li>`}).join("");
   const tl=k=>(j[k]||[]).map((t,i)=>`<div class="task ${t.f?"done":""}"><input type="checkbox" data-task="${k}" data-i="${i}" ${t.f?"checked":""} ${canWrite||canFill?"":"disabled"} aria-label="${esc(t.t)}"><span>${esc(t.t)}${t.f?` <span class="mono">${fr(t.f)}</span>`:""}</span>${canWrite?`<button class="x" data-deltask="${k}" data-i="${i}" aria-label="Supprimer">×</button>`:""}</div>`).join("");
-  // fiche « Réception » (fin de chantier) toujours en dernier : ne pas la confondre avec la réception de support (Steven, 09/11/2026)
-  const docs=(j.docs||[]).map((d,i)=>[d,i]).sort(([a],[b])=>(a.type==="Réception")-(b.type==="Réception")).map(([d,i])=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.name)}</button>${d.traite?"":`<span class="new">nouveau</span>`}${d.rempli?d.rempli.reste?`<span class="new">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:`<span class="new ok">fiche complète</span>`:""}<br><span class="mono">${fr(d.at)} · ${Math.max(1,Math.round((d.size||0)/1024))} ko</span></span>
-    ${canWrite?`<select data-doctype="${i}" aria-label="Type de document">${DOC_TYPES.map(t=>`<option ${t===d.type?"selected":""}>${t}</option>`).join("")}</select>`:""}</li>`).join("");
+  // les fiches à remplir (préparation, métré / réception de support, réception de fin de chantier, toujours en dernier) à part
+  // des documents repris du serveur ou déposés (devis, plans, factures…) — Steven, 09/11/2026
+  const FICHE_ORD={"Préparation":0,"Métré":1,"Support":2,"Réception":3},docLi=([d,i])=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.name)}</button>${d.traite?"":`<span class="new">nouveau</span>`}${d.rempli?d.rempli.reste?`<span class="new">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:`<span class="new ok">fiche complète</span>`:""}<br><span class="mono">${fr(d.at)} · ${Math.max(1,Math.round((d.size||0)/1024))} ko</span></span>
+    ${canWrite?`<select data-doctype="${i}" aria-label="Type de document">${DOC_TYPES.map(t=>`<option ${t===d.type?"selected":""}>${t}</option>`).join("")}</select>`:""}</li>`;
+  const allDocs=(j.docs||[]).map((d,i)=>[d,i]),isFiche=([d])=>d.type in FICHE_ORD;
+  const fiches=allDocs.filter(isFiche).sort(([a],[b])=>FICHE_ORD[a.type]-FICHE_ORD[b.type]).map(docLi).join("");
+  const docs=allDocs.filter(x=>!isFiche(x)).map(docLi).join("");
   const mails=moments(j).map(m=>{const dueStep=sd(j,m[0]);const sent=(j.mails||{})[m[0]];
     const st=sent?`<span class="pill vert">envoyé le ${fr(sent)}</span>`:dueStep?`<span class="pill orange">à envoyer</span>`:`<span class="pill">plus tard</span>`;
     const subj=fillMail(m[2],j),body=fillMail(m[3],j);
@@ -815,7 +819,8 @@ async function renderSheet(){
    <h3>Factures<span class="sub" style="text-transform:none;letter-spacing:0">partielles puis solde</span></h3>
    <ul class="arcs">${facs||`<li class="sub">Facture unique : cochez « Facturé » et « Payé » dans les étapes. Pour facturer en plusieurs fois, ajoutez une ligne par facture.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="fac"><input type="text" id="add-fac" placeholder="Libellé (ex. situation 1 : phase 1 posée)" aria-label="Libellé de la facture"><select id="add-fac-solde" aria-label="Type"><option value="">Partielle</option><option value="1">Solde</option></select><button class="btn">+</button></form>`:""}
-   <h3>Documents</h3>
+   ${fiches?`<h3>Fiches à remplir</h3><ul class="docs">${fiches}</ul>`:""}
+   <h3>Documents du dossier</h3>
    ${(canWrite||canFill)&&assets?`<div class="drop" id="drop">Glissez ici devis, ARC, métré, photos… ou <label for="file">choisissez des fichiers</label><input type="file" id="file" multiple hidden accept=".pdf,image/*,.csv,.txt"><div class="sub" style="margin-top:4px">PDF et photos. Pour un Word ou un Excel, enregistrez-le d'abord en PDF.</div></div>`:`<p class="sub">Vous ne pouvez pas déposer de fichier sur cette page. Demandez à Steven de vous donner l'accès « Modifier ».</p>`}
    <ul class="docs">${docs||`<li style="grid-template-columns:1fr"><span class="sub">Aucun document pour l'instant.</span></li>`}</ul>
    ${window.sbClient?`<h3>Terrain (poseurs)<span class="sub" style="text-transform:none;letter-spacing:0">planning, heures et photos</span></h3><div class="terr" id="terrain"><span class="sub">Chargement…</span></div>`:""}
