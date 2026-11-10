@@ -638,6 +638,14 @@ const LOGI={machine:["Location machine / nacelle",14],echaf:["Échafaudage",14],
 const logiOf=j=>j.logi||[];
 const logiPour=(j,x)=>x.pour||poseRef(j)||"";
 function logiDue(j){return logiOf(j).filter(x=>!(x.cmd&&x.cmd.d)&&logiPour(j,x)&&-days(logiPour(j,x))<=(LOGI[x.type]||["",14])[1])}
+// Planning prévu (Steven, 10/11/2026) : ce que l'équipe sait déjà d'un chantier, saisi à la main, une ligne par étape :
+// semaine (s = lundi de la semaine), quoi, qui (équipe 1, équipe 2, atelier, sous-traitant), durée en jours (facultative).
+// Les lignes « sous-traitant » et « atelier » n'occupent pas les poseurs. L'Excel de Marine reste la référence du planning.
+const QUI={"":"À définir",eq1:"Équipe 1",eq2:"Équipe 2",atelier:"Atelier",st:"Sous-traitant"};
+const prevuOf=j=>j.prevu||[];
+const pvMon=(y,w)=>w>=1&&w<=53&&y>=2000?addDays(weekFri(y,w),-4):"";
+const pvPose=j=>prevuOf(j).filter(x=>x.s&&x.qui!=="st"&&x.qui!=="atelier").map(x=>x.s).sort();
+function setPrevu(arr){arr=[...arr].sort((a,b)=>(a.s||"9999").localeCompare(b.s||"9999"));const j=jobs.get(openId);jobs.set(openId,{...j,prevu:arr});renderSheet();render();save(openId,{prevu:arr})}
 function setLogi(arr){const j=jobs.get(openId);jobs.set(openId,{...j,logi:arr});renderSheet();render();save(openId,{logi:arr})}
 function lateIdx(j){const r=LATE.find(x=>x[0](j));return r?r[1]:null}
 function late(j){const r=LATE.find(x=>x[0](j));return r?r[2](j):""}
@@ -780,6 +788,11 @@ async function renderSheet(){
      <div class="arcf"><label>Motif<select data-phfield="motif" data-i="${i}" ${ro}>${Object.entries(MOTIFS).map(([v,t])=>`<option value="${v}" ${v===x.motif?"selected":""}>${t}</option>`).join("")}</select></label>
       <label>Date prévue<input type="date" min="2000-01-01" max="2099-12-31" data-phfield="prev" data-i="${i}" value="${x.prev||""}" ${ro}></label>
       <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-ph="${i}" aria-label="${esc(x.t)} posé" ${ro}>${ok?tick:""}</button>Posé<span class="mono">${fr(ok)}</span></span></div></li>`}).join("");
+  const prevu=prevuOf(j).map((x,i)=>`<li class="arc ${x.qui==="st"?"part":""}"><div class="arch"><b>${x.s?sem(x.s):"Semaine ?"}</b><span class="sub">${esc(QUI[x.qui||""]||"")}${x.j?" · "+esc(x.j)+" j":""}</span>${canWrite?`<button class="x" data-delpv="${i}" aria-label="Retirer cette ligne">×</button>`:""}</div>
+     <div class="arcf"><label style="flex:2 1 220px">Quoi<input type="text" data-pvfield="t" data-i="${i}" value="${esc(x.t)}" ${ro}></label>
+      <label>Semaine${semInput(`data-pvwk="${i}" ${ro}`,x.s)}</label>
+      <label>Qui<select data-pvfield="qui" data-i="${i}" ${ro}>${Object.entries(QUI).map(([v,t])=>`<option value="${v}" ${v===(x.qui||"")?"selected":""}>${t}</option>`).join("")}</select></label>
+      <label>Durée (jours)<input type="number" min="0" max="99" step="0.5" inputmode="decimal" style="width:5em" data-pvfield="j" data-i="${i}" value="${esc(x.j||"")}" ${ro}></label></div></li>`).join("");
   const facs=facsOf(j).map((f,i)=>{const fa=f.fac&&f.fac.d,pa=f.paye&&f.paye.d;
     return `<li class="arc ${pa?"ok":""}"><div class="arch"><b>${esc(f.t||"Facture "+(i+1))}</b><span class="sub">${f.solde?"solde":"partielle"}</span>${canWrite?`<button class="x" data-delfac="${i}" aria-label="Retirer cette facture">×</button>`:""}</div>
      <div class="arcf"><span class="arck"><button class="box" role="checkbox" aria-checked="${!!fa}" data-fac="${i}" data-fack="fac" aria-label="${esc(f.t)} facturée" ${ro}>${fa?tick:""}</button>Facturée<span class="mono">${fr(fa)}</span></span>
@@ -820,6 +833,9 @@ async function renderSheet(){
    <ul class="arcs">${arcs||`<li class="sub">Aucun ARC pour l'instant. Ajoutez une ligne par fournisseur, ou déposez l'ARC dans Documents : Claude le lira.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="arc"><input type="text" id="add-arc-four" placeholder="Fournisseur" aria-label="Fournisseur"><input type="text" id="add-arc-ref" placeholder="N° d'ARC" aria-label="N° d'ARC"><input type="text" id="add-arc" placeholder="Contenu (ex. 2 portes de garage)" aria-label="Contenu"><button class="btn">+</button></form>`:""}
    ${window.atlSection?atlSection(j.id):""}
+   <h3>Planning prévu<span class="sub" style="text-transform:none;letter-spacing:0">ce que vous savez déjà : une ligne par étape, par semaine</span></h3>
+   <ul class="arcs">${prevu||`<li class="sub">Rien de saisi. Ajoutez une ligne par étape connue, par exemple « S8 : pose de l'échafaudage (sous-traitant) », « S9 : remplacement des menuiseries ». Ce que vous saisissez ici remplace la date estimée par l'appli.</li>`}</ul>
+   ${canWrite?`<form class="add arcadd" data-add="pv"><input type="text" id="add-pv" placeholder="Quoi (ex. pose de l'échafaudage)" aria-label="Quoi" style="flex:2 1 200px">${semInput('id-pv="1"',"")}<select id="add-pv-qui" aria-label="Qui">${Object.entries(QUI).map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select><button class="btn">+</button></form>`:""}
    <h3>Location, voirie, transport<span class="sub" style="text-transform:none;letter-spacing:0">alerte avant la date si ce n'est pas commandé</span></h3>
    <ul class="arcs">${logi||`<li class="sub">Rien à commander pour l'instant. Ajoutez une ligne pour une location de machine, un échafaudage, une demande de voirie ou un transport : l'appli vous alertera à temps.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="logi"><select id="add-logi-type" aria-label="Type">${Object.entries(LOGI).map(([v,[t]])=>`<option value="${v}">${t}</option>`).join("")}</select><input type="text" id="add-logi" placeholder="Détail (facultatif)" aria-label="Détail"><button class="btn">+</button></form>`:""}
@@ -937,13 +953,14 @@ function setFacs(arr){const j=jobs.get(openId),p=facSync(arr);if(!arr.length)p.s
   jobs.set(openId,{...j,...p,steps:{...(j.steps||{}),...p.steps}});renderSheet();render();save(openId,p)}
 // ---------- événements ----------
 document.addEventListener("click",async e=>{
-  const t=e.target.closest("[data-logi],[data-dellogi],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],#vclose,#vdl,#vedit,#vsave,#vnext");
+  const t=e.target.closest("[data-logi],[data-dellogi],[data-delpv],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],#vclose,#vdl,#vedit,#vsave,#vnext");
   if(!t)return;
   if(t.dataset.open&&t.closest("#spanel")){const sp=$("spanel");if(sp)sp.hidden=true}
   if(t.dataset.arc!==undefined){const j=jobs.get(openId),arr=arcsOf(j).map(x=>({...x})),a=arr[+t.dataset.arc],k=t.dataset.arck;a[k]=a[k]&&a[k].d?null:{d:today(),by:me||""};setArcs(arr);return}
   if(t.dataset.ph!==undefined){const arr=phasesOf(jobs.get(openId)).map(x=>({...x})),x=arr[+t.dataset.ph];x.pose=x.pose&&x.pose.d?null:{d:today(),by:me||""};setPhases(arr);return}
   if(t.dataset.logi!==undefined){const arr=logiOf(jobs.get(openId)).map(x=>({...x})),x=arr[+t.dataset.logi];x.cmd=x.cmd&&x.cmd.d?null:{d:today(),by:me||""};setLogi(arr);return}
   if(t.dataset.dellogi!==undefined){const arr=[...logiOf(jobs.get(openId))];arr.splice(+t.dataset.dellogi,1);setLogi(arr);return}
+  if(t.dataset.delpv!==undefined){const arr=[...prevuOf(jobs.get(openId))];arr.splice(+t.dataset.delpv,1);setPrevu(arr);return}
   if(t.dataset.delph!==undefined){const arr=[...phasesOf(jobs.get(openId))];arr.splice(+t.dataset.delph,1);setPhases(arr);return}
   if(t.dataset.fac!==undefined){const arr=facsOf(jobs.get(openId)).map(x=>({...x})),f=arr[+t.dataset.fac],k=t.dataset.fack;f[k]=f[k]&&f[k].d?null:{d:today(),by:me||""};setFacs(arr);return}
   if(t.dataset.delfac!==undefined){const arr=[...facsOf(jobs.get(openId))];arr.splice(+t.dataset.delfac,1);setFacs(arr);return}
@@ -995,7 +1012,11 @@ document.addEventListener("change",e=>{
   else if(t.dataset.field){const k=t.dataset.field,v=t.value.trim();if((j[k]||"")===v)return;jobs.set(openId,{...j,[k]:v});render();if(k==="type"||k==="livraison"||k==="pose2")renderSheet();save(openId,{[k]:v})}
   else if(t.dataset.task){const k=t.dataset.task,arr=(j[k]||[]).map(x=>({...x}));arr[+t.dataset.i].f=t.checked?today():"";jobs.set(openId,{...j,[k]:arr});renderSheet();render();save(openId,{[k]:arr})}
   else if(t.dataset.logifield){const arr=logiOf(j).map(x=>({...x}));arr[+t.dataset.i][t.dataset.logifield]=t.value.trim();setLogi(arr)}
+  else if(t.dataset.pvfield){const arr=prevuOf(j).map(x=>({...x}));arr[+t.dataset.i][t.dataset.pvfield]=t.value.trim();setPrevu(arr)}
   else if(t.dataset.phfield){const arr=phasesOf(j).map(x=>({...x}));arr[+t.dataset.i][t.dataset.phfield]=t.value;setPhases(arr)}
+  else if(t.dataset.wk&&t.closest('[data-add="pv"]')){}
+  else if(t.dataset.wk&&t.dataset.pvwk!==undefined){const box=t.closest(".sem"),w=+box.querySelector('[data-wk="w"]').value,y=+box.querySelector('[data-wk="y"]').value,d=pvMon(y,w);
+    if(!d&&box.querySelector('[data-wk="w"]').value)return;const arr=prevuOf(j).map(x=>({...x}));arr[+t.dataset.pvwk].s=d;setPrevu(arr)}
   else if(t.dataset.wk){const box=t.closest(".sem"),w=+box.querySelector('[data-wk="w"]').value,y=+box.querySelector('[data-wk="y"]').value;
     const d=w>=1&&w<=53&&y>=2000?weekFri(y,w):"";if(!d&&box.querySelector('[data-wk="w"]').value)return;
     if(t.dataset.arcwk!==undefined){const arr=arcsOf(j).map(x=>({...x}));arr[+t.dataset.arcwk].prev=d;setArcs(arr)}
@@ -1018,6 +1039,11 @@ document.addEventListener("submit",async e=>{
   if(k==="arc"){const four=$("add-arc-four").value.trim(),ref=$("add-arc-ref").value.trim(),objet=$("add-arc").value.trim();if(!four&&!ref){toast("Indiquez au moins le fournisseur.");return}
     setArcs([...arcsOf(jobs.get(openId)),{four,ref,objet,lieu:"",prev:"",ok:null,livre:null}]);return}
   if(k==="logi"){setLogi([...logiOf(jobs.get(openId)),{type:$("add-logi-type").value,t:$("add-logi").value.trim(),pour:"",cmd:null}]);return}
+  if(k==="pv"){const t=$("add-pv").value.trim(),box=e.target.querySelector(".sem"),w=+box.querySelector('[data-wk="w"]').value,y=+box.querySelector('[data-wk="y"]').value,d=pvMon(y,w);
+    if(!t){toast("Indiquez ce qui est prévu.");return}if(!d){toast("Indiquez la semaine (1 à 53).");return}
+    // « S8 » saisi en novembre veut dire l'an prochain : une semaine déjà passée de l'année en cours est reportée d'un an
+    const d2=d<lundi(today())&&y===new Date().getFullYear()?pvMon(y+1,w):d;
+    setPrevu([...prevuOf(jobs.get(openId)),{t,s:d2,qui:$("add-pv-qui").value,j:""}]);return}
   if(k==="ph"){const t=$("add-ph").value.trim();if(!t){toast("Indiquez ce qui est posé.");return}
     const arr=[...phasesOf(jobs.get(openId))];
     setPhases([...arr,{t,motif:$("add-ph-motif").value,prev:"",pose:null}]);return}
@@ -1578,6 +1604,7 @@ function posePrevue(id,j){
   if(pl.length){const weeks=[...new Set(pl.map(lundi))];return{d:pl[0],src:"planning",weeks,why:weeks.length>1?"planning, "+weeks.length+" semaines":"planning"}}
   if(poseOk(j)&&poseOk(j)>=t)return{d:poseOk(j),src:"confirmée",why:"pose validée avec le client"};
   const pp=poseDates(j).filter(x=>x>=t).sort()[0];if(pp)return{d:pp,src:"proposée",why:"date proposée au client"};
+  const pv=pvPose(j).filter(x=>x>=lundi(t))[0];if(pv)return{d:maxS(pv,t),src:"prévue",why:"planning prévu saisi dans la fiche ("+sem(pv)+")"};
   const c=[],why=[];
   for(const a of arcsOf(j)){
     if(a.livre&&a.livre.d){c.push(a.livre.d);why.push((a.four||"ARC")+" livré");continue}
