@@ -1564,6 +1564,13 @@ function stkDemCalc(){
 // Couleur rare (délai 1 à 2 semaines) : fenêtre ouverte 2 semaines plus tôt.
 const STK_FOUR={"K-Line":8,"Keller":10,"Reveau":5,"Roma":5,"Riou":5,"Thermobloc":3,"Flip":4,"Hörmann":4,"Ceyssens":3,"Vitrages":3},STK_FOUR_DEF=6;
 const STK_FEN=28,STK_ALERTE=14,STK_RARE=14;
+// délai réel d'un fournisseur, appris des ARC (Steven, 10/11) : livraison prévue − date de commande du chantier, gardé seulement
+// s'il est cohérent (ARC validé après la commande, entre 1 et 26 semaines) ; à partir de 3 ARC, la médiane remplace le délai par défaut
+function stkFourSem(four){
+  const c=stkFourSem.c||(stkFourSem.c={});if(c[four]!==undefined&&c._n===jobs.size)return c[four];if(c._n!==jobs.size){for(const k in c)delete c[k];c._n=jobs.size}
+  const L=[];for(const [,j] of jobs){const cmd=sd(j,"cmdok")||sd(j,"cmd");if(!cmd)continue;
+    arcsOf(j).forEach(a=>{if(a.four!==four||!a.prev||!(a.ok&&a.ok.d)||a.ok.d<cmd)return;const w=(new Date(a.prev+"T12:00")-new Date(cmd+"T12:00"))/(7*864e5);if(w>=1&&w<=26)L.push(w)})}
+  L.sort((x,y)=>x-y);return c[four]=L.length>=3?{w:Math.round(L[Math.floor(L.length/2)]),n:L.length}:{w:STK_FOUR[four]||STK_FOUR_DEF,n:0}}
 const stkRare=a=>/pierre|bronze|beige|marron|ch[eê]ne|gold|ral ?(?!9016|9010|7016|9005|7035)\d{4}/i.test((a.nom||"")+" "+(a.coloris||""));
 const lundi=s=>{const d=new Date(s+"T12:00");d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
 function posePrevue(id,j){
@@ -1576,7 +1583,7 @@ function posePrevue(id,j){
     if(a.livre&&a.livre.d){c.push(a.livre.d);why.push((a.four||"ARC")+" livré");continue}
     const x=a.aid&&stk.atl&&stk.atl.get(a.aid);if(x){const f=atlPlan({id:a.aid,...x}).fin;c.push(f);why.push("fin atelier "+fr(f));continue}
     if(a.prev){c.push(a.prev);why.push((a.four||"ARC")+" livraison prévue "+sem(a.prev));continue}
-    const cmd=sd(j,"cmdok")||sd(j,"cmd");if(cmd){const w=STK_FOUR[a.four]||STK_FOUR_DEF;c.push(addDays(cmd,7*w));why.push((a.four||"commande")+" : commande + "+w+" sem.")}}
+    const cmd=sd(j,"cmdok")||sd(j,"cmd");if(cmd){const F=stkFourSem(a.four),w=F.w;c.push(addDays(cmd,7*w));why.push((a.four||"commande")+" : commande + "+w+" sem."+(F.n?" (délai constaté sur "+F.n+" ARC)":""))}}
   if(!c.length){const cmd=sd(j,"cmdok")||sd(j,"cmd");if(cmd){c.push(addDays(cmd,7*STK_FOUR_DEF));why.push("commande + "+STK_FOUR_DEF+" sem.")}}
   if(!c.length)return{d:"",src:"",why:"aucune date (ni planning, ni ARC, ni commande)"};
   const last=c.indexOf(maxS(...c));return{d:maxS(addDays(maxS(...c),7),addDays(t,7)),src:"estimée",why:"dernière arrivée : "+why[last]+" + 1 sem."}}
