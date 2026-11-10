@@ -1751,7 +1751,8 @@ async function stkSheet(id){
     ${canWrite&&id!=null?`<label class="cline"><input type="checkbox" id="sp-off" ${a.actif===false?"checked":""}> Article plus utilisé (masqué)</label>`:""}
     ${canWrite?`<button class="btn" id="sp-save">${id==null?"Créer l'article":"Enregistrer les réglages"}</button>`:""}</div></details>`;
   // double bac (atelier) : le premier bac est vide → l'article passe « à commander » jusqu'à la prochaine livraison
-  if(id!=null&&stkMv()&&(a.stock||"pose")==="atelier")h+=`<div class="crow ccard"><b>Double bac</b>${a.a_commander?`<div class="cinfo"><span class="dot r"></span> Bac signalé vide le ${fr(a.a_commander.slice(0,10))} : à commander. Repart tout seul à la prochaine « Livraison ».</div>${canWrite?`<button class="btn ghost" id="sp-vide0">Annuler le signalement</button>`:""}`:`<div class="cinfo">Le premier bac est vide ? On entame le second et l'article passe dans « À commander ».</div><button class="btn" id="sp-vide">🫙 Bac vide : à commander</button>`}</div>`;
+  // accessoires et joints de l'atelier = reliquats de chantiers, replacés sur les nouvelles commandes (Christophe, 10/11/2026) : pas de réassort, donc pas de double bac
+  if(id!=null&&stkMv()&&(a.stock||"pose")==="atelier"&&(/consommable/i.test(a.famille||"")||a.a_commander))h+=`<div class="crow ccard"><b>Double bac</b>${a.a_commander?`<div class="cinfo"><span class="dot r"></span> Bac signalé vide le ${fr(a.a_commander.slice(0,10))} : à commander. Repart tout seul à la prochaine « Livraison ».</div>${canWrite?`<button class="btn ghost" id="sp-vide0">Annuler le signalement</button>`:""}`:`<div class="cinfo">Le premier bac est vide ? On entame le second et l'article passe dans « À commander ».</div><button class="btn" id="sp-vide">🫙 Bac vide : à commander</button>`}</div>`;
   if(id!=null&&(a.stock||"pose")==="atelier"&&stk.resOk){const RS=stk.res.filter(r=>r.article===a.id);
     h+=`<div class="crow ccard"><b>Réservations</b>${RS.length?`<table class="ctab">${RS.map(r=>`<tr><td>${nb(r.qte)}</td><td id="sp-rc-${r.id}">${esc(r.commande)}</td><td>${stkResW()?`<button class="btn ghost small" data-rdel="${r.id}">Retirer</button>`:""}</td></tr>`).join("")}</table>`:`<div class="cinfo">Rien de réservé.</div>`}
       ${stkResW()?`<div class="cline"><input class="cin" id="sp-rq" inputmode="decimal" placeholder="Qté" aria-label="Quantité à réserver" style="max-width:90px"><select class="cin" id="sp-rcmd" aria-label="Commande atelier"><option value="">Commande atelier…</option></select></div><input class="cin" id="sp-rn" placeholder="Remarque (facultatif)" aria-label="Remarque"><button class="btn ghost" id="sp-rok">📌 Réserver pour cette commande</button>`:""}</div>`}
@@ -2735,6 +2736,21 @@ async function consRedraw(doc,o={}){
 const habLinesOf=sum=>(sum||[]).filter(x=>/habillage|t[ôo]le|corni[èe]re/i.test(x.a||"")).flatMap(x=>(x.d||"").split(/\s*·\s*/))
   .map(t=>{const m=/^(\S+)\s+([\d.,]+\s*ml)\s*(.*)$/.exec(t.trim());return m?{p:m[1],q:m[2].replace(/\s+/g," "),c:m[3].trim()}:null}).filter(Boolean);
 let joinChain=Promise.resolve();
+const JOIN_V=2; // version de la reprise métré → préparation (2 : fixations calculées) ; une fiche reprise avant est refaite
+// texte de la ligne « Vis / chevilles / pattes de fixation » du métré (toutes les cases de la ligne, sauf les nombres seuls)
+async function metreFixText(metre){
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await (await fetch("/_blob/"+metre.id)).arrayBuffer())}).promise;
+  for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n),it=(await page.getTextContent()).items.find(t=>/^vis\s*\/\s*chevilles/i.test(t.str.trim()));if(!it)continue;
+    const y=it.transform[5],an=(await page.getAnnotations()).filter(a=>a.subtype==="Widget"&&!a.checkBox&&Math.abs((a.rect[1]+a.rect[3])/2-(y+3))<9);
+    const t=an.map(a=>String(a.fieldValue||"").trim()).filter(v=>v&&!/^[\d\s.,]*$/.test(v)).join(" · ");return t||null}
+  return null}
+// quantité : par menuiserie (hors volets / BSO), points sur 2 montants + traverse haute (ou tout le tour si c'est écrit), à l'entraxe donné
+function fixCalc(fx,rows){
+  const e=/tous\s*les\s*(\d+(?:[.,]\d+)?)\s*(cm|mm)?/i.exec(fx);if(!e)return null;let esp=+e[1].replace(",",".");esp=/mm/i.test(e[2]||"")?esp:(/cm/i.test(e[2]||"")||esp<100?esp*10:esp);
+  const k=+((/(\d+)\s*(?:vis|[ée]querres?|pattes?)\s*(?:par|tous|à)/i.exec(fx)||[])[1]||1),tour=/4\s*c[ôo]t|p[ée]rim|tout le tour|traverse basse/i.test(fx);
+  let n=0,m=0;rows.forEach(r=>{if(/volet|\bvr\b|bso|store/i.test((r.rep||"")+" "+(r.des||"")))return;const d=String(r.cde||r.tab||"").match(/\d{3,5}/g);if(!d||d.length<2)return;
+    const L=+d[0],H=+d[1];n+=k*(2*Math.ceil(H/esp)+(tour?2:1)*Math.ceil(L/esp));m++});
+  return n?{n,det:m+" menuis. hors volets, "+(tour?"tout le tour":"2 montants + trav. haute")}:null}
 // fiche découverte ouverte alors qu'elle n'a pas encore été refaite à partir du métré rempli (métré enregistré avant la mise à jour) :
 // le métré est réenregistré automatiquement, la découverte est refaite, puis rouverte
 const prepTried=new Set();
@@ -2742,7 +2758,7 @@ async function prepFromMetre(d){
   const id=openId,j=jobs.get(id)||{},docs=j.docs||[];if(!id||!(canWrite||canFill)||!assets||vForm)return;
   if(j.type==="neuf"&&docs.some(x=>x.type==="Support"))return;
   const metre=[...docs].reverse().find(x=>x.type==="Métré"&&/\.pdf$/i.test(x.name)),prep=[...docs].reverse().find(x=>x.type==="Préparation"&&/\.pdf$/i.test(x.name));
-  if(consAdding||!metre||!metre.rempli||!prep||prep.id!==d.id||(prep.poseIns&&prep.consV&&(!metre.pose||prep.joinFrom===metre.id))||prepTried.has(metre.id+"|"+prep.id))return;
+  if(consAdding||!metre||!metre.rempli||!prep||prep.id!==d.id||(prep.poseIns&&prep.consV&&(!metre.pose||prep.joinFrom===metre.id&&prep.joinV===JOIN_V))||prepTried.has(metre.id+"|"+prep.id))return;
   prepTried.add(metre.id+"|"+prep.id);
   const busy=$("vpages");
   try{
@@ -2792,6 +2808,13 @@ async function doJoin(id){
       put(r.qty,o.q.join(" + "));try{const qf=form.getTextField(r.qty);if((qf.getText()||"").trim()){qf.acroField.setDefaultAppearance("0 0.24 0.57 rg /Helv 8 Tf");qf.setFontSize(8);qf.enableReadOnly()}}catch(_){}if(r.col)put(r.col,[...new Set(o.c)].join(" / "));else if(o.c.length&&!o.d.length)o.d.push("coloris "+[...new Set(o.c)].join(" / "));put(r.rem,o.d.join(" · "));
       if(/habillage/i.test(r.label)&&r.rem&&next[r.rem]){try{const tf=form.getTextField(r.rem);tf.enableMultiline();tf.setFontSize(6)}catch(_){}}
     }
+    // fixations notées au métré (ex. « EQUERRE DE 120 tous les 40 cm 2 montant 1 traverse haute ») : quantité calculée (Steven, 10/11/2026)
+    try{const fx=await metreFixText(metre);const c=fx&&fixCalc(fx,(poseData&&poseData.rows)||[]);
+      if(c){const pat=/[ée]querre|patte/i.test(fx),r=rows.find(x=>(pat?/^pattes de fixation/i:/^vis b[ée]ton/i).test(x.label))||rows.find(x=>/^vis b[ée]ton/i.test(x.label));
+        if(r){try{const qf=form.getTextField(r.qty);if(qf.isReadOnly()&&/^0?$/.test((qf.getText()||"").trim())){qf.disableReadOnly();delete auto[r.qty]}}catch(_){}
+          const t0=(()=>{try{return(form.getTextField(r.qty).getText()||"").trim()}catch(_){return""}})();if(/^0$/.test(t0))try{form.getTextField(r.qty).setText("")}catch(_){}
+          put(r.qty,String(c.n));const eq=/([ée]querres?|pattes?)\s*(?:de\s*)?(\d+)?/i.exec(fx),ex=/tous\s*les\s*[\d.,]+\s*(?:cm|mm)?/i.exec(fx);put(r.rem,(eq?(/^p/i.test(eq[1])?"Pattes":"Équerres")+(eq[2]?" "+eq[2]:""):fx.slice(0,30))+(ex?" "+ex[0].toLowerCase():"")+" · "+c.det);nCons++;try{const tf=form.getTextField(r.rem);tf.enableMultiline();tf.setFontSize(5.5)}catch(_){}
+          const vb=rows.find(x=>/^vis b[ée]ton/i.test(x.label));if(pat&&vb&&vb!==r)try{if((form.getTextField(vb.qty).getText()||"").trim()==="0"){form.getTextField(vb.qty).setText("");delete next[vb.qty];delete auto[vb.qty]}}catch(_){}}}}catch(e){console.log("fixations métré",e)}
     form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
     auto={...auto,...next};
   }catch(_){}}
@@ -2835,7 +2858,8 @@ async function doJoin(id){
     pg.drawImage(e,{x:36+(mw-e.width*k)/2,y:36+(mh-e.height*k)/2,width:e.width*k,height:e.height*k});added++}catch(_){}}
   const file=new File([await doc.save()],prep.name,{type:"application/pdf"}),r=await assets.upload(file,{type:"application/pdf"});
   const j2=jobs.get(id)||{},d2=(j2.docs||[]).map(x=>({...x})),i=d2.findIndex(x=>x.id===prep.id);if(i<0)return;
-  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto,poseIns,consV:1,joinFrom:metre?metre.id:null};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
+  let bes=null;try{bes=await prepBesoins(doc)}catch(_){}
+  d2[i]={...d2[i],id:r.id,size:r.sizeBytes,annexe:added,auto,poseIns,consV:1,joinFrom:metre?metre.id:null,joinV:JOIN_V,...(bes?{besoins:bes}:{})};jobs.set(id,{...j2,docs:d2});await save(id,{docs:d2});
   if(openId===id)renderSheet();
   toast("Fiche de préparation mise à jour"+(nCons?" : consommables repris du métré":"")+(added?(nCons?",":" :")+" "+added+" page"+(added>1?"s":"")+" de croquis et photos":"")+".");
 }
