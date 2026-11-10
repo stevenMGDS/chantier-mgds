@@ -40,7 +40,8 @@ le 09/11 par une fusion à trois voies (commit « Fusion des travaux des autres 
 - `chantiers-mgds.netlify.app`, jsdelivr et cdnjs sont bloqués par le proxy : pour tester l'appli avec Playwright,
   servir le dossier en local, fournir les bibliothèques depuis npm (`npm pack`) et relayer Supabase par Node
   (`NODE_USE_ENV_PROXY=1`, en retirant les en-têtes origin / referer / user-agent, sinon Supabase refuse la clé).
-- GitHub : compte stevenMGDS suspendu depuis le 07/11/2026. Ne pas cloner, ne rien pousser, ne pas créer de compte.
+- GitHub : compte stevenMGDS suspendu du 07/11 au 10/11/2026, de nouveau actif. GitHub ne sert plus qu'à garder le code :
+  GitHub Pages est arrêté (Steven, 10/11) et le fichier .github/workflows/pages.yml est retiré. Seul site en ligne : Netlify.
 - Le compte `claude@mgds.fr` (rôle éditeur) ne sert qu'aux sessions Claude pour leurs essais dans le navigateur.
   Une session peut lui reposer un mot de passe (`PUT /auth/v1/admin/users/<id>`), mais cela casse les essais des
   autres sessions : préférer le compte `sauvegarde@mgds.fr` (lecture seule) quand c'est possible.

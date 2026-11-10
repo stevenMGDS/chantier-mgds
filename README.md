@@ -2,6 +2,7 @@
 
 Suivi des chantiers MGDS, consultable sur téléphone, tablette et ordinateur.
 Accès sur invitation uniquement ; les données sont dans une base Supabase protégée par connexion.
+Le site est publié sur Netlify (seul site en ligne) ; ce dépôt GitHub ne sert qu'à garder le code (GitHub Pages arrêté le 10/11/2026).
 
 - **`MEMOIRE.md` : mémoire partagée des sessions Claude, à lire en premier** (copie de référence : Supabase, bucket outil, memoire/MEMOIRE.md)
 - `index.html` : l'appli, modifiée directement dans le dépôt (l'ancien build.sh depuis l'appli claude.ai est supprimé)
