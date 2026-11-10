@@ -218,6 +218,10 @@ textarea{min-height:64px;resize:vertical}
 .ctl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .ctl li{padding:6px 10px;border-radius:6px;background:var(--t-bleu);font-size:15px}
 .ctl li.alerte{background:var(--t-rouge)}
+.dempill{display:inline-block;font:600 12px var(--f-body);padding:1px 8px;border-radius:10px;border:1.5px solid var(--s-gris);white-space:nowrap}
+.dempill.v{border-color:var(--s-vert)}.dempill.o{border-color:var(--s-orange)}.dempill.r{border-color:var(--s-rouge);background:var(--t-rouge)}
+.lnk{border:0;background:none;padding:0;color:var(--accent);font:inherit;font-weight:600;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px}
+.stkres3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}.stkres3 div{border:1px solid var(--line);border-radius:6px;padding:6px}.stkres3 b{display:block;font:600 20px var(--f-mono)}.stkres3 span{font-size:13px;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;z-index:60;font-size:15px}
 .who-by{font-size:12px;color:var(--muted);margin-left:6px}
 .dtop{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0 12px}.dtop select{width:auto;margin-left:auto}
@@ -785,7 +789,13 @@ async function renderSheet(){
      <div class="arcf"><label>Détail<input type="text" data-logifield="t" data-i="${i}" value="${esc(x.t)}" placeholder="ex. nacelle 12 m, 2 jours" ${ro}></label>
       <label>Nécessaire le<input type="date" min="2000-01-01" max="2099-12-31" data-logifield="pour" data-i="${i}" value="${x.pour||""}" ${ro}>${!x.pour&&poseRef(j)?`<span class="sub">date de pose : ${fr(poseRef(j))}</span>`:""}</label>
       <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-logi="${i}" aria-label="${esc(L[0])} commandé" ${ro}>${ok?tick:""}</button>Commandé<span class="mono">${fr(ok)}</span></span></div></li>`}).join("");
-  const ctl=(j.controles||[]).map(c=>`<li class="${c.niveau==="alerte"?"alerte":""}">${esc(c.texte)}</li>`).join("");
+  let ctl=(j.controles||[]).map(c=>`<li class="${c.niveau==="alerte"?"alerte":""}">${esc(c.texte)}</li>`).join("");
+  // consommables : date de pose retenue (planning ou estimée) et besoins non couverts (flux tendu, 10/11/2026)
+  if(stk.ok&&stk.demLines){const DL=stk.demLines.filter(l=>l.job===j.id);
+    if(DL.length){const l0=DL[0],al=DL.filter(l=>l.etat==="alerte"),cm=DL.filter(l=>l.etat==="cmd");
+      ctl+=`<li>Consommables : pose ${esc(demPose(l0))}${l0.src==="estimée"?" — estimée d'après "+esc(l0.why):l0.src?" — "+esc(l0.why):""}. ${DL.filter(l=>l.etat==="res").length} ligne(s) réservée(s)${cm.length?", "+cm.length+" à commander":""}${DL.filter(l=>l.etat==="tard").length?", "+DL.filter(l=>l.etat==="tard").length+" plus tard":""}.</li>`;
+      al.forEach(l=>{ctl+=`<li class="alerte">Pas couvert à 2 semaines de la pose : ${esc(l.a.nom)}${l.a.coloris?" "+esc(l.a.coloris):""}, manque ${nb(Math.ceil(l.manque))} ${esc(stkU(l.a,Math.ceil(l.manque)))}. À commander tout de suite.</li>`})}}
+  else if(!stk.loading&&window.sbClient&&(j.docs||[]).some(d=>d.besoins)){stk.loading=1;stkLoad().then(()=>{stk.loading=0;if(openId===j.id)renderSheet()}).catch(()=>{stk.loading=0})}
   $("sheet").innerHTML=`<div class="head"><div><h2>${esc(j.client)}</h2><div class="mono">${esc(j.id)}</div></div><button class="btn ghost" id="close">Fermer</button></div>
    <div class="fields">
     <label class="wide">Client<input type="text" id="f-cnom" data-field="clientNom" value="${esc(j.clientNom)}" placeholder="M. MME …, SCI …" style="font-weight:700" ${ro}></label>
@@ -929,6 +939,7 @@ function setFacs(arr){const j=jobs.get(openId),p=facSync(arr);if(!arr.length)p.s
 document.addEventListener("click",async e=>{
   const t=e.target.closest("[data-logi],[data-dellogi],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],#vclose,#vdl,#vedit,#vsave,#vnext");
   if(!t)return;
+  if(t.dataset.open&&t.closest("#spanel")){const sp=$("spanel");if(sp)sp.hidden=true}
   if(t.dataset.arc!==undefined){const j=jobs.get(openId),arr=arcsOf(j).map(x=>({...x})),a=arr[+t.dataset.arc],k=t.dataset.arck;a[k]=a[k]&&a[k].d?null:{d:today(),by:me||""};setArcs(arr);return}
   if(t.dataset.ph!==undefined){const arr=phasesOf(jobs.get(openId)).map(x=>({...x})),x=arr[+t.dataset.ph];x.pose=x.pose&&x.pose.d?null:{d:today(),by:me||""};setPhases(arr);return}
   if(t.dataset.logi!==undefined){const arr=logiOf(jobs.get(openId)).map(x=>({...x})),x=arr[+t.dataset.logi];x.cmd=x.cmd&&x.cmd.d?null:{d:today(),by:me||""};setLogi(arr);return}
@@ -1497,6 +1508,9 @@ async function stkLoad(){
   stk.all=(A.data||[]).sort((x,y)=>String(x.famille).localeCompare(y.famille,"fr")||String(x.nom).localeCompare(y.nom,"fr"));stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);stk.niv=new Map((N.data||[]).map(x=>[x.id,+x.niveau]));stk.inv=new Map((N.data||[]).map(x=>[x.id,x.inventaire_le]));stk.mv=M.data||[];stk.ok=true;
   await stkResLoad();
   try{const{data}=await sb.from("stock_mouvements").select("article,chantier,le").eq("type","sortie").not("chantier","is",null).gte("le",new Date(Date.now()-120*864e5).toISOString());stk.sorties=data||[]}catch(_){stk.sorties=[]}
+  // dates de pose : jours du planning à venir (poseurs.sql) et commandes atelier (fin de fabrication)
+  try{const{data}=await sb.from("planning").select("jour,chantier").gte("jour",today()).not("chantier","is",null);stk.plan=new Map();(data||[]).forEach(p=>{if(!stk.plan.has(p.chantier))stk.plan.set(p.chantier,new Set());stk.plan.get(p.chantier).add(p.jour)})}catch(_){stk.plan=new Map()}
+  try{if(atl.ok===true)stk.atl=atl.rows;else{const{data}=await sb.from("atelier").select("id,data");stk.atl=new Map((data||[]).map(r=>[r.id,r.data]))}}catch(_){stk.atl=new Map()}
   stkDemCalc();
 }
 // réservations du stock atelier (outil/atelier.sql) : facultatives tant que la table n'est pas installée
@@ -1516,12 +1530,12 @@ function stkDemCalc(){
   stk.dem=new Map();stk.demTodo=[];const pose=stk.all.filter(a=>(a.stock||"pose")==="pose"&&a.actif!==false),byId=new Map(stk.all.map(a=>[a.id,a]));
   const find=f=>pose.find(a=>f(nrm([a.nom,a.coloris].join(" "))));
   const per=(a,q)=>{const u=nrm(a.unite||"");const k=/carton|poches?|cart/.test(u)&&/silicone|mastic/.test(nrm(a.nom))?(/poche/.test(nrm(a.nom))?25:24):(/(\d+)/.exec(u)||[])[1];return k?q/+k:q};
-  const add=(a,q,line)=>{if(!a||!(q>0))return;const o=stk.dem.get(a.id)||{q:0,lines:[]};o.q+=q;o.lines.push({...line,q});stk.dem.set(a.id,o)};
+  const raw=[],add=(a,q,line)=>{if(!a||!(q>0))return;raw.push({a,q,...line})};
   for(const [id,j] of jobs){
     if(done(j)||sd(j,"pose"))continue;
     const prep=[...(j.docs||[])].reverse().find(x=>x.type==="Préparation"&&x.besoins);if(!prep)continue;
-    const out=new Set(stk.sorties.filter(m=>m.chantier===id&&(!prep.at||m.le.slice(0,10)>=prep.at)).map(m=>m.article)),map=prep.bmap||{},when=poseRef(j);
-    const base={job:id,client:j.client||id,pose:when,doc:prep.id};
+    const out=new Set(stk.sorties.filter(m=>m.chantier===id&&(!prep.at||m.le.slice(0,10)>=prep.at)).map(m=>m.article)),map=prep.bmap||{},P=posePrevue(id,j),when=P.d;
+    const base={job:id,client:j.client||id,pose:when,src:P.src,why:P.why,weeks:P.weeks,doc:prep.id};
     for(const b of prep.besoins){
       const key=b.l,lab=nrm(b.l),m=map[key];if(m==="ignore"||(!b.q&&!b.r))continue;
       const go=(a,q,det)=>{if(a&&!out.has(a.id))add(a,q,{...base,label:b.l,det})};
@@ -1538,7 +1552,50 @@ function stkDemCalc(){
       if(b.q)stk.demTodo.push({...base,label:b.l,key,q:b.q});
     }
   }
+  stkDemDates(raw);
 }
+// ---------- flux tendu (Steven, 10/11/2026) ----------
+// Chaque besoin d'une fiche de préparation est rattaché à sa date de pose : jours du PLANNING de Marine quand ils existent
+// (chantier long : besoin réparti entre les semaines où il apparaît), sinon pose validée ou proposée au client, sinon date
+// ESTIMÉE = livraison du dernier ARC (prévue ou faite) ou fin de fabrication atelier + 1 semaine ; sans ARC daté, date de
+// commande + délai habituel du fournisseur (STK_FOUR, en semaines) + 1 semaine.
+// Pose à plus de 4 semaines : « plus tard », ne bloque pas le stock. À moins de 4 semaines : réservé si le disponible le couvre
+// (pose la plus proche servie d'abord), sinon « à commander ». À 2 semaines et toujours pas couvert : alerte rouge.
+// Couleur rare (délai 1 à 2 semaines) : fenêtre ouverte 2 semaines plus tôt.
+const STK_FOUR={"K-Line":8,"Keller":10,"Reveau":5,"Roma":5,"Riou":5,"Thermobloc":3,"Flip":4,"Hörmann":4,"Ceyssens":3,"Vitrages":3},STK_FOUR_DEF=6;
+const STK_FEN=28,STK_ALERTE=14,STK_RARE=14;
+const stkRare=a=>/pierre|bronze|beige|marron|ch[eê]ne|gold|ral ?(?!9016|9010|7016|9005|7035)\d{4}/i.test((a.nom||"")+" "+(a.coloris||""));
+const lundi=s=>{const d=new Date(s+"T12:00");d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
+function posePrevue(id,j){
+  const t=today(),pl=[...((stk.plan&&stk.plan.get(id))||[])].sort();
+  if(pl.length){const weeks=[...new Set(pl.map(lundi))];return{d:pl[0],src:"planning",weeks,why:weeks.length>1?"planning, "+weeks.length+" semaines":"planning"}}
+  if(poseOk(j)&&poseOk(j)>=t)return{d:poseOk(j),src:"confirmée",why:"pose validée avec le client"};
+  const pp=poseDates(j).filter(x=>x>=t).sort()[0];if(pp)return{d:pp,src:"proposée",why:"date proposée au client"};
+  const c=[],why=[];
+  for(const a of arcsOf(j)){
+    if(a.livre&&a.livre.d){c.push(a.livre.d);why.push((a.four||"ARC")+" livré");continue}
+    const x=a.aid&&stk.atl&&stk.atl.get(a.aid);if(x){const f=atlPlan({id:a.aid,...x}).fin;c.push(f);why.push("fin atelier "+fr(f));continue}
+    if(a.prev){c.push(a.prev);why.push((a.four||"ARC")+" livraison prévue "+sem(a.prev));continue}
+    const cmd=sd(j,"cmdok")||sd(j,"cmd");if(cmd){const w=STK_FOUR[a.four]||STK_FOUR_DEF;c.push(addDays(cmd,7*w));why.push((a.four||"commande")+" : commande + "+w+" sem.")}}
+  if(!c.length){const cmd=sd(j,"cmdok")||sd(j,"cmd");if(cmd){c.push(addDays(cmd,7*STK_FOUR_DEF));why.push("commande + "+STK_FOUR_DEF+" sem.")}}
+  if(!c.length)return{d:"",src:"",why:"aucune date (ni planning, ni ARC, ni commande)"};
+  const last=c.indexOf(maxS(...c));return{d:maxS(addDays(maxS(...c),7),addDays(t,7)),src:"estimée",why:"dernière arrivée : "+why[last]+" + 1 sem."}}
+function stkDemDates(raw){
+  const t=today(),lines=[];
+  // chantier long : le besoin est réparti également entre ses semaines de planning
+  raw.forEach(l=>{const W=l.src==="planning"&&l.weeks&&l.weeks.length>1?l.weeks:null;
+    if(W)W.forEach(w=>lines.push({...l,q:l.q/W.length,pose:maxS(w,t),part:W.length}));else lines.push({...l})});
+  lines.forEach(l=>{l.j=l.pose?days(l.pose)*-1:null;const fen=STK_FEN+(stkRare(l.a)?STK_RARE:0);l.etat=l.pose==null||l.pose===""?"tard":l.j>fen?"tard":"fen"});
+  const byA=new Map();lines.forEach(l=>{if(!byA.has(l.a.id))byA.set(l.a.id,[]);byA.get(l.a.id).push(l)});
+  for(const [id,L] of byA){const a=L[0].a;let rest=Math.max(0,stkLvl(a)-stkResQ(a));
+    L.filter(l=>l.etat==="fen").sort((x,y)=>x.pose.localeCompare(y.pose)).forEach(l=>{
+      if(rest>=l.q-1e-9){l.etat="res";rest-=l.q}else{l.manque=l.q-rest;rest=0;l.etat=l.j<=STK_ALERTE?"alerte":"cmd"}});
+    const o={q:0,cmd:0,lines:L,a};L.forEach(l=>{if(l.etat!=="tard")o.q+=l.q;if(l.manque)o.cmd+=l.manque});stk.dem.set(id,o)}
+  stk.demLines=lines;
+}
+const DEM_ETAT={res:["Réservé","v"],cmd:["À commander","o"],alerte:["Alerte rouge","r"],tard:["Plus tard","g"]};
+const demPose=l=>l.pose?(sem(l.pose)+" ("+fr(l.pose)+")"+(l.src&&l.src!=="planning"&&l.src!=="confirmée"?" "+l.src:"")):"date inconnue";
+const demPill=l=>`<span class="dempill ${DEM_ETAT[l.etat][1]}">${DEM_ETAT[l.etat][0]}</span>`;
 // seul Christophe réserve (Steven, 06/11 et 08/11/2026) : case profils.reserve_stock (outil/reservations.sql) ; Manu (atelier) fait seulement les entrées / sorties
 const stkResW=()=>{const p=window.mgdsProfil||{};return p.role==="atelier"&&(p.reserve_stock??true)===true};
 // manque : plus de réservé que de stock (une sortie a eu lieu depuis la réservation)
@@ -1616,6 +1673,8 @@ function stkDraw(){
     ${[...byF].sort((x,y)=>(y[1].r+y[1].o)-(x[1].r+x[1].o)||y[1].n-x[1].n).map(([f,c])=>`<div class="sf"><span title="${esc(f)}">${esc(f)}</span><div class="sbar">${["r","o","v","b","g"].filter(e=>c[e]).map(e=>`<button class="sseg ${e}" style="flex:${c[e]}" data-sseg="${esc(f)}" data-se="${e}" aria-pressed="${stk.fam===f&&stk.et===e}" aria-label="${esc(f)} : ${c[e]} ${STK_ETAT[e]}" title="${esc(f)} · ${STK_ETAT[e]} : ${c[e]} article${c[e]>1?"s":""}"></button>`).join("")}</div><span class="nb">${c.n}</span></div>`).join("")}
     ${stk.et||stk.fam?`<div><button class="chip" data-sf="" data-se="">✕ Retirer le filtre${stk.fam&&stk.fam!=="!"?" « "+esc(stk.fam)+" »":""}${stk.et?" · "+STK_ETAT[stk.et]:""}</button></div>`:`<span class="sub">Touchez un segment pour voir les articles de cette famille dans cet état.</span>`}</div>`;
   // contrôle des réservations atelier : ce qui manque pour une fabrication (réservé > en stock)
+  const AL=stk.which==="pose"?(stk.demLines||[]).filter(l=>l.etat==="alerte"):[];
+  if(AL.length)h+=`<div class="stkcard" style="border-color:var(--s-rouge);margin-bottom:14px"><h3>⚠️ Consommables non couverts à 2 semaines de la pose</h3><span class="sub">À commander tout de suite (produits spécifiques compris).</span><table class="ctab">${AL.map(l=>`<tr><td>${stkName(l.a)}</td><td><button class="lnk" data-open="${esc(l.job)}">${esc(l.client)}</button><br><small class="sub">pose ${esc(demPose(l))}</small></td><td>manque <b>${nb(Math.ceil(l.manque))}</b> ${esc(stkU(l.a,Math.ceil(l.manque)))}</td></tr>`).join("")}</table></div>`;
   const KO=stk.which==="atelier"?A.filter(a=>stkResManque(a)>0):[];
   if(KO.length)h+=`<div class="stkcard" style="border-color:var(--s-rouge);margin-bottom:14px"><h3>⚠️ Réservations à vérifier</h3><span class="sub">Plus de réservé que de stock : il manquera ces éléments pour une fabrication.</span><div class="stkrows">${KO.map(a=>`<button class="stkrow" data-art="${a.id}"><span class="dot r"></span><span class="stkn">${stkName(a)}<small>${esc(stk.res.filter(r=>r.article===a.id).map(r=>r.commande+" : "+nb(r.qte)).join(" · "))}</small></span><span class="stkq r">manque ${nb(stkResManque(a))}<small>en stock ${nb(stkLvl(a))}</small></span></button>`).join("")}</div></div>`;
   h+=`<div class="stkcard stkniv"><h3>${STK_WHICH[stk.which]} : niveau</h3>`;
@@ -1683,9 +1742,17 @@ async function stkExcel(){
 function stkDemCard(){
   if(stk.which!=="pose"||!stk.dem)return"";const L=[...stk.dem.entries()].map(([id,o])=>[stk.all.find(a=>a.id===id),o]).filter(x=>x[0]);
   if(!L.length&&!stk.demTodo.length)return`<p class="sub">Besoins des chantiers à venir : aucun pour l'instant (ils viennent des fiches de préparation enregistrées).</p>`;
+  const DL=(stk.demLines||[]),n=e=>DL.filter(l=>l.etat===e).length,line=l=>`<tr><td>${stkName(l.a)}</td><td><button class="lnk" data-open="${esc(l.job)}">${esc(l.client)}</button><br><small class="sub">pose ${esc(demPose(l))}${l.part?" · 1/"+l.part:""}</small></td><td>${nb(Math.round(l.q*10)/10)}</td><td>${demPill(l)}${l.manque?`<br><small>manque ${nb(Math.ceil(l.manque))}</small>`:""}</td></tr>`;
+  const ord={alerte:0,cmd:1,res:2,tard:3},S=[...DL].sort((x,y)=>ord[x.etat]-ord[y.etat]||String(x.pose||"9").localeCompare(String(y.pose||"9")));
+  const proche=S.filter(l=>l.etat!=="tard"),tard=S.filter(l=>l.etat==="tard");
+  return`<details class="stkdem" ${n("alerte")?"open":""}><summary><b>📋 Consommables des chantiers à venir</b> · ${[n("alerte")?`<span style="color:var(--s-rouge)">${n("alerte")} alerte${n("alerte")>1?"s":""}</span>`:"",n("cmd")?n("cmd")+" à commander":"",n("res")?n("res")+" réservé"+(n("res")>1?"s":""):"",n("tard")?n("tard")+" plus tard":"",stk.demTodo.length?`<span style="color:var(--s-orange)">${stk.demTodo.length} à relier</span>`:""].filter(Boolean).join(" · ")}</summary>
+    <p class="sub">Réservé 4 semaines avant la pose (6 pour une couleur rare), pose la plus proche servie d'abord. Alerte si ce n'est pas couvert à 2 semaines. Date de pose : planning, sinon date estimée (dernière livraison ARC ou fin atelier + 1 semaine).</p>
+    ${proche.length?`<table class="ctab"><tr><th>Article</th><th>Chantier</th><th>Qté</th><th>État</th></tr>${proche.map(line).join("")}</table>`:`<p class="sub">Aucune pose dans les 4 semaines.</p>`}
+    ${tard.length?`<details><summary class="sub">Plus tard (pose dans plus de 4 semaines) : ${tard.length} ligne${tard.length>1?"s":""}, ne bloquent pas le stock</summary><table class="ctab">${tard.map(line).join("")}</table></details>`:""}
+  </details>`+stkDemTodoCard()}
+function stkDemTodoCard(){if(!stk.demTodo.length)return"";const L=[];
   const opts=stk.arts.filter(a=>a.actif!==false).map(a=>`<option value="${a.id}">${esc(a.nom)}${a.coloris?" · "+esc(a.coloris):""}</option>`).join("");
-  return`<details class="stkdem"><summary><b>📋 Réservé pour les chantiers à venir</b> · ${L.length} article${L.length>1?"s":""}${stk.demTodo.length?` · <span style="color:var(--s-orange)">${stk.demTodo.length} ligne${stk.demTodo.length>1?"s":""} à relier</span>`:""}</summary>
-    ${L.length?`<table class="ctab"><tr><th>Article</th><th>Réservé</th><th>Disponible</th></tr>${L.map(([a,o])=>`<tr><td><span class="dot ${stkEtat(a)}"></span> ${stkName(a)}<br><small class="sub">${esc([...new Set(o.lines.map(l=>l.client+(l.pose?" ("+sem(l.pose)+")":"")))].join(", "))}</small></td><td>${nb(Math.round(o.q*10)/10)}</td><td>${nb(Math.round((stkLvl(a)-stkResQ(a)-o.q)*10)/10)}</td></tr>`).join("")}</table>`:""}
+  return`<details class="stkdem"><summary><b>🔗 Lignes de préparation à relier</b> · <span style="color:var(--s-orange)">${stk.demTodo.length}</span></summary>
     ${stk.demTodo.length?`<h4>À relier à un article du stock</h4><p class="sub">Choisissez l'article une fois : c'est retenu pour ce chantier.</p>${stk.demTodo.map((t,k)=>`<div class="crow"><div><b>${esc(t.label)}</b> · ${esc(t.q||"")}<br><small class="sub">${esc(t.client)}${t.pose?" · pose "+sem(t.pose):""}</small></div>${canWrite?`<select data-demlink="${k}" aria-label="Article du stock pour ${esc(t.label)}"><option value="">Choisir l'article…</option><option value="ignore">Ne pas réserver</option>${opts}</select>`:""}</div>`).join("")}`:""}</details>`;
 }
 async function stkDemLink(k,v){
@@ -1730,7 +1797,12 @@ async function stkSheet(id){
   let h="";
   if(id!=null){const e=stkEtat(a);
     h+=`<div class="crow"><div class="stkbig ${e}">${stkQ(a,n)}</div><div class="cinfo"><span class="dot ${e}"></span> ${STK_ETAT[e]}${a.seuil!=null?" · seuil "+nb(a.seuil):""}${stk.inv.get(a.id)?" · compté le "+fr(stk.inv.get(a.id).slice(0,10)):""}</div></div>`;
-    {const D=stk.dem&&stk.dem.get(a.id);if(D)h+=`<div class="crow ccard"><b>Réservé pour les chantiers à venir : ${nb(Math.round(D.q*10)/10)} ${esc(stkU(a,D.q))}</b><div class="cinfo">Disponible : ${nb(Math.round((stkLvl(a)-stkResQ(a)-D.q)*10)/10)}</div>${D.lines.map(l=>`<div class="cinfo">${esc(l.client)}${l.pose?" · pose "+sem(l.pose):""} : ${nb(Math.round(l.q*10)/10)}${l.det?" ("+esc(l.det)+")":""}</div>`).join("")}</div>`}
+    {const D=stk.dem&&stk.dem.get(a.id),RS=(stk.res||[]).filter(r=>r.article===a.id),rq=stkResQ(a)+(D?D.q:0),r1=v=>nb(Math.round(v*10)/10);
+     const dl=D?[...D.lines].sort((x,y)=>String(x.pose||"9").localeCompare(String(y.pose||"9"))):[];
+     h+=`<div class="crow ccard"><b>Réservations</b><div class="stkres3"><div><b>${r1(n)}</b><span>en stock</span></div><div><b>${r1(rq)}</b><span>réservé</span></div><div><b>${r1(n-rq)}</b><span>disponible</span></div></div>
+      ${dl.length||RS.length?`<table class="ctab"><tr><th>Pour</th><th>Qté</th><th>État</th></tr>
+      ${RS.map(r=>`<tr><td id="sp-rc-${r.id}" data-rc="${esc(r.commande)}">${esc(r.commande)}</td><td>${r1(+r.qte)}</td><td><span class="dempill ${stkResManque(a)>0?"r":"v"}">${stkResManque(a)>0?"Manque en stock":"Réservé"}</span></td></tr>`).join("")}
+      ${dl.map(l=>`<tr><td><button class="lnk" data-open="${esc(l.job)}">${esc(l.client)}</button><br><small class="sub">pose ${esc(demPose(l))}${l.part?" · 1/"+l.part:""}</small></td><td>${r1(l.q)}</td><td>${demPill(l)}${l.manque?`<br><small>manque ${nb(Math.ceil(l.manque))}</small>`:""}</td></tr>`).join("")}</table>`:`<div class="cinfo">Rien de réservé.</div>`}</div>`}
     if(stkMv())h+=`<div class="crow ccard"><b>Mouvement</b><div class="chips" id="sp-t">${[["livraison","＋ Livraison"],["sortie","− Sortie"],["retour","↩ Retour"],["inventaire","＝ J'ai compté"]].filter(x=>canWrite||x[0]!=="inventaire").map(([k,l],i)=>`<button type="button" class="chip ${i?"":"on"}" data-t="${k}">${l}</button>`).join("")}</div>
       <div class="cline"><input class="cin" id="sp-q" inputmode="decimal" placeholder="Quantité (${esc(a.unite)})" aria-label="Quantité"><select class="cin" id="sp-c" aria-label="Chantier" hidden><option value="">Chantier (facultatif)…</option>${(stkLoad.live||[]).map(j=>`<option value="${esc(j.id)}">${esc(stkLoad.nameOf(j.id))}</option>`).join("")}</select></div>
       <input class="cin" id="sp-n" placeholder="Remarque (facultatif) : n° de bon, fournisseur…" aria-label="Remarque"><button class="btn" id="sp-ok">Enregistrer le mouvement</button></div>`}
@@ -1772,7 +1844,8 @@ async function stkSheet(id){
     toast(v?"Bac signalé vide : l'article est dans « À commander ».":"Signalement annulé.");await stkLoad();stkDraw();stkSheet(a.id)};
   if($("sp-vide"))$("sp-vide").onclick=()=>vide(true);
   if($("sp-rok")||L.querySelector("[id^=sp-rc-]"))atlListe().then(C=>{const by=new Map(C.map(c=>[c.id,c]));
-    L.querySelectorAll("[id^=sp-rc-]").forEach(td=>{const c=by.get(td.textContent);if(c)td.textContent=atlLabel(c)});
+    L.querySelectorAll("[data-rc]").forEach(td=>{const c=by.get(td.dataset.rc);if(c){const deb=atlPlan(c).P.debut;td.innerHTML=`${c.chantier&&jobs.has(c.chantier)?`<button class="lnk" data-open="${esc(c.chantier)}">${esc(atlName(c))}</button>`:`<button class="lnk" data-aopen="${esc(c.id)}">${esc(atlName(c))}</button>`}<br><small class="sub">commande atelier ${esc(c.id)}${deb?" · fabrication "+sem(deb)+" ("+fr(deb)+")":""}</small>`}});
+    L.querySelectorAll("[id^=sp-rc-]:not([data-rc])").forEach(td=>{const c=by.get(td.textContent);if(c)td.textContent=atlLabel(c)});
     if($("sp-rcmd"))$("sp-rcmd").insertAdjacentHTML("beforeend",C.map(c=>`<option value="${esc(c.id)}">${esc(atlLabel(c))}</option>`).join(""))});
   if($("sp-rok"))$("sp-rok").onclick=async()=>{const q=stkNum($("sp-rq").value),c=$("sp-rcmd").value;
     if(!q||q<=0){toast("Indiquez la quantité à réserver.");return}if(!c){toast("Choisissez la commande atelier.");return}
