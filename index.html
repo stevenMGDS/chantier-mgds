@@ -1509,7 +1509,8 @@ const stkResQ=a=>(stk.resBy&&stk.resBy.get(a.id))||0;
 // enregistrée pour ce chantier et cet article, ou quand l'étape « Posé » est cochée.
 // Conversions (factures Foussier) : compribande 15/3-7 = rouleaux de 8 m, 15/4-11 = 5,6 m, 15/5-14 = 4,3 m (cartons de 20) ;
 // silicone : 12 ml par cartouche, cartons de 24 cartouches (poches : 25) ; neuf = silicone transparent.
-const STK_ROUL={"3x7":8,"4x11":5.6,"5x14":4.3},stkDemQ=a=>(stk.dem&&stk.dem.get(a.id)?stk.dem.get(a.id).q:0);
+const STK_ROUL={"3x7":8,"4x11":5.6,"5x14":4.3,"9x20":12,"5x20":12},stkDemQ=a=>(stk.dem&&stk.dem.get(a.id)?stk.dem.get(a.id).q:0);
+const demMl=t=>{const m=/([\d]+(?:[.,]\d+)?)\s*ml/i.exec(String(t||""));return m?+m[1].replace(",","."):0};
 const demNum=t=>{const m=/(\d+(?:[.,]\d+)?)/.exec(String(t||""));return m?+m[1].replace(",","."):0};
 function stkDemCalc(){
   stk.dem=new Map();stk.demTodo=[];const pose=stk.all.filter(a=>(a.stock||"pose")==="pose"&&a.actif!==false),byId=new Map(stk.all.map(a=>[a.id,a]));
@@ -1524,16 +1525,16 @@ function stkDemCalc(){
     for(const b of prep.besoins){
       const key=b.l,lab=nrm(b.l),m=map[key];if(m==="ignore"||(!b.q&&!b.r))continue;
       const go=(a,q,det)=>{if(a&&!out.has(a.id))add(a,q,{...base,label:b.l,det})};
-      if(m){const a=byId.get(+m);if(a){const n=demNum(b.q);if(n)go(a,/^compri/.test(nrm(a.nom))&&/ml/.test(b.q||"")?n/(STK_ROUL[(nrm(a.nom).match(/\d+x\d+/)||[])[0]]||8):/silicone|mastic/.test(nrm(a.nom))&&/ml/.test(b.q||"")?per(a,n/12):per(a,n),b.q)}continue}
+      if(m){const a=byId.get(+m);if(a){const n=demNum(b.q);const unit=/cartouche|rouleau|sachet/i.test(b.q||"");if(n)go(a,unit?(/rouleau/i.test(b.q)?n:per(a,n)):/^compri/.test(nrm(a.nom))&&/ml/.test(b.q||"")?demMl(b.q)/(STK_ROUL[(nrm(a.nom).match(/\d+x\d+/)||[])[0]]||8):/silicone|mastic/.test(nrm(a.nom))&&/ml/.test(b.q||"")?per(a,demMl(b.q)/12):per(a,n),b.q)}continue}
       // compribande : une ligne par dimension trouvée dans la remarque (« compribande 3-7x20 : … (19,8 ml) »)
       if(/compri|mousse impr/.test(lab)){const parts=String(b.r||"").split(/\s*·\s*/).map(t=>{const d=/(\d+)\s*[-x\/]\s*(\d+)(?:\s*x\s*(\d+))?/.exec(t),ml=/\(([\d,.]+)\s*ml\)/.exec(t);return d&&ml?{k:d[1]+"x"+d[2],w:d[3],ml:+ml[1].replace(",",".")}:null}).filter(Boolean);
         if(parts.length){parts.forEach(pt=>{const a=find(n=>/compribande/.test(n)&&n.includes(pt.k+(pt.w?"x"+pt.w:"")))||find(n=>/compribande/.test(n)&&n.includes(pt.k));
           if(a)go(a,pt.ml/(STK_ROUL[pt.k]||8),String(pt.ml).replace(".",",")+" ml");else stk.demTodo.push({...base,label:b.l+" "+pt.k+(pt.w?"x"+pt.w:""),key,q:String(pt.ml).replace(".",",")+" ml"})});continue}}
       // silicone : ml → cartouches (12 ml) → cartons ; neuf = transparent, sinon coloris cherché dans la remarque
-      if(/silicone|mastic silicone/.test(lab)){const ml=demNum(b.q)||demNum((/\(([\d,.]+)\s*ml\)/.exec(b.r||"")||[])[1]);
+      if(/silicone|mastic silicone/.test(lab)){const ct=/cartouche/i.test(b.q||"")?demNum(b.q):0,ml=demMl(b.q)||demNum((/\(([\d,.]+)\s*ml\)/.exec(b.r||"")||[])[1]);
         const col=j.type==="neuf"?"transl":(nrm(b.r||"").match(/blanc|noir|gris|pierre|bronze|transp|transl/)||[])[0];
         const a=col&&find(n=>/silicone/.test(n)&&n.includes(col==="transp"?"transl":col));
-        if(a&&ml)go(a,per(a,ml/12),b.q);else stk.demTodo.push({...base,label:b.l,key,q:b.q||b.r});continue}
+        if(a&&(ct||ml))go(a,per(a,ct||ml/12),b.q);else stk.demTodo.push({...base,label:b.l,key,q:b.q||b.r});continue}
       if(b.q)stk.demTodo.push({...base,label:b.l,key,q:b.q});
     }
   }
@@ -2736,7 +2737,16 @@ async function consRedraw(doc,o={}){
 const habLinesOf=sum=>(sum||[]).filter(x=>/habillage|t[ôo]le|corni[èe]re/i.test(x.a||"")).flatMap(x=>(x.d||"").split(/\s*·\s*/))
   .map(t=>{const m=/^(\S+)\s+([\d.,]+\s*ml)\s*(.*)$/.exec(t.trim());return m?{p:m[1],q:m[2].replace(/\s+/g," "),c:m[3].trim()}:null}).filter(Boolean);
 let joinChain=Promise.resolve();
-const JOIN_V=2; // version de la reprise métré → préparation (2 : fixations calculées) ; une fiche reprise avant est refaite
+const JOIN_V=2;
+// quantités d'étanchéité en unités d'achat (Steven, 10/11/2026) : silicone 12 ml de joint par cartouche ;
+// compribande : longueur des rouleaux selon la dimension (Foussier 15/3-7 = 8 m, 4-11 = 5,6 m, 5-14 = 4,3 m ;
+// ISO-BLOCO MAX 600 R 65/9-20 = rouleaux de 12 m, cartons de 72 m) ; colle membrane : ≈ 8 m de cordon par sachet de 600 ml
+const COMP_ROUL={"3-7":8,"4-11":5.6,"5-14":4.3,"9-20":12,"5-20":12},COLLE_M=8,SIL_M=12;
+function etQty(src,its,ml,mlf){const m=ml/1000;
+  if(/silicone/.test(src||""))return Math.ceil(m/SIL_M)+" cartouches ("+mlf(ml)+" ml)";
+  if(/compri/.test(src||"")){let n=0,ok=true;its.forEach(i=>{const d=/(\d+)\s*[-\/x]\s*(\d+)/.exec(i.c),L=d&&COMP_ROUL[d[1]+"-"+d[2]];if(L)n+=Math.ceil(i.ml/1000/L);else ok=false});
+    if(ok&&n)return n+" rouleau"+(n>1?"x":"")+" ("+mlf(ml)+" ml)"}
+  return mlf(ml)+" ml"} // version de la reprise métré → préparation (2 : fixations calculées) ; une fiche reprise avant est refaite
 // texte de la ligne « Vis / chevilles / pattes de fixation » du métré (toutes les cases de la ligne, sauf les nombres seuls)
 async function metreFixText(metre){
   const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await (await fetch("/_blob/"+metre.id)).arrayBuffer())}).promise;
@@ -2869,7 +2879,7 @@ const pdfFresh=pg=>{pg.contentStream=undefined;pg.contentStreamRef=undefined;ret
 // ---------- chantier neuf : fiche de préparation reprise de la réception de support (Steven, 09/11/2026) ----------
 // « Ce qu'on pose » redessiné à partir de la RS (type de pose applique / tunnel au lieu de Réno / Dépose), fixations et quantité
 // estimée, « Attention à » adapté au neuf (support décrit par la RS, appui / rejingot « à créer » avec hauteur et repères).
-const SUP_V=4; // version du calcul : une fiche reprise avec une version plus ancienne est refaite (fixations montants + traverse haute)
+const SUP_V=5; // version du calcul : une fiche reprise avec une version plus ancienne est refaite (fixations montants + traverse haute)
 const SUP_MAT=["parpaing creux","béton","brique creuse","brique pleine","bois","acier"];
 const SUP_POSE=["applique intérieure","applique extérieure","tunnel au nu intérieur","tunnel au nu extérieur"];
 async function supRead(sup){
@@ -2989,7 +2999,7 @@ async function doJoinSupport(id){
   let auto={...(prep.auto||{})};
   const per=S.rows.reduce((a,r)=>a+supPerim(r),0),ml=(per/1000).toFixed(1).replace(".",",");
   try{const rows=await prepRows(await doc.save()),form=doc.getForm(),put=(name,v)=>{if(!name||!v)return;try{const tf=form.getTextField(name),cur=(tf.getText()||"").trim();
-      if(!cur||cur===auto[name]){const t=clean(v).replace(/[^\x20-\x7E\xA0-\xFF€]/g,"");tf.setText(t);auto[name]=t}}catch(_){}};
+      if(!cur||cur===String(auto[name]||"").trim()){const t=clean(v).replace(/[^\x20-\x7E\xA0-\xFF€]/g,"").trim();tf.setText(t);auto[name]=t}}catch(_){}};
     const vis=rows.find(r=>/^vis b[ée]ton/i.test(r.label)),pat=rows.find(r=>/^pattes de fixation/i.test(r.label));
     if(S.fixM&&vis){const m=/(\d+)\s*vis\s*tou[st]?\s*les\s*(\d+)\s*(mm|cm)?/i.exec(S.fixType),nv=m?+m[1]:1,esp=m?(+m[2])*(/cm/i.test(m[3]||"")?10:1):400;
       const fl=S.rows.reduce((a,r)=>a+supFixLen(r),0),pts=S.rows.reduce((a,r)=>{const p=supFixLen(r);return a+(p?Math.ceil(p/esp):0)},0);
@@ -3008,7 +3018,13 @@ async function doJoinSupport(id){
       let row=g.re&&rows.find(r=>!used.has(r)&&g.re.test(r.label));
       if(!row){row=rows.find(r=>!used.has(r)&&r.art&&!r.label);if(!row)continue;put(row.art,its.map(i=>i.c).join(" / "))}
       used.add(row);const ml=its.reduce((a,i)=>a+i.ml,0);
-      if(ml)put(row.qty,"≈ "+mlf(ml)+" ml");put(row.rem,its.map(desc).join(" · "))}
+      // ancienne reprise : « 38,9 ml » posé par l'appli (perdu de la liste auto) → remplacé par les unités d'achat
+      if(ml)try{const tf=form.getTextField(row.qty),cur=(tf.getText()||"").trim();if(/^[\d,.]+\s*ml$/.test(cur)&&cur===mlf(ml)+" ml"){tf.setText("");delete auto[row.qty]}}catch(_){}
+      if(ml)put(row.qty,etQty(g.re&&g.re.source,its,ml,mlf));put(row.rem,its.map(desc).join(" · "))
+      // membrane : colle en sachets sur une ligne libre (ISO-TOP COLLE XP, cordon Ø 8-10 mm ≈ 8 m par sachet de 600 ml)
+      if(ml&&/membrane/.test(g.re&&g.re.source||"")){const lr=rows.find(r=>!used.has(r)&&r.art&&!r.label);
+        if(lr){used.add(lr);put(lr.art,"Colle membrane ISO-TOP COLLE XP (sachets 600 ml)");put(lr.qty,Math.ceil(ml/1000/COLLE_M)+" sachets ("+mlf(ml)+" ml)");
+          put(lr.rem,"1 cordon Ø 8-10 mm sur le support, ≈ "+COLLE_M+" m par sachet · cartons de 12")}}}
     form.updateFieldAppearances(await doc.embedFont(PDFLib.StandardFonts.Helvetica));
   }catch(e){console.log("fix",e)}
   // ligne d'aide au-dessus des consommables : périmètre recalculé sur les cotes de la RS
