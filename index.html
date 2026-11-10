@@ -788,11 +788,13 @@ async function renderSheet(){
      <div class="arcf"><label>Motif<select data-phfield="motif" data-i="${i}" ${ro}>${Object.entries(MOTIFS).map(([v,t])=>`<option value="${v}" ${v===x.motif?"selected":""}>${t}</option>`).join("")}</select></label>
       <label>Date prévue<input type="date" min="2000-01-01" max="2099-12-31" data-phfield="prev" data-i="${i}" value="${x.prev||""}" ${ro}></label>
       <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-ph="${i}" aria-label="${esc(x.t)} posé" ${ro}>${ok?tick:""}</button>Posé<span class="mono">${fr(ok)}</span></span></div></li>`}).join("");
-  const prevu=prevuOf(j).map((x,i)=>`<li class="arc ${x.qui==="st"?"part":""}"><div class="arch"><b>${x.s?sem(x.s):"Semaine ?"}</b><span class="sub">${esc(QUI[x.qui||""]||"")}${x.j?" · "+esc(x.j)+" j":""}</span>${canWrite?`<button class="x" data-delpv="${i}" aria-label="Retirer cette ligne">×</button>`:""}</div>
-     <div class="arcf"><label style="flex:2 1 220px">Quoi<input type="text" data-pvfield="t" data-i="${i}" value="${esc(x.t)}" ${ro}></label>
-      <label>Semaine${semInput(`data-pvwk="${i}" ${ro}`,x.s)}</label>
-      <label>Qui<select data-pvfield="qui" data-i="${i}" ${ro}>${Object.entries(QUI).map(([v,t])=>`<option value="${v}" ${v===(x.qui||"")?"selected":""}>${t}</option>`).join("")}</select></label>
-      <label>Durée (jours)<input type="number" min="0" max="99" step="0.5" inputmode="decimal" style="width:5em" data-pvfield="j" data-i="${i}" value="${esc(x.j||"")}" ${ro}></label></div></li>`).join("");
+  // saisie ouverte aux éditeurs et au profil terrain (Yannick, Stéphanie) : outil/planning-prevu.sql
+  const pvW=canWrite||canFill,pvRo=pvW?"":"disabled";
+  const prevu=prevuOf(j).map((x,i)=>`<li class="arc ${x.qui==="st"?"part":""}"><div class="arch"><b>${x.s?sem(x.s):"Semaine ?"}</b><span class="sub">${esc(QUI[x.qui||""]||"")}${x.j?" · "+esc(x.j)+" j":""}</span>${pvW?`<button class="x" data-delpv="${i}" aria-label="Retirer cette ligne">×</button>`:""}</div>
+     <div class="arcf"><label style="flex:2 1 220px">Quoi<input type="text" data-pvfield="t" data-i="${i}" value="${esc(x.t)}" ${pvRo}></label>
+      <label>Semaine${semInput(`data-pvwk="${i}" ${pvRo}`,x.s)}</label>
+      <label>Qui<select data-pvfield="qui" data-i="${i}" ${pvRo}>${Object.entries(QUI).map(([v,t])=>`<option value="${v}" ${v===(x.qui||"")?"selected":""}>${t}</option>`).join("")}</select></label>
+      <label>Durée (jours)<input type="number" min="0" max="99" step="0.5" inputmode="decimal" style="width:5em" data-pvfield="j" data-i="${i}" value="${esc(x.j||"")}" ${pvRo}></label></div></li>`).join("");
   const facs=facsOf(j).map((f,i)=>{const fa=f.fac&&f.fac.d,pa=f.paye&&f.paye.d;
     return `<li class="arc ${pa?"ok":""}"><div class="arch"><b>${esc(f.t||"Facture "+(i+1))}</b><span class="sub">${f.solde?"solde":"partielle"}</span>${canWrite?`<button class="x" data-delfac="${i}" aria-label="Retirer cette facture">×</button>`:""}</div>
      <div class="arcf"><span class="arck"><button class="box" role="checkbox" aria-checked="${!!fa}" data-fac="${i}" data-fack="fac" aria-label="${esc(f.t)} facturée" ${ro}>${fa?tick:""}</button>Facturée<span class="mono">${fr(fa)}</span></span>
@@ -835,7 +837,7 @@ async function renderSheet(){
    ${window.atlSection?atlSection(j.id):""}
    <h3>Planning prévu<span class="sub" style="text-transform:none;letter-spacing:0">ce que vous savez déjà : une ligne par étape, par semaine</span></h3>
    <ul class="arcs">${prevu||`<li class="sub">Rien de saisi. Ajoutez une ligne par étape connue, par exemple « S8 : pose de l'échafaudage (sous-traitant) », « S9 : remplacement des menuiseries ». Ce que vous saisissez ici remplace la date estimée par l'appli.</li>`}</ul>
-   ${canWrite?`<form class="add arcadd" data-add="pv"><input type="text" id="add-pv" placeholder="Quoi (ex. pose de l'échafaudage)" aria-label="Quoi" style="flex:2 1 200px">${semInput('id-pv="1"',"")}<select id="add-pv-qui" aria-label="Qui">${Object.entries(QUI).map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select><button class="btn">+</button></form>`:""}
+   ${pvW?`<form class="add arcadd" data-add="pv"><input type="text" id="add-pv" placeholder="Quoi (ex. pose de l'échafaudage)" aria-label="Quoi" style="flex:2 1 200px">${semInput('id-pv="1"',"")}<select id="add-pv-qui" aria-label="Qui">${Object.entries(QUI).map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select><button class="btn">+</button></form>`:""}
    <h3>Location, voirie, transport<span class="sub" style="text-transform:none;letter-spacing:0">alerte avant la date si ce n'est pas commandé</span></h3>
    <ul class="arcs">${logi||`<li class="sub">Rien à commander pour l'instant. Ajoutez une ligne pour une location de machine, un échafaudage, une demande de voirie ou un transport : l'appli vous alertera à temps.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="logi"><select id="add-logi-type" aria-label="Type">${Object.entries(LOGI).map(([v,[t]])=>`<option value="${v}">${t}</option>`).join("")}</select><input type="text" id="add-logi" placeholder="Détail (facultatif)" aria-label="Détail"><button class="btn">+</button></form>`:""}
