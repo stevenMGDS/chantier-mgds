@@ -867,10 +867,10 @@ function showTab(t){
   if(!["chantiers","planning","stock","atelier","direction"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="atelier"&&$("tabAtl").hidden))t="chantiers";
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
   for(const k of ["chantiers","planning","stock","atelier","direction"])$("tab-"+k).hidden=k!==t;
-  if(t==="planning"&&!$("tab-planning").firstChild)$("tab-planning").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`;
+  if(t==="planning"){if(window.planRender)planRender();else if(!$("tab-planning").firstChild)$("tab-planning").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`}
   if(t==="stock")loadStock();
   if(t==="direction")renderDir();
-  if(t==="atelier"&&window.atlRender)atlRender();
+  if(t==="atelier"&&window.atlRender){atlRender();if(window.PLN_OK&&!PLN_OK()&&window.plLoad)plLoad().then(()=>atlRender())}
   try{history.replaceState(null,"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
 }
 window.mgdsHash0=location.hash;
@@ -3268,8 +3268,12 @@ $("sheet").addEventListener("focusout",()=>{if(pendingSheet){pendingSheet=false;
 // commandés tout de suite ; métré (Yannick) ; ARC validé avec les cotes définitives ; puis vitrages, volets / stores (plus modifiables) ;
 // réception ; production ; livraison. Rétro-planning depuis la date de pose : « au plus tard » pour chaque étape.
 // Quand l'ARC atelier est validé, la base le recopie dans « ARC et livraisons » de la fiche chantier (semaine = fin de production).
-const ATL_H_JOUR=7;   // heures de production par jour ouvré
-const ATL_H_SEM=35;   // capacité de l'atelier par semaine (charge)
+// Manu : 39 h par semaine (8,5 h du lundi au jeudi, 5 h le vendredi) ; Christophe ne produit pas (Steven, 11/11/2026)
+const ATL_H_JOUR=7.8; // heures de production par jour ouvré, en moyenne (39 h / 5)
+const ATL_H_SEM=39;   // capacité de l'atelier par semaine (charge), hors renfort des poseurs
+// délais Technal départ usine selon la finition (tarif Technal, Steven 10/11/2026), en semaines ; + 1 semaine par prestation
+// (pose de joints, clip, pré-anodisation, pelliculage) ; + 1 semaine de transport (livré la semaine qui suit le départ usine)
+const ATL_FIN=[[1,"Stock, blanc YBLC.370, gris R7016.370 classe 2 : 1 sem."],[2,"Sélection, Exclusives, MF brut : 2 sem."],[3,"Classique, anodisé naturel, bicolore Sélection / Exclusives : 3 sem."],[5,"Bicolore Classique, laqués spéciaux : 5 sem."],[6,"Anodisés hors naturel, effets bois : 6 sem."],[7,"Bicolore effets bois et laqués spéciaux : 7 sem."]];
 const ATL_DEST={mgds:"Chantier MGDS",revente:"Revente artisan / chantier annexe"};
 const ATL_CMDS={
  mat:{l:"Matière aluminium",four:"Technal",sem:2,on:true,hint:"barres : commandées dès le devis validé, coupées après le métré"},
@@ -3440,15 +3444,18 @@ function atlRow(a){
       ${al.length?`<div class="flags">${al.map(([c,t])=>`<span class="flag ${c}">${esc(t)}</span>`).join("")}</div>`:""}</div>
   </button>`}
 // charge : temps de production réparti sur les jours ouvrés prévus, semaine par semaine (8 semaines)
-function atlLoadHtml(live){
-  const wk={},who={},mon=addJo(addDays(today(),-((aD(today()).getDay()+6)%7)),0);
+function atlWeekLoad(live){
+  const wk={},who={};
   live.forEach(a=>{const p=atlPlan(a),h=atlHeures(a);if(!h||atlD(a,"fin"))return;
     let d=atlD(a,"debut")?maxS(nextJo(today()),p.P.debut):p.P.debut;const ds=[];while(d<=p.P.fin&&ds.length<60){ds.push(d);d=addJo(d,1)}
     const restant=atlD(a,"debut")?h*ds.length/Math.max(ds.length,p.pj):h;
     ds.forEach(x=>{const f=aFri(x);wk[f]=(wk[f]||0)+restant/ds.length;(who[f]=who[f]||new Set).add(atlName(a))})});
-  let h="";for(let i=0;i<8;i++){const f=aFri(addDays(mon,7*i)),v=Math.round(wk[f]||0),pc=Math.min(100,v/ATL_H_SEM*100);
-    h+=`<div class="atlwk"><b class="mono">${sem(f)}</b><span class="g"><i class="${v>ATL_H_SEM?"r":v>ATL_H_SEM*.85?"o":""}" style="width:${pc}%"></i></span><span class="mono">${v} h / ${ATL_H_SEM} h</span>${who[f]?`<small>${[...who[f]].map(esc).join(", ")}</small>`:""}</div>`}
-  return h+`<p class="sub">Les commandes sans temps de production ne comptent pas dans la charge.</p>`}
+  return{wk,who}}
+function atlLoadHtml(live){
+  const {wk,who}=atlWeekLoad(live),mon=addJo(addDays(today(),-((aD(today()).getDay()+6)%7)),0),pl=window.PLN_OK&&window.PLN_OK();
+  let h="";for(let i=0;i<8;i++){const m=addDays(mon,7*i),f=aFri(m),v=Math.round(wk[f]||0),rf=pl?Math.round(plWeek(m).renf*10)/10:0,cap=ATL_H_SEM+rf,pc=Math.min(100,v/cap*100);
+    h+=`<div class="atlwk"><b class="mono">${sem(f)}</b><span class="g"><i class="${v>cap?"r":v>cap*.85?"o":""}" style="width:${pc}%"></i></span><span class="mono">${v} h / ${String(cap).replace(".",",")} h</span>${rf?`<small>dont ${String(rf).replace(".",",")} h de renfort des poseurs</small>`:""}${who[f]?`<small>${[...who[f]].map(esc).join(", ")}</small>`:""}</div>`}
+  return h+`<p class="sub">Les commandes sans temps de production ne comptent pas dans la charge. Manu : ${ATL_H_SEM} h par semaine ; les jours où des poseurs sont à l'atelier s'ajoutent.</p>`}
 
 // ---- fiche d'une commande ----
 function atlOpen(id){if(openId)closeSheet();atl.open=id;const s=$("asheet");s.hidden=false;$("scrim").hidden=false;atlSheet();s.scrollTop=0}
@@ -3497,13 +3504,15 @@ function atlSheet(){
     return `<li>${box}<span class="lab">${esc(atlLab(a,s))}${hint?`<em>${hint}</em>`:""}${tag}</span>${right}</li>`}).join("");
   const cmds=Object.keys(ATL_CMDS).map(k=>{const x=atlCmd(a,k),ok=x.cmd&&x.cmd.d,rc=x.recu&&x.recu.d,apres=k==="vitr"||k==="volet",lockC=apres&&!arcOk&&!ok;
     if(!x.on)return `<li class="arc"><div class="arch"><b>${x.l}</b><span class="sub">pas nécessaire pour cette commande</span>${W?`<button class="btn ghost" data-acmdon="${k}" style="margin-left:auto">Ajouter</button>`:""}</div></li>`;
-    const dl=k==="vitr"?`<select data-acmd="${k}" data-ack="sem" ${ro}>${[[2,"2 semaines (verre standard)"],[3,"3 semaines (verre technique)"]].map(([v,t])=>`<option value="${v}" ${+x.sem===v?"selected":""}>${t}</option>`).join("")}</select>`
+    const dl=k==="vitr"?`<select data-acmd="${k}" data-ack="sem" ${ro}>${[[2,"15 jours (standard)"],[3,"3 semaines (petits bois, verre technique)"]].map(([v,t])=>`<option value="${v}" ${+x.sem===v?"selected":""}>${t}</option>`).join("")}</select>`
       :`<span class="sem"><input type="number" min="0" max="26" inputmode="numeric" data-acmd="${k}" data-ack="sem" value="${esc(x.sem)}" ${ro}> sem.</span>`;
+    const finS=k==="mat"?`<label>Finition (délai Technal)<select data-acmd="mat" data-ack="fin" ${ro}><option value="">à préciser</option>${ATL_FIN.map(([v,t])=>`<option value="${v}" ${+x.fin===v?"selected":""}>${t}</option>`).join("")}</select></label>
+      <label>Prestations en plus<select data-acmd="mat" data-ack="presta" ${ro}>${[[0,"aucune"],[1,"1 (+ 1 sem.)"],[2,"2 (+ 2 sem.)"],[3,"3 (+ 3 sem.)"]].map(([v,t])=>`<option value="${v}" ${(+x.presta||0)===v?"selected":""}>${t}</option>`).join("")}</select><span class="sub">joints, clip, pré-anodisation, pelliculage</span></label>`:"";
     const info=[!ok&&p.L[k]?`À commander au plus tard le <b>${fr(p.L[k])}</b> (${sem(p.L[k])})`:"",!ok&&!p.L[k]?"Pas de date de besoin : pas de date limite":"",ok&&!rc?"Arrivée "+(x.prev?"prévue ":"estimée ")+sem(p.P[k]):"",lockC?"Se commande après la validation de l'ARC":""].filter(Boolean).join(" · ");
     return `<li class="arc ${rc?"ok":!ok&&p.L[k]&&-days(p.L[k])<=7?"part":""}"><div class="arch"><b>${x.l}</b><span class="sub">${esc(x.hint)}</span>${W&&k!=="mat"?`<button class="x" data-acmdoff="${k}" aria-label="Pas nécessaire">×</button>`:""}</div>
      <div class="arcf"><label>Fournisseur<input type="text" data-acmd="${k}" data-ack="four" value="${esc(x.four)}" ${ro}></label>
       <label>N° de commande<input type="text" data-acmd="${k}" data-ack="bon" value="${esc(x.bon)}" ${ro}></label>
-      <label>Délai${dl}</label><label>Livraison prévue${semInput(`data-acmdwk="${k}" ${ro}`,x.prev)}</label>
+      ${finS}<label>Délai${k==="mat"&&x.fin?" (transport compris)":""}${dl}</label><label>Livraison prévue${semInput(`data-acmdwk="${k}" ${ro}`,x.prev)}</label>
       <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-acbox="${k}" data-ack="cmd" aria-label="${x.l} commandé" ${ro||(lockC?"disabled":"")}>${ok?tick:""}</button>Commandé<span class="mono">${fr(ok)}</span></span>
       <span class="arck"><button class="box" role="checkbox" aria-checked="${!!rc}" data-acbox="${k}" data-ack="recu" aria-label="${x.l} reçu" ${ro||(!ok&&!rc?"disabled":"")}>${rc?tick:""}</button>Reçu<span class="mono">${fr(rc)}</span></span></div>
      ${info?`<div class="sub">${info}</div>`:""}</li>`}).join("");
@@ -3715,6 +3724,10 @@ function atlChange(e){
   if(t.type==="date"&&t.value&&!/^20\d\d-/.test(t.value))return;
   if(t.dataset.af){const k=t.dataset.af;let v=k==="heures"?Math.max(0,+String(t.value).replace(",",".")||0):t.value.trim();if((a[k]??"")===v)return;
     const patch={[k]:v};if(k==="chantier"&&v&&!a.devis)patch.devis=v;atlSave(id,patch)}
+  else if(t.dataset.acmd&&(t.dataset.ack==="fin"||t.dataset.ack==="presta")){
+    // finition Technal : le délai se règle tout seul = départ usine + prestations + 1 semaine de transport (reste modifiable à la main)
+    const k=t.dataset.acmd,f=t.dataset.ack,x=atlCmd(a,k),fin=f==="fin"?+t.value||0:+x.fin||0,pr=f==="presta"?+t.value||0:+x.presta||0;
+    atlSave(id,{cmds:{[k]:{fin,presta:pr,...(fin?{sem:fin+pr+1}:{})}}})}
   else if(t.dataset.acmd){const k=t.dataset.acmd,f=t.dataset.ack;atlSave(id,{cmds:{[k]:{[f]:f==="sem"?Math.max(0,+t.value||0):t.value.trim()}}})}
   else if(t.dataset.wk&&t.dataset.acmdwk){const box=t.closest(".sem"),w=+box.querySelector('[data-wk="w"]').value,y=+box.querySelector('[data-wk="y"]').value;
     const d=w>=1&&w<=53&&y>=2000?weekFri(y,w):"";if(!d&&box.querySelector('[data-wk="w"]').value)return;atlSave(id,{cmds:{[t.dataset.acmdwk]:{prev:d}}})}
@@ -3751,5 +3764,277 @@ function atlSubmit(e){e.preventDefault();e.stopPropagation();
   await atlLoad();
   if(window.mgdsHash0==="#atelier")showTab("atelier");
 })();
+</script>
+<style>
+/* Onglet Planning en vues (v22) : Pose par semaine, Atelier, Charge sur 12 mois et devis en attente */
+:root{--pl1:#173F6B;--pl2:#2a78d6;--pl3:#9cc3f1;--pl-at:#C96A12;--pl-at-bg:#FBE9D6;--pl-at-ink:#6B3706}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--pl1:#d6e6f9;--pl2:#5e9fe8;--pl3:#2a5c9c;--pl-at:#E79A4C;--pl-at-bg:#402A14;--pl-at-ink:#F6D3AE}}
+:root[data-theme="dark"]{--pl1:#d6e6f9;--pl2:#5e9fe8;--pl3:#2a5c9c;--pl-at:#E79A4C;--pl-at-bg:#402A14;--pl-at-ink:#F6D3AE}
+.plnnav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.pln{display:grid;gap:12px;max-width:860px}
+.pln .leg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);align-items:center}
+.pln .leg span{display:inline-flex;align-items:center;gap:6px}
+.pln .sw{width:22px;height:14px;border-radius:4px;display:inline-block;box-sizing:border-box}
+.plw{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.plw>header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.plw>header b{font:600 15px var(--f-mono)}.plw>header span{font-size:13px;color:var(--muted)}
+.plr{display:grid;grid-template-columns:92px 1fr;gap:8px;padding:8px 12px;align-items:start}
+.plr + .plr{border-top:1px solid var(--line)}
+.plr .plwho{font-size:13px;font-weight:600;color:var(--muted);padding-top:5px}
+.plr .plcs{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.plc{display:inline-flex;align-items:baseline;gap:6px;font:500 13.5px var(--f-body);padding:4px 9px;border-radius:6px;border:1.5px solid transparent;min-width:0;text-align:left}
+button.plc{cursor:pointer}
+.plc .j{font:12px var(--f-mono);opacity:.85;white-space:nowrap}
+.plc.c{background:var(--pl1);color:var(--surface)}
+.plc.p{background:var(--surface);color:var(--ink);border-color:var(--pl2)}
+.plc.e{background:none;color:var(--muted);border:1.5px dashed var(--muted);font-style:italic}
+.plc.a{background:var(--pl-at-bg);color:var(--pl-at-ink);border-color:var(--pl-at)}
+.plc.o{background:none;color:var(--muted)}
+.plc.l{background:none;color:var(--s-vert);border-color:var(--s-vert);border-width:1px}
+.plsep{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.plcr{display:grid;grid-template-columns:70px 1fr;gap:4px 10px;padding:9px 12px;align-items:center}
+.plcr + .plcr{border-top:1px solid var(--line)}
+.plcr .wk{font:600 13.5px var(--f-mono)}
+.plcr .txt{grid-column:2;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pltr{position:relative;height:16px;display:flex;gap:2px}
+.pltr i{display:block;height:100%;border-radius:3px;min-width:2px}
+.pk1{background:var(--pl1)}.pk2{background:var(--pl2)}.pk3{background:var(--pl3)}
+.pk4{background:repeating-linear-gradient(135deg,var(--pl2) 0 2px,transparent 2px 6px);outline:1px solid var(--pl2);outline-offset:-1px}
+.pk5{background:var(--pl-at)}
+.plcap{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);border-radius:1px}
+.pltiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.pltile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px}
+.pltile b{display:block;font:700 22px var(--f-body);font-variant-numeric:tabular-nums}
+.pltile span{font-size:12.5px;color:var(--muted)}
+.plyr{padding:10px 12px 12px;display:grid;gap:8px}
+.plyr svg{width:100%;height:auto;display:block;overflow:visible;max-height:320px}
+.plyr text{font:10px var(--f-body);fill:var(--muted)}
+.plyr .gl{stroke:var(--line);stroke-width:1}
+.plyr .f1{fill:var(--pl1)}.plyr .f2{fill:var(--pl2)}.plyr .f3{fill:var(--pl3)}.plyr .f4{stroke:var(--pl2);stroke-width:1}
+.plyr .cp{stroke:var(--ink);stroke-width:2;stroke-linecap:round}
+.plyr .hit{fill:transparent;cursor:pointer}
+.plyr .hit:hover,.plyr .hit.on{fill:var(--accent);opacity:.1}
+.plyr .read{font-size:13px;font-variant-numeric:tabular-nums;min-height:2.9em}
+.plcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:12px}
+.plcard h3{margin:0;font:600 17px var(--f-body);text-transform:none;letter-spacing:0;color:var(--ink)}
+.pltbl{overflow-x:auto}
+.pltbl table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+.pltbl th,.pltbl td{text-align:left;padding:7px 8px;border-top:1px solid var(--line);white-space:nowrap}
+.pltbl th{font-size:12px;color:var(--muted);font-weight:600;border-top:0}
+.pltbl tr[data-aopen]{cursor:pointer}
+.pldv{display:grid;gap:8px}
+.pldvr{display:grid;grid-template-columns:minmax(140px,2fr) repeat(5,minmax(84px,1fr)) auto;gap:6px;align-items:end;padding:8px 0;border-top:1px solid var(--line)}
+.pldvr label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);min-width:0}
+.pldvr input,.pldvr select{font:14px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
+.pldvr .acts{display:flex;gap:6px}
+@media (max-width:760px){.pldvr{grid-template-columns:1fr 1fr}.pldvr label:first-child,.pldvr .acts{grid-column:1/-1}}
+.plnote{font-size:13px;color:var(--muted)}
+</style>
+<script>
+// ===== Onglet Planning en vues : Pose (par semaine), Atelier, Charge, Jour par jour (v22, Steven 11/11/2026) =====
+// Deux plannings distincts : la pose (équipes 1 et 2) et l'atelier (Manu, aidé par les poseurs : jours « À l'atelier », orange chez Marine).
+// Trois niveaux : confirmé (planning Excel de Marine, table planning), prévu (saisi dans la fiche : prevu, pose validée ou proposée),
+// estimé (calcul posePrevue + commandes atelier). L'Excel de Marine reste la référence : rien n'y est écrit.
+// Horaires (Steven, 11/11/2026) : poseur 8,75 h du lundi au jeudi et 7,75 h un vendredi sur deux (tous les vendredis en juin et juillet) ;
+// Manu 8,5 h du lundi au jeudi et 5 h le vendredi (39 h). Un poseur à l'atelier garde ses heures. Christophe ne produit pas.
+// Devis en attente (table devis, outil/devis.sql) : une ligne par devis chiffré ; chance forte 75 %, moyenne 50 %, faible 25 %.
+const PLN={view:"sem",rows:[],byDay:new Map(),last:"",pids:new Set(),np:4,planIds:new Set(),refOff:"2026-11-13",devis:new Map(),devisOk:null,at:0,ok:false};
+const PL_H=8.75,PL_HV=7.75,MA_H=8.5,MA_HV=5,PL_EQ=2*PL_H,PL_OFF=/^\s*(f[ée]ri[ée]s?|cong[ée]s?|repos|repas)(?![a-zà-ÿ])/i;
+const DV_CH={forte:["Forte (75 %)",.75],moyenne:["Moyenne (50 %)",.5],faible:["Faible (25 %)",.25]};
+const PL_MOIS=["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."],PL_JR=["lun","mar","mer","jeu","ven"];
+const plNf=n=>String(Math.round(n*10)/10).replace(".",",");
+const plEur=n=>Math.round(n).toLocaleString("fr-FR")+" €";
+const plW=()=>canWrite||canFill;
+const plNom=id=>{const j=jobs.get(id);return((j&&j.client)||id).split(/\s+[-\/]\s+/)[0].replace(/\s*\(.*\)\s*$/,"")||id};
+const plLab=r=>r.chantier?plNom(r.chantier):(r.libelle||"?");
+const plIsOff=r=>!r.chantier&&PL_OFF.test(r.libelle||"");
+const plIsAtl=r=>/atelier/i.test(r.note||"")||(!r.chantier&&/^\s*atelier\b/i.test(r.libelle||""));
+function plFeries(y){ // jours fériés français de l'année y
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+    mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1,P=y+"-"+pad(mo)+"-"+pad(da);
+  return new Set([y+"-01-01",addDays(P,1),y+"-05-01",y+"-05-08",addDays(P,39),addDays(P,50),y+"-07-14",y+"-08-15",y+"-11-01",y+"-11-11",y+"-12-25"])}
+const plFerie=s=>{const y=+s.slice(0,4),c=plFerie.c||(plFerie.c={});return(c[y]||(c[y]=plFeries(y))).has(s)};
+// vendredi chômé : ce que dit le planning de Marine s'il couvre ce jour, sinon un vendredi sur deux (jamais en juin ni en juillet)
+function plVenOff(s){const R=PLN.byDay.get(s);if(R&&R.length)return!R.some(r=>!plIsOff(r));
+  const m=+s.slice(5,7);if(m===6||m===7)return false;return Math.round((aD(s)-aD(PLN.refOff))/(7*864e5))%2===0}
+const plH=s=>{const k=aD(s).getDay();return plFerie(s)||k<1||k>5?0:k===5?(plVenOff(s)?0:PL_HV):PL_H};
+const plMaH=s=>{const k=aD(s).getDay();return plFerie(s)||k<1||k>5?0:k===5?MA_HV:MA_H};
+const plRange=D=>{const a=[...D].sort((x,y)=>x-y);if(a.length===5)return"semaine";const out=[];for(let i=0;i<a.length;i++){let k=i;while(k+1<a.length&&a[k+1]===a[k]+1)k++;out.push(k>i?PL_JR[a[i]]+"-"+PL_JR[a[k]]:PL_JR[a[i]]);i=k}return out.join(", ")};
+
+async function plLoad(force){
+  const sb=window.sbClient;if(!sb)return;if(!force&&PLN.ok&&Date.now()-PLN.at<60000)return;
+  const mon=lundi(today());
+  try{const [{data:R},{data:P}]=await Promise.all([sb.from("planning").select("jour,chantier,libelle,poseur,equipe,note").gte("jour",mon).order("jour"),sb.from("profils").select("id,role").eq("role","poseur")]);
+    PLN.rows=R||[];PLN.pids=new Set((P||[]).map(p=>p.id));if(!PLN.pids.size)PLN.rows.forEach(r=>{if(r.equipe==="1"||r.equipe==="2")PLN.pids.add(r.poseur)});
+    PLN.np=PLN.pids.size||4;PLN.byDay=new Map();PLN.planIds=new Set();PLN.last="";
+    PLN.rows.forEach(r=>{if(!PLN.byDay.has(r.jour))PLN.byDay.set(r.jour,[]);PLN.byDay.get(r.jour).push(r);if(r.jour>PLN.last)PLN.last=r.jour;if(r.chantier&&r.jour>=today())PLN.planIds.add(r.chantier)});
+    // dernier vendredi « REPOS » connu : point de départ de l'alternance au-delà du planning
+    for(const [d,L] of PLN.byDay)if(aD(d).getDay()===5&&L.every(r=>/^\s*repos\b/i.test(r.libelle||""))&&d>PLN.refOff)PLN.refOff=d;
+  }catch(_){PLN.rows=[];PLN.byDay=new Map()}
+  try{const {data,error}=await sb.from("devis").select("id,data");if(error)throw error;PLN.devisOk=true;PLN.devis=new Map(data.map(r=>[r.id,r.data]))}catch(_){PLN.devisOk=false;PLN.devis=new Map()}
+  PLN.ok=true;PLN.at=Date.now()}
+
+// une semaine de pose : entrées par équipe, heures confirmées, heures disponibles, renfort donné à l'atelier
+function plWeek(mon){
+  const W={mon,cap:0,conf:0,renf:0,eq:{},libre:{},inPlan:!!PLN.last&&mon<=PLN.last};
+  for(let i=0;i<5;i++){const d=addDays(mon,i),h=plH(d),R=PLN.byDay.get(d)||[];let avail=PLN.np*h;const eqs=new Set();
+    R.forEach(r=>{const off=plIsOff(r),at=!off&&plIsAtl(r),po=PLN.pids.has(r.poseur),e=r.equipe||"?";eqs.add(e);
+      if(po){if(off||at)avail-=h;if(at)W.renf+=h;if(!off&&!at)W.conf+=h}
+      const lab=plLab(r),k=off?"o":at?"a":"c",key=k+"|"+lab+"|"+(r.chantier||"");
+      const E=W.eq[e]||(W.eq[e]={});(E[key]||(E[key]={k,lab:at&&!/^\s*atelier/i.test(lab)?"Atelier : "+lab:lab,id:r.chantier||"",days:new Set()})).days.add(i)});
+    if(h>0&&W.inPlan&&d>=today()&&d<=PLN.last)["1","2"].forEach(e=>{if(!eqs.has(e))(W.libre[e]||(W.libre[e]=new Set())).add(i)});
+    W.cap+=Math.max(0,avail)}
+  return W}
+// jours de pose estimés d'un chantier sans durée connue : 1 jour pour 10 h d'atelier (constaté sur Duman et Godot), 2 jours au moins avec des ARC fournisseurs
+function plJours(id){let h=0;for(const [aid,a] of atl.rows)if(a.chantier===id)h+=atlHeures(a);const j=jobs.get(id),four=j&&arcsOf(j).some(a=>!a.aid);return Math.max(four||!h?2:1,Math.ceil(h/10))}
+// chantiers à poser qui ne sont ni au planning de Marine ni saisis à la main : date validée, proposée ou estimée
+function plAPlacer(){const t=today(),out=[];let sans=0;
+  for(const [id,j] of jobs){if(sd(j,"pose"))continue;if(hasPhases(j)&&phasesOf(j).every(x=>x.pose&&x.pose.d))continue;
+    if(PLN.planIds.has(id)||pvPose(j).some(x=>x>=lundi(t)))continue;
+    let p;try{p=posePrevue(id,j)}catch(_){p={d:"",src:""}}
+    let d=p.d,src=p.src,fa="";
+    for(const [aid,a] of atl.rows)if(a.chantier===id&&!atlD(a,"livre")){const f=atlPlan({id:aid,...a}).fin;if(f>fa)fa=f}
+    if(fa&&(!d||src==="estimée")){const d2=maxS(addDays(fa,7),addDays(t,7));if(!d||d2>d){d=d2;src="estimée"}}
+    if(!d||src==="planning"){if(!d&&(sd(j,"signe")||sd(j,"cmd")))sans++;continue}
+    out.push({id,lab:plNom(id),mon:lundi(d),j:plJours(id),k:src==="estimée"?"e":"p",tag:src==="confirmée"?"validée client":src==="proposée"?"proposée au client":""})}
+  return{out,sans}}
+function plPrevus(){const M=new Map();for(const [id,j] of jobs)prevuOf(j).forEach(x=>{if(!x.s)return;const m=lundi(x.s);if(!M.has(m))M.set(m,[]);M.get(m).push({id,lab:plNom(id)+" : "+x.t,qui:x.qui||"",j:+String(x.j||"").replace(",",".")||0})});return M}
+const plLive=()=>[...atl.rows].map(([id,a])=>({id,...a})).filter(a=>!atlDone(a));
+const plMoisDe=mon=>addDays(mon,3).slice(0,7);
+const plMoisLab=m=>PL_MOIS[+m.slice(5,7)-1]+" "+m.slice(0,4);
+const dvLive=()=>[...PLN.devis].map(([id,d])=>({id,...d})).filter(d=>(d.etat||"attente")==="attente");
+
+// charge semaine par semaine sur n semaines : pose {c,p,e,d,cap} et atelier {c,d,cap}, en heures
+function plCharge(n){
+  const mon0=lundi(today()),W=[],idx=new Map();
+  for(let i=0;i<n;i++){const mon=addDays(mon0,7*i),w=plWeek(mon);let ma=0;for(let k=0;k<5;k++)ma+=plMaH(addDays(mon,k));
+    idx.set(mon,i);W.push({mon,mois:plMoisDe(mon),P:{c:w.conf,p:0,e:0,d:0,cap:w.cap},A:{c:0,p:0,e:0,d:0,cap:ma+w.renf,renf:w.renf}})}
+  const put=(mon,k,h,jours)=>{let i=idx.get(mon);if(i===undefined){if(mon<mon0)i=0;else return}
+    if(jours){let r=jours;while(r>0&&i<n){const q=Math.min(4,r);W[i].P[k]+=q*PL_EQ;r-=q;i++}}else W[i].P[k]+=h};
+  for(const [m,L] of plPrevus())L.forEach(x=>{if(x.qui==="st"||x.qui==="atelier")return;put(m,"p",0,x.j||4)});
+  plAPlacer().out.forEach(x=>put(x.mon,x.k,0,x.j));
+  const {wk}=atlWeekLoad(plLive());W.forEach(w=>{w.A.c=wk[aFri(w.mon)]||0});
+  // devis probables : heures de pose réparties sur les semaines du mois souhaité, heures d'atelier sur le mois précédent
+  const byM=new Map();W.forEach((w,i)=>{if(!byM.has(w.mois))byM.set(w.mois,[]);byM.get(w.mois).push(i)});
+  const cur=W[0].mois,prevM=m=>{const d=new Date(+m.slice(0,4),+m.slice(5,7)-2,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)};
+  dvLive().forEach(d=>{const pr=(DV_CH[d.chance]||DV_CH.moyenne)[1];if(!d.periode)return;
+    const mp=d.periode<cur?cur:d.periode,ma=prevM(mp)<cur?cur:prevM(mp),Ip=byM.get(mp),Ia=byM.get(ma);
+    if(Ip)Ip.forEach(i=>W[i].P.d+=(+d.jp||0)*PL_EQ*pr/Ip.length);if(Ia)Ia.forEach(i=>W[i].A.d+=(+d.ha||0)*pr/Ia.length)});
+  return W}
+
+// ---------- rendu ----------
+function planRender(){
+  const el=$("tab-planning");if(!el)return;
+  if(!$("plnBody")){el.innerHTML=`<div class="plnnav chips" role="tablist">${[["sem","Pose"],["atl","Atelier"],["chg","Charge"],["jour","Jour par jour"]].map(([k,l])=>`<button class="chip" role="tab" data-pview="${k}" aria-pressed="${PLN.view===k}">${l}</button>`).join("")}</div><div id="plnBody" class="pln"></div><div id="plnJour" hidden></div>`}
+  el.querySelectorAll("[data-pview]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.pview===PLN.view));
+  const body=$("plnBody"),jr=$("plnJour");body.hidden=PLN.view==="jour";jr.hidden=PLN.view!=="jour";
+  if(PLN.view==="jour"){if(!jr.firstChild)jr.innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`;return}
+  if(!PLN.ok){body.innerHTML=`<p class="sub">Chargement du planning…</p>`;plLoad().then(planRender);return}
+  body.innerHTML=PLN.view==="atl"?plAtlHtml():PLN.view==="chg"?plChgHtml():plSemHtml();
+  if(PLN.view==="chg")plYearBind();
+  plLoad().then(()=>{})}
+const plChip=(k,lab,sub,id)=>id?`<button class="plc ${k}" data-open="${esc(id)}"><span>${esc(lab)}</span>${sub?`<span class="j">${esc(sub)}</span>`:""}</button>`:`<span class="plc ${k}"><span>${esc(lab)}</span>${sub?`<span class="j">${esc(sub)}</span>`:""}</span>`;
+const plLeg=()=>`<div class="leg"><span><i class="sw" style="background:var(--pl1)"></i>Confirmé (planning de Marine)</span><span><i class="sw" style="border:1.5px solid var(--pl2)"></i>Prévu (saisi dans la fiche)</span><span><i class="sw" style="border:1.5px dashed var(--muted)"></i>Estimé (calcul de l'appli)</span><span><i class="sw" style="background:var(--pl-at-bg);border:1px solid var(--pl-at)"></i>Poseurs à l'atelier</span></div>`;
+function plSemHtml(){
+  const mon0=lundi(today()),PV=plPrevus(),{out:AP,sans}=plAPlacer(),byW=new Map();
+  AP.forEach(x=>{const m=x.mon<mon0?mon0:x.mon;if(!byW.has(m))byW.set(m,[]);byW.get(m).push(x)});
+  let end=PLN.last?lundi(PLN.last):mon0;for(const m of [...PV.keys(),...byW.keys()])if(m>end)end=m;
+  let h=plLeg(),sep=false;
+  for(let mon=mon0,n=0;mon<=end&&n<80;mon=addDays(mon,7),n++){
+    const w=plWeek(mon),pv=PV.get(mon)||[],ap=byW.get(mon)||[],rows=[];
+    ["1","2",...Object.keys(w.eq).filter(e=>e!=="1"&&e!=="2")].forEach(e=>{const E=Object.values(w.eq[e]||{}),mine=pv.filter(x=>x.qui==="eq"+e);
+      if(e!=="1"&&e!=="2"&&E.every(x=>x.k==="o"))return;
+      const cs=E.sort((a,b)=>Math.min(...a.days)-Math.min(...b.days)).map(x=>plChip(x.k,x.lab,plRange(x.days),x.id)).concat(mine.map(x=>plChip("p",x.lab,x.j?plNf(x.j)+" j":"",x.id)));
+      if(w.libre[e]&&w.libre[e].size)cs.push(plChip("l","Libre",plRange(w.libre[e])));
+      if(cs.length)rows.push([e==="1"||e==="2"?"Équipe "+e:"Équipe "+e,cs])});
+    const ad=pv.filter(x=>x.qui==="").map(x=>plChip("p",x.lab,x.j?plNf(x.j)+" j":"",x.id)).concat(ap.map(x=>plChip(x.k,x.lab,plNf(x.j)+" j"+(x.tag?" · "+x.tag:""),x.id)));
+    if(ad.length)rows.push(["À placer",ad]);
+    const st=pv.filter(x=>x.qui==="st").map(x=>plChip("p",x.lab,x.j?plNf(x.j)+" j":"",x.id));if(st.length)rows.push(["Sous-traitant",st]);
+    const at=pv.filter(x=>x.qui==="atelier").map(x=>plChip("a",x.lab,x.j?plNf(x.j)+" j":"",x.id));if(at.length)rows.push(["Atelier",at]);
+    if(!rows.length)continue;
+    if(!w.inPlan&&!sep){sep=true;h+=`<div class="plsep">Après le planning de Marine</div>`}
+    h+=`<div class="plw"><header><b>${sem(mon)}</b><span>${fr(mon).slice(0,5)} au ${fr(addDays(mon,4)).slice(0,5)}</span></header>${rows.map(([a,cs])=>`<div class="plr"><div class="plwho">${a}</div><div class="plcs">${cs.join("")}</div></div>`).join("")}</div>`}
+  if(!PLN.rows.length)h+=`<p class="sub">Aucun jour au planning de Marine pour l'instant.</p>`;
+  if(sans)h+=`<p class="plnote">${sans} chantier${sans>1?"s":""} signé${sans>1?"s":""} ou commandé${sans>1?"s":""} sans aucune date : ajoutez une ligne « Planning prévu » dans la fiche pour ${sans>1?"les":"le"} faire apparaître.</p>`;
+  return h+`<p class="plnote">« À placer » : durée estimée à 1 jour de pose pour 10 h d'atelier, 2 jours au moins s'il y a des menuiseries de fournisseurs. Une ligne « Planning prévu » dans la fiche chantier remplace l'estimation. Le planning de Marine reste la référence.</p>`}
+function plBar(lab,parts,cap,max,txt){
+  return `<div class="plcr"><span class="wk">${lab}</span><div class="pltr" role="img" aria-label="${esc(lab+" : "+txt)}">${parts.filter(x=>x[0]>0.05).map(([v,k,l])=>`<i class="${k}" style="width:${Math.min(100,v/max*100)}%" title="${l} : ${plNf(v)} h"></i>`).join("")}<span class="plcap" style="left:${Math.min(100,cap/max*100)}%" title="disponible : ${plNf(cap)} h"></span></div><span class="txt">${txt}</span></div>`}
+const plEtat=(ferme,tot,cap)=>ferme>cap+.05?"il manque "+plNf(ferme-cap)+" h":tot>cap+.05?"plein si les devis sont signés":"reste "+plNf(cap-tot)+" h";
+const plTxt=(o,noms)=>{const P=[[o.c,noms[0]],[o.p,"prévu"],[o.e,"estimé"],[o.d,"devis probables"]].filter(x=>x[0]>0.05);return(P.map(([v,l])=>plNf(v)+" h "+l).join(" + ")||"rien de prévu")+" · "+plNf(o.cap)+" h disponibles · "+plEtat(o.c+o.p+o.e,o.c+o.p+o.e+o.d,o.cap)};
+function plAtlHtml(){
+  const W=plCharge(12),live=plLive(),max=Math.max(60,...W.map(w=>Math.max(w.A.cap,w.A.c+w.A.d)))*1.05,{who}=atlWeekLoad(live);
+  let h=`<div class="plw"><header><b>Charge de l'atelier</b><span>Manu 39 h par semaine, plus le renfort des poseurs</span></header>${W.map(w=>{const n=who[aFri(w.mon)];
+    return plBar(sem(w.mon),[[w.A.c,"pk1","commandes"],[w.A.d,"pk4","devis probables"]],w.A.cap,max,plTxt(w.A,["à produire"])+(w.A.renf?" (dont "+plNf(w.A.renf)+" h de renfort)":"")+(n?" · "+[...n].map(esc).join(", "):""))}).join("")}</div>
+   <div class="leg"><span><i class="sw pk1"></i>Commandes à produire</span><span><i class="sw pk4"></i>Devis en attente (probables)</span><span><i class="sw" style="width:2px;background:var(--ink)"></i>Heures disponibles</span></div>`;
+  const rows=live.map(a=>({a,p:atlPlan(a)})).sort((x,y)=>(x.p.fin||"").localeCompare(y.p.fin||"")).map(({a,p})=>{
+    const st=k=>{const x=atlCmd(a,k);return!x.on?"—":x.recu&&x.recu.d?"reçu":p.P[k]?sem(p.P[k]):"—"};
+    return `<tr data-aopen="${esc(a.id)}"><td>${esc(atlName(a))}</td><td class="mono">${atlHeures(a)?plNf(atlHeures(a))+" h":"—"}</td><td class="mono">${st("mat")}</td><td class="mono">${st("vitr")}</td><td class="mono">${atlD(a,"fin")?"terminée":sem(p.fin)}</td><td class="mono">${p.besoin?sem(p.besoin):"—"}</td></tr>`}).join("");
+  h+=`<div class="plcard"><h3>Commandes en cours</h3><div class="pltbl"><table><thead><tr><th>Commande</th><th>Heures</th><th>Matière</th><th>Vitrages</th><th>Fin atelier</th><th>Besoin</th></tr></thead><tbody>${rows||`<tr><td colspan="6" class="sub">Aucune commande en cours.</td></tr>`}</tbody></table></div>
+    <p class="plnote">Touchez une commande pour ouvrir sa fiche. Les commandes sans temps de production ne comptent pas dans la charge.</p></div>`;
+  return h}
+function plMonths(W){const M=[],ix=new Map();W.forEach(w=>{let m=ix.get(w.mois);if(!m){m={mois:w.mois,P:{c:0,p:0,e:0,d:0,cap:0},A:{c:0,p:0,e:0,d:0,cap:0}};ix.set(w.mois,m);M.push(m)}
+  for(const k of ["c","p","e","d","cap"]){m.P[k]+=w.P[k];m.A[k]+=w.A[k]}});return M.slice(0,12)}
+function plYear(id,M,key,nom){
+  const D=M.map(m=>m[key]),top=Math.max(40,...D.map(o=>Math.max(o.cap,o.c+o.p+o.e+o.d))),step=[20,50,100,200,250,500,1000].find(s=>top/s<=5)||2000,max=Math.ceil(top/step)*step;
+  const Wd=360,H=190,L=32,B=22,T=8,pw=(Wd-L)/M.length,bw=Math.min(18,pw-6),y=v=>T+(H-T-B)*(1-v/max);
+  let g="";for(let v=0;v<=max;v+=step)g+=`<line class="gl" x1="${L}" x2="${Wd}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-4}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  const cols=D.map((o,i)=>{const x=L+i*pw+(pw-bw)/2;let acc=0,r="";
+    [[o.c,"f1"],[o.p,"f2"],[o.e,"f3"],[o.d,"f4"]].forEach(([v,k])=>{if(v<=0.05)return;const y1=y(acc+v),hh=y(acc)-y1;acc+=v;r+=`<rect class="${k}" ${k==="f4"?`fill="url(#${id}-hat)"`:""} x="${x}" y="${y1+1}" width="${bw}" height="${Math.max(1,hh-2)}" rx="2"/>`});
+    return r+`<line class="cp" x1="${x-3}" x2="${x+bw+3}" y1="${y(o.cap)}" y2="${y(o.cap)}"/><text x="${x+bw/2}" y="${H-8}" text-anchor="middle">${PL_MOIS[+M[i].mois.slice(5,7)-1][0].toUpperCase()}</text><rect class="hit" data-ym="${id}" data-i="${i}" x="${L+i*pw}" y="${T}" width="${pw}" height="${H-T}" tabindex="0" role="button" aria-label="${plMoisLab(M[i].mois)}"/>`}).join("");
+  plYear.d[id]={M,key,nom};
+  return `<div class="plyr" id="${id}"><svg viewBox="0 0 ${Wd} ${H}" role="img" aria-label="Charge par mois sur douze mois"><defs><pattern id="${id}-hat" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" style="stroke:var(--pl2)" stroke-width="2.4"/></pattern></defs>${g}${cols}</svg><div class="read" aria-live="polite"></div></div>`}
+plYear.d={};
+function plYearShow(id,i){const {M,key,nom}=plYear.d[id],o=M[i][key],el=$(id);if(!el)return;
+  el.querySelectorAll(".hit").forEach(h=>h.classList.toggle("on",+h.dataset.i===i));
+  const P=[[o.c,nom],[o.p,"prévu"],[o.e,"estimé"],[o.d,"devis probables"]].filter(x=>x[0]>0.05),ferme=o.c+o.p+o.e,tot=ferme+o.d;
+  el.querySelector(".read").innerHTML=`<b>${plMoisLab(M[i].mois)}</b> : ${P.map(([v,l])=>Math.round(v)+" h "+l).join(" + ")||"rien de prévu"}, pour ${Math.round(o.cap)} h disponibles. ${ferme>o.cap?"Il manque "+Math.round(ferme-o.cap)+" h.":tot>o.cap?"Plein si les devis sont signés.":"Reste "+Math.round(o.cap-tot)+" h"+(o.cap?", soit "+Math.round((o.cap-tot)/o.cap*100)+" % de libre.":".")}`}
+function plYearBind(){for(const id in plYear.d)if($(id))plYearShow(id,Math.min(1,plYear.d[id].M.length-1))}
+function plChgHtml(){
+  const W=plCharge(57),M=plMonths(W),DV=dvLive(),pr=d=>(DV_CH[d.chance]||DV_CH.moyenne)[1];
+  const tot=DV.reduce((s,d)=>s+(+d.montant||0),0),prob=DV.reduce((s,d)=>s+(+d.montant||0)*pr(d),0),jp=DV.reduce((s,d)=>s+(+d.jp||0)*pr(d),0),ha=DV.reduce((s,d)=>s+(+d.ha||0)*pr(d),0);
+  let h=`<div class="pltiles"><div class="pltile"><b>${plEur(tot)}</b><span>chiffrés, en attente de signature (${DV.length} devis)</span></div><div class="pltile"><b>${plEur(prob)}</b><span>probables, selon la chance de signature</span></div><div class="pltile"><b>${plNf(jp)} j</b><span>de pose probables pour une équipe</span></div><div class="pltile"><b>${plNf(ha)} h</b><span>d'atelier probables</span></div></div>
+   <div class="leg"><span><i class="sw pk1"></i>Confirmé</span><span><i class="sw pk2"></i>Prévu</span><span><i class="sw pk3"></i>Estimé</span><span><i class="sw pk4"></i>Devis en attente (probables)</span><span><i class="sw" style="width:2px;background:var(--ink)"></i>Heures disponibles</span></div>
+   <div class="plw"><header><b>Pose sur 12 mois</b><span>heures par mois</span></header>${plYear("plyP",M,"P","confirmé")}</div>
+   <div class="plw"><header><b>Atelier sur 12 mois</b><span>heures par mois</span></header>${plYear("plyA",M,"A","à produire")}</div>
+   <p class="plnote">Touchez un mois pour lire ses chiffres. Le trait noir marque les heures disponibles : ${PLN.np} poseurs à 35 h, 42,75 h les semaines avec vendredi travaillé (tous en juin et juillet) ; Manu 39 h, plus les jours de renfort. Les congés ne sont comptés que lorsqu'ils sont au planning de Marine.</p>
+   <div class="plsep">Le détail des 15 prochaines semaines</div>`;
+  const W15=W.slice(0,15),mxP=Math.max(60,...W15.map(w=>Math.max(w.P.cap,w.P.c+w.P.p+w.P.e+w.P.d)))*1.05,mxA=Math.max(60,...W15.map(w=>Math.max(w.A.cap,w.A.c+w.A.d)))*1.05;
+  h+=`<div class="plw"><header><b>Pose</b><span>heures des ${PLN.np} poseurs par semaine</span></header>${W15.map(w=>plBar(sem(w.mon),[[w.P.c,"pk1","confirmé"],[w.P.p,"pk2","prévu"],[w.P.e,"pk3","estimé"],[w.P.d,"pk4","devis probables"]],w.P.cap,mxP,plTxt(w.P,["confirmé"]))).join("")}</div>
+   <div class="plw"><header><b>Atelier</b><span>heures de Manu et du renfort</span></header>${W15.map(w=>plBar(sem(w.mon),[[w.A.c,"pk1","à produire"],[w.A.d,"pk4","devis probables"]],w.A.cap,mxA,plTxt(w.A,["à produire"]))).join("")}</div>`;
+  return h+dvHtml(DV)}
+// ---------- devis en attente ----------
+function dvMois(sel){const d=new Date(),o=[`<option value="">à préciser</option>`];for(let i=0;i<18;i++){const x=new Date(d.getFullYear(),d.getMonth()+i,1),v=x.getFullYear()+"-"+pad(x.getMonth()+1);o.push(`<option value="${v}" ${v===sel?"selected":""}>${plMoisLab(v)}</option>`)}
+  if(sel&&!o.some(x=>x.includes(`"${sel}"`)))o.push(`<option value="${sel}" selected>${plMoisLab(sel)}</option>`);return o.join("")}
+function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",id=d?esc(d.id):"new",v=k=>d?esc(d[k]??""):"";
+  return `<${d?"div":"form"} class="pldvr" ${d?"":`data-dvadd="1"`}>
+   <label>Client, affaire<input type="text" id="dv-client-${id}" ${a} data-k="client" value="${v("client")}" placeholder="${d?"":"Nouveau devis : client, affaire"}" ${ro}></label>
+   <label>Montant HT (€)<input type="number" min="0" step="100" inputmode="numeric" id="dv-montant-${id}" ${a} data-k="montant" value="${v("montant")}" ${ro}></label>
+   <label>Chance<select id="dv-chance-${id}" ${a} data-k="chance" ${ro}>${Object.entries(DV_CH).map(([k,[l]])=>`<option value="${k}" ${k===((d&&d.chance)||"moyenne")?"selected":""}>${l}</option>`).join("")}</select></label>
+   <label>Pose (jours)<input type="number" min="0" step="0.5" inputmode="decimal" id="dv-jp-${id}" ${a} data-k="jp" value="${v("jp")}" ${ro}></label>
+   <label>Atelier (h)<input type="number" min="0" step="1" inputmode="numeric" id="dv-ha-${id}" ${a} data-k="ha" value="${v("ha")}" ${ro}></label>
+   <label>Pose souhaitée<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d?d.periode||"":"")}</select></label>
+   <div class="acts">${!plW()?"":d?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:`<button class="btn">Ajouter</button>`}</div></${d?"div":"form"}>`}
+function dvHtml(DV){
+  if(PLN.devisOk===false)return `<div class="plcard"><h3>Devis en attente</h3><p class="sub">La liste des devis n'est pas encore activée dans la base : il faut coller <span class="mono">outil/devis.sql</span> dans Supabase (SQL Editor, New query, Run). Les graphiques fonctionnent déjà sans elle.</p></div>`;
+  const L=DV.sort((a,b)=>(a.periode||"9999").localeCompare(b.periode||"9999")||String(a.client||"").localeCompare(String(b.client||"")));
+  return `<div class="plcard"><h3>Devis en attente</h3><p class="plnote">Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
+   <div class="pldv">${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
+async function dvSave(id,patch){const sb=window.sbClient,d={...(PLN.devis.get(id)||{}),...patch};PLN.devis.set(id,d);
+  const {error}=await sb.from("devis").upsert({id,data:d,maj_le:new Date().toISOString()});if(error){toast("Enregistrement impossible, réessayez dans un instant.");return false}return true}
+const dvKeep=fn=>{const y=window.scrollY;fn();window.scrollTo(0,y)};
+document.addEventListener("click",e=>{const el=$("tab-planning");if(!el||!el.contains(e.target))return;
+  const v=e.target.closest("[data-pview]");if(v){PLN.view=v.dataset.pview;try{localStorage.setItem("pln-view",PLN.view)}catch(_){}planRender();return}
+  const hit=e.target.closest(".hit[data-ym]");if(hit){plYearShow(hit.dataset.ym,+hit.dataset.i);return}
+  const s=e.target.closest("[data-dvset]");if(s){const id=s.dataset.id,et=s.dataset.dvset;dvSave(id,{etat:et,clos:today()}).then(ok=>{if(ok)toast(et==="signe"?"Devis noté signé.":"Devis noté perdu.");dvKeep(planRender)})}});
+document.addEventListener("mouseover",e=>{const hit=e.target.closest&&e.target.closest(".hit[data-ym]");if(hit)plYearShow(hit.dataset.ym,+hit.dataset.i)});
+document.addEventListener("keydown",e=>{const hit=e.target.closest&&e.target.closest(".hit[data-ym]");if(hit&&(e.key==="Enter"||e.key===" ")){e.preventDefault();plYearShow(hit.dataset.ym,+hit.dataset.i)}});
+document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.dv)return;const k=t.dataset.k,v=["montant","jp","ha"].includes(k)?(t.value===""?"":Math.max(0,+String(t.value).replace(",",".")||0)):t.value.trim();
+  dvSave(t.dataset.dv,{[k]:v}).then(()=>dvKeep(planRender))});
+document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.dataset.dvadd)return;e.preventDefault();
+  const g=k=>f.querySelector(`[data-k="${k}"]`).value.trim(),client=g("client");if(!client){toast("Indiquez le client ou l'affaire.");return}
+  const num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0),id="DV"+Date.now().toString(36);
+  dvSave(id,{client,montant:num("montant"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),etat:"attente",cree:today(),par:me||""}).then(()=>dvKeep(planRender))});
+try{const v=localStorage.getItem("pln-view");if(["sem","atl","chg","jour"].includes(v))PLN.view=v}catch(_){}
+window.planRender=planRender;window.PLN_OK=()=>PLN.ok;window.plLoad=plLoad;
 </script>
 </html>
