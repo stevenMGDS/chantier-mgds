@@ -863,7 +863,8 @@ async function renderSheet(){
 }
 // ---- onglets (version en ligne seulement) ----
 function showTab(t){
-  if(window.mgdsProfil&&mgdsProfil.role==="atelier"&&t!=="stock")t="atelier";
+  // Christophe (atelier, reserve_stock) voit aussi le Planning : charge de l'atelier et de la pose, devis en attente (Steven, 11/11/2026)
+  if(window.mgdsProfil&&mgdsProfil.role==="atelier"&&t!=="stock"&&!(t==="planning"&&mgdsProfil.reserve_stock===true))t="atelier";
   if(!["chantiers","planning","stock","atelier","direction"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="atelier"&&$("tabAtl").hidden))t="chantiers";
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
   for(const k of ["chantiers","planning","stock","atelier","direction"])$("tab-"+k).hidden=k!==t;
@@ -3756,7 +3757,7 @@ function atlSubmit(e){e.preventDefault();e.stopPropagation();
   if(r==="atelier"){
     // Christophe : seulement l'atelier
     // Christophe : l'atelier et le stock (entrées / sorties), rien d'autre
-    document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.hidden=!["atelier","stock"].includes(b.dataset.tab));
+    document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.hidden=!(["atelier","stock"].includes(b.dataset.tab)||(b.dataset.tab==="planning"&&mgdsProfil.reserve_stock===true)));
     try{if(!localStorage.getItem("stk-which"))stk.which="atelier"}catch(_){stk.which="atelier"}
     $("newBtn").style.display="none";document.querySelector(".top h1").firstChild.textContent="Atelier MGDS";$("sum").style.display="none";
     document.title="Atelier MGDS";showTab("atelier");
@@ -3844,7 +3845,8 @@ const DV_CH={forte:["Forte (75 %)",.75],moyenne:["Moyenne (50 %)",.5],faible:["F
 const PL_MOIS=["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."],PL_JR=["lun","mar","mer","jeu","ven"];
 const plNf=n=>String(Math.round(n*10)/10).replace(".",",");
 const plEur=n=>Math.round(n).toLocaleString("fr-FR")+" €";
-const plW=()=>canWrite||canFill;
+const plChr=()=>!!(window.mgdsProfil&&mgdsProfil.role==="atelier"&&mgdsProfil.reserve_stock===true); // Christophe : devis, commandes, préparations
+const plW=()=>canWrite||canFill||plChr();
 const plNom=id=>{const j=jobs.get(id);return((j&&j.client)||id).split(/\s+[-\/]\s+/)[0].replace(/\s*\(.*\)\s*$/,"")||id};
 const plLab=r=>r.chantier?plNom(r.chantier):(r.libelle||"?");
 const plIsOff=r=>!r.chantier&&PL_OFF.test(r.libelle||"");
@@ -3925,15 +3927,16 @@ function plCharge(n){
 // ---------- rendu ----------
 function planRender(){
   const el=$("tab-planning");if(!el)return;
-  if(!$("plnBody")){el.innerHTML=`<div class="plnnav chips" role="tablist">${[["sem","Pose"],["atl","Atelier"],["chg","Charge"],["jour","Jour par jour"]].map(([k,l])=>`<button class="chip" role="tab" data-pview="${k}" aria-pressed="${PLN.view===k}">${l}</button>`).join("")}</div><div id="plnBody" class="pln"></div><div id="plnJour" hidden></div>`}
+  if(!$("plnBody")){el.innerHTML=`<div class="plnnav chips" role="tablist">${[["sem","Pose"],["atl","Atelier"],["chg","Charge"],["jour","Jour par jour"]].filter(x=>x[0]!=="jour"||!plChr()).map(([k,l])=>`<button class="chip" role="tab" data-pview="${k}" aria-pressed="${PLN.view===k}">${l}</button>`).join("")}</div><div id="plnBody" class="pln"></div><div id="plnJour" hidden></div>`}
   el.querySelectorAll("[data-pview]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.pview===PLN.view));
   const body=$("plnBody"),jr=$("plnJour");body.hidden=PLN.view==="jour";jr.hidden=PLN.view!=="jour";
+  if(PLN.view==="jour"&&plChr())PLN.view="atl";
   if(PLN.view==="jour"){if(!jr.firstChild)jr.innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`;return}
   if(!PLN.ok){body.innerHTML=`<p class="sub">Chargement du planning…</p>`;plLoad().then(planRender);return}
   body.innerHTML=PLN.view==="atl"?plAtlHtml():PLN.view==="chg"?plChgHtml():plSemHtml();
   if(PLN.view==="chg")plYearBind();
   plLoad().then(()=>{})}
-const plChip=(k,lab,sub,id)=>id?`<button class="plc ${k}" data-open="${esc(id)}"><span>${esc(lab)}</span>${sub?`<span class="j">${esc(sub)}</span>`:""}</button>`:`<span class="plc ${k}"><span>${esc(lab)}</span>${sub?`<span class="j">${esc(sub)}</span>`:""}</span>`;
+const plChip=(k,lab,sub,id)=>id&&!plChr()?`<button class="plc ${k}" data-open="${esc(id)}"><span>${esc(lab)}</span>${sub?`<span class="j">${esc(sub)}</span>`:""}</button>`:`<span class="plc ${k}"><span>${esc(lab)}</span>${sub?`<span class="j">${esc(sub)}</span>`:""}</span>`;
 const plLeg=()=>`<div class="leg"><span><i class="sw" style="background:var(--pl1)"></i>Confirmé (planning de Marine)</span><span><i class="sw" style="border:1.5px solid var(--pl2)"></i>Prévu (saisi dans la fiche)</span><span><i class="sw" style="border:1.5px dashed var(--muted)"></i>Estimé (calcul de l'appli)</span><span><i class="sw" style="background:var(--pl-at-bg);border:1px solid var(--pl-at)"></i>Poseurs à l'atelier</span></div>`;
 function plSemHtml(){
   const mon0=lundi(today()),PV=plPrevus(),{out:AP,sans}=plAPlacer(),byW=new Map();
