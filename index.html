@@ -3453,7 +3453,7 @@ function atlWeekLoad(live){
   return{wk,who}}
 function atlLoadHtml(live){
   const {wk,who}=atlWeekLoad(live),mon=addJo(addDays(today(),-((aD(today()).getDay()+6)%7)),0),pl=window.PLN_OK&&window.PLN_OK();
-  let h="";for(let i=0;i<8;i++){const m=addDays(mon,7*i),f=aFri(m),v=Math.round(wk[f]||0),rf=pl?Math.round(plWeek(m).renf*10)/10:0,cap=ATL_H_SEM+rf,pc=Math.min(100,v/cap*100);
+  let h="";for(let i=0;i<8;i++){const m=addDays(mon,7*i),f=aFri(m),v=Math.round(wk[f]||0),rf=pl?Math.round(plWeek(m).renf*10)/10:0,cap=(pl?[0,1,2,3,4].reduce((t,k)=>t+plMaH(addDays(m,k)),0):ATL_H_SEM)+rf,pc=Math.min(100,v/cap*100);
     h+=`<div class="atlwk"><b class="mono">${sem(f)}</b><span class="g"><i class="${v>cap?"r":v>cap*.85?"o":""}" style="width:${pc}%"></i></span><span class="mono">${v} h / ${String(cap).replace(".",",")} h</span>${rf?`<small>dont ${String(rf).replace(".",",")} h de renfort des poseurs</small>`:""}${who[f]?`<small>${[...who[f]].map(esc).join(", ")}</small>`:""}</div>`}
   return h+`<p class="sub">Les commandes sans temps de production ne comptent pas dans la charge. Manu : ${ATL_H_SEM} h par semaine ; les jours où des poseurs sont à l'atelier s'ajoutent.</p>`}
 
