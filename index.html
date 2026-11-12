@@ -807,6 +807,7 @@ async function renderSheet(){
   let ctl=(j.controles||[]).map(c=>`<li class="${c.niveau==="alerte"?"alerte":""}">${esc(c.texte)}</li>`).join("");
   // consommables : date de pose retenue (planning ou estimée) et besoins non couverts (flux tendu, 10/11/2026)
   if(stk.ok&&stk.demLines){const DL=stk.demLines.filter(l=>l.job===j.id);
+    (stk.demTodo||[]).filter(t=>t.job===j.id).forEach(t=>{const e=demHors(t);ctl+=e==="ok"?`<li>Hors stock, commandé le ${fr(t.cmde)} : ${esc(t.label)} (${esc(t.q||"")}).</li>`:`<li class="${e==="alerte"?"alerte":""}">Hors stock, à commander${e==="alerte"?" tout de suite":""} : ${esc(t.label)} (${esc([t.q,t.r].filter(Boolean).join(" · "))}). À noter « Commandé » dans le stock.</li>`});
     if(DL.length){const l0=DL[0],al=DL.filter(l=>l.etat==="alerte"),cm=DL.filter(l=>l.etat==="cmd");
       ctl+=`<li>Consommables : pose ${esc(demPose(l0))}${l0.src==="estimée"?" — estimée d'après "+esc(l0.why):l0.src?" — "+esc(l0.why):""}. ${DL.filter(l=>l.etat==="res").length} ligne(s) réservée(s)${cm.length?", "+cm.length+" à commander":""}${DL.filter(l=>l.etat==="tard").length?", "+DL.filter(l=>l.etat==="tard").length+" plus tard":""}.</li>`;
       al.forEach(l=>{ctl+=`<li class="alerte">Pas couvert à 2 semaines de la pose : ${esc(l.a.nom)}${l.a.coloris?" "+esc(l.a.coloris):""}, manque ${nb(Math.ceil(l.manque))} ${esc(stkU(l.a,Math.ceil(l.manque)))}. À commander tout de suite.</li>`})}}
@@ -1567,6 +1568,8 @@ function stkDemCalc(){
     const base={job:id,client:j.client||id,pose:when,src:P.src,why:P.why,weeks:P.weeks,doc:prep.id};
     for(const b of prep.besoins){
       const key=b.l,lab=nrm(b.l),m=map[key];if(m==="ignore"||(!b.q&&!b.r))continue;
+      // hors stock déjà commandé (« cmde:AAAA-MM-JJ ») : reste affiché comme commandé, plus d'alerte
+      if(typeof m==="string"&&m.startsWith("cmde:")){if(b.q)stk.demTodo.push({...base,r:b.r,label:b.l,key,q:b.q,cmde:m.slice(5)});continue}
       const go=(a,q,det)=>{if(a&&!out.has(a.id))add(a,q,{...base,label:b.l,det})};
       if(m){const a=byId.get(+m);if(a){const n=demNum(b.q);const unit=/cartouche|rouleau|sachet/i.test(b.q||"");if(n)go(a,unit?(/rouleau/i.test(b.q)?n:per(a,n)):/^compri/.test(nrm(a.nom))&&/ml/.test(b.q||"")?demMl(b.q)/(STK_ROUL[(nrm(a.nom).match(/\d+x\d+/)||[])[0]]||8):/silicone|mastic/.test(nrm(a.nom))&&/ml/.test(b.q||"")?per(a,demMl(b.q)/12):per(a,n),b.q)}continue}
       // compribande : une ligne par dimension trouvée dans la remarque (« compribande 3-7x20 : … (19,8 ml) »)
@@ -1577,8 +1580,8 @@ function stkDemCalc(){
       if(/silicone|mastic silicone/.test(lab)){const ct=/cartouche/i.test(b.q||"")?demNum(b.q):0,ml=demMl(b.q)||demNum((/\(([\d,.]+)\s*ml\)/.exec(b.r||"")||[])[1]);
         const col=j.type==="neuf"?"transl":(nrm(b.r||"").match(/blanc|noir|gris|pierre|bronze|transp|transl/)||[])[0];
         const a=col&&find(n=>/silicone/.test(n)&&n.includes(col==="transp"?"transl":col));
-        if(a&&(ct||ml))go(a,per(a,ct||ml/12),b.q);else stk.demTodo.push({...base,label:b.l,key,q:b.q||b.r});continue}
-      if(b.q)stk.demTodo.push({...base,label:b.l,key,q:b.q});
+        if(a&&(ct||ml))go(a,per(a,ct||ml/12),b.q);else stk.demTodo.push({...base,r:b.r,label:b.l,key,q:b.q||b.r});continue}
+      if(b.q)stk.demTodo.push({...base,r:b.r,label:b.l,key,q:b.q});
     }
   }
   stkDemDates(raw);
@@ -1715,6 +1718,8 @@ function stkDraw(){
   // contrôle des réservations atelier : ce qui manque pour une fabrication (réservé > en stock)
   const AL=stk.which==="pose"?(stk.demLines||[]).filter(l=>l.etat==="alerte"):[];
   if(AL.length)h+=`<div class="stkcard" style="border-color:var(--s-rouge);margin-bottom:14px"><h3>⚠️ Consommables non couverts à 2 semaines de la pose</h3><span class="sub">À commander tout de suite (produits spécifiques compris).</span><table class="ctab">${AL.map(l=>`<tr><td>${stkName(l.a)}</td><td><button class="lnk" data-open="${esc(l.job)}">${esc(l.client)}</button><br><small class="sub">pose ${esc(demPose(l))}</small></td><td>manque <b>${nb(Math.ceil(l.manque))}</b> ${esc(stkU(l.a,Math.ceil(l.manque)))}</td></tr>`).join("")}</table></div>`;
+  const HS=stk.which==="pose"?(stk.demTodo||[]).filter(t=>!t.cmde).sort((x,y)=>String(x.pose||"9").localeCompare(String(y.pose||"9"))):[];
+  if(HS.length)h+=`<div class="stkcard" style="border-color:var(--s-${HS.some(t=>demHors(t)==="alerte")?"rouge":"orange"});margin-bottom:14px"><h3>🛒 Hors stock : à commander pour les chantiers</h3><span class="sub">Ces consommables n'existent pas dans le stock. Marquez-les « Commandé » plus bas, dans « Hors stock : à commander ».</span><table class="ctab">${HS.map(t=>`<tr><td><b>${esc(t.label)}</b><br><small class="sub">${esc([t.q,t.r].filter(Boolean).join(" · "))}</small></td><td><button class="lnk" data-open="${esc(t.job)}">${esc(t.client)}</button>${t.pose?`<br><small class="sub">pose ${esc(demPose(t))}</small>`:""}</td><td>${demHorsPill(t)}</td></tr>`).join("")}</table></div>`;
   const KO=stk.which==="atelier"?A.filter(a=>stkResManque(a)>0):[];
   if(KO.length)h+=`<div class="stkcard" style="border-color:var(--s-rouge);margin-bottom:14px"><h3>⚠️ Réservations à vérifier</h3><span class="sub">Plus de réservé que de stock : il manquera ces éléments pour une fabrication.</span><div class="stkrows">${KO.map(a=>`<button class="stkrow" data-art="${a.id}"><span class="dot r"></span><span class="stkn">${stkName(a)}<small>${esc(stk.res.filter(r=>r.article===a.id).map(r=>r.commande+" : "+nb(r.qte)).join(" · "))}</small></span><span class="stkq r">manque ${nb(stkResManque(a))}<small>en stock ${nb(stkLvl(a))}</small></span></button>`).join("")}</div></div>`;
   // alertes en haut ; recherche, santé, réservations et liste complète sous les cartes à remplir (Steven, 12/11/2026)
@@ -1793,20 +1798,28 @@ function stkDemCard(){
   const DL=(stk.demLines||[]),n=e=>DL.filter(l=>l.etat===e).length,line=l=>`<tr><td>${stkName(l.a)}</td><td><button class="lnk" data-open="${esc(l.job)}">${esc(l.client)}</button><br><small class="sub">pose ${esc(demPose(l))}${l.part?" · 1/"+l.part:""}</small></td><td>${nb(Math.round(l.q*10)/10)}</td><td>${demPill(l)}${l.manque?`<br><small>manque ${nb(Math.ceil(l.manque))}</small>`:""}</td></tr>`;
   const ord={alerte:0,cmd:1,res:2,tard:3},S=[...DL].sort((x,y)=>ord[x.etat]-ord[y.etat]||String(x.pose||"9").localeCompare(String(y.pose||"9")));
   const proche=S.filter(l=>l.etat!=="tard"),tard=S.filter(l=>l.etat==="tard");
-  return`<details class="stkdem" ${n("alerte")?"open":""}><summary><b>📋 Consommables des chantiers à venir</b> · ${[n("alerte")?`<span style="color:var(--s-rouge)">${n("alerte")} alerte${n("alerte")>1?"s":""}</span>`:"",n("cmd")?n("cmd")+" à commander":"",n("res")?n("res")+" réservé"+(n("res")>1?"s":""):"",n("tard")?n("tard")+" plus tard":"",stk.demTodo.length?`<span style="color:var(--s-orange)">${stk.demTodo.length} à relier</span>`:""].filter(Boolean).join(" · ")}</summary>
+  return`<details class="stkdem" ${n("alerte")?"open":""}><summary><b>📋 Consommables des chantiers à venir</b> · ${[n("alerte")?`<span style="color:var(--s-rouge)">${n("alerte")} alerte${n("alerte")>1?"s":""}</span>`:"",n("cmd")?n("cmd")+" à commander":"",n("res")?n("res")+" réservé"+(n("res")>1?"s":""):"",n("tard")?n("tard")+" plus tard":"",stk.demTodo.filter(t=>!t.cmde).length?`<span style="color:var(--s-orange)">${stk.demTodo.filter(t=>!t.cmde).length} hors stock à commander</span>`:""].filter(Boolean).join(" · ")}</summary>
     <p class="sub">Réservé 4 semaines avant la pose (6 pour une couleur rare), pose la plus proche servie d'abord. Alerte si ce n'est pas couvert à 2 semaines. Date de pose : planning, sinon date estimée (dernière livraison ARC ou fin atelier + 1 semaine).</p>
     ${proche.length?`<table class="ctab"><tr><th>Article</th><th>Chantier</th><th>Qté</th><th>État</th></tr>${proche.map(line).join("")}</table>`:`<p class="sub">Aucune pose dans les 4 semaines.</p>`}
     ${tard.length?`<details><summary class="sub">Plus tard (pose dans plus de 4 semaines) : ${tard.length} ligne${tard.length>1?"s":""}, ne bloquent pas le stock</summary><table class="ctab">${tard.map(line).join("")}</table></details>`:""}
   </details>`+stkDemTodoCard()}
-function stkDemTodoCard(){if(!stk.demTodo.length)return"";const L=[];
+// Hors stock (Steven, 12/11/2026) : une ligne de préparation sans article au stock est à commander pour le chantier.
+// Rouge à 2 semaines de la pose, sinon orange ; « Commandé » la fait passer en vert. On peut aussi la relier à un article du stock.
+const demHors=t=>t.cmde?"ok":t.pose&&-days(t.pose)<=STK_ALERTE?"alerte":"cmd";
+const demHorsPill=t=>{const e=demHors(t);return`<span class="dempill ${e==="alerte"?"r":e==="ok"?"v":"o"}">${e==="ok"?"Commandé le "+fr(t.cmde):e==="alerte"?"À commander tout de suite":"À commander"}</span>`};
+function stkDemTodoCard(){if(!stk.demTodo.length)return"";
   const opts=stk.arts.filter(a=>a.actif!==false).map(a=>`<option value="${a.id}">${esc(a.nom)}${a.coloris?" · "+esc(a.coloris):""}</option>`).join("");
-  return`<details class="stkdem"><summary><b>🔗 Lignes de préparation à relier</b> · <span style="color:var(--s-orange)">${stk.demTodo.length}</span></summary>
-    ${stk.demTodo.length?`<h4>À relier à un article du stock</h4><p class="sub">Choisissez l'article une fois : c'est retenu pour ce chantier.</p>${stk.demTodo.map((t,k)=>`<div class="crow"><div><b>${esc(t.label)}</b> · ${esc(t.q||"")}<br><small class="sub">${esc(t.client)}${t.pose?" · pose "+sem(t.pose):""}</small></div>${canWrite?`<select data-demlink="${k}" aria-label="Article du stock pour ${esc(t.label)}"><option value="">Choisir l'article…</option><option value="ignore">Ne pas réserver</option>${opts}</select>`:""}</div>`).join("")}`:""}</details>`;
+  const T=stk.demTodo.map((t,k)=>({t,k})).sort((x,y)=>(demHors(x.t)==="ok")-(demHors(y.t)==="ok")||String(x.t.pose||"9").localeCompare(String(y.t.pose||"9")));
+  const nb_=T.filter(x=>!x.t.cmde).length;
+  return`<details class="stkdem" ${nb_?"open":""}><summary><b>🛒 Hors stock : à commander pour les chantiers</b> · ${nb_?`<span style="color:var(--s-orange)">${nb_} à commander</span>`:"tout est commandé"}</summary>
+    <p class="sub">Lignes des fiches de préparation qui n'ont pas d'article dans le stock. Une fois passée la commande, choisissez « Commandé ». Si l'article existe dans le stock, reliez-le : la quantité y sera réservée.</p>
+    ${T.map(({t,k})=>`<div class="crow"><div><b>${esc(t.label)}</b> · ${esc(t.q||"")}${t.r?`<br><small>${esc(t.r)}</small>`:""}<br><small class="sub"><button class="lnk" data-open="${esc(t.job)}">${esc(t.client)}</button>${t.pose?" · pose "+esc(demPose(t)):""}</small><br>${demHorsPill(t)}</div>${canWrite?`<select data-demlink="${k}" aria-label="Suite à donner pour ${esc(t.label)}"><option value="">Choisir…</option>${t.cmde?`<option value="undo">Pas encore commandé</option>`:`<option value="cmde">✓ Commandé aujourd'hui</option>`}<option value="ignore">Rien à commander (ne plus afficher)</option><optgroup label="Relier à un article du stock">${opts}</optgroup></select>`:""}</div>`).join("")}</details>`;
 }
 async function stkDemLink(k,v){
   const t=stk.demTodo[k];if(!t||!v)return;const j=jobs.get(t.job);if(!j)return;
-  const docs=(j.docs||[]).map(x=>x.id===t.doc?{...x,bmap:{...(x.bmap||{}),[t.key]:v}}:x);jobs.set(t.job,{...j,docs});await save(t.job,{docs});
-  stkDemCalc();stkDraw();toast(v==="ignore"?"Ligne ignorée pour ce chantier.":"Ligne reliée : la quantité est réservée dans le stock.")}
+  const val=v==="cmde"?"cmde:"+today():v;
+  const docs=(j.docs||[]).map(x=>{if(x.id!==t.doc)return x;const bm={...(x.bmap||{})};if(v==="undo")delete bm[t.key];else bm[t.key]=val;return{...x,bmap:bm}});jobs.set(t.job,{...j,docs});await save(t.job,{docs});
+  stkDemCalc();stkDraw();toast(v==="ignore"?"Ligne retirée pour ce chantier.":v==="cmde"?"Noté : commandé aujourd'hui.":v==="undo"?"Ligne remise à commander.":"Ligne reliée : la quantité est réservée dans le stock.")}
 document.addEventListener("change",e=>{const s=e.target.closest("[data-demlink]");if(s)stkDemLink(+s.dataset.demlink,s.value)});
 function stkDrawCmd(){
   const box=$("stk-cmd");box.hidden=false;
