@@ -3305,6 +3305,16 @@ const atlSum=(T,k)=>Math.round(T.reduce((s,x)=>s+atlNum(x[k]),0)*10)/10;
 const atlR1=n=>Math.round(n*10)/10;
 // temps retenu pour le planning : le total de Christophe, sinon le détail de Manu + 20 %
 const atlHeures=a=>atlNum(a.heures)||atlR1(atlSum(a.taches||[],"h")*(1+ATL_ALEAS));
+// heures réalisées (Steven, 12/11/2026) : Manu et les poseurs notent leur journée à l'atelier dans « Mes heures » (page poseurs),
+// ligne par ligne : commande + tâche. Christophe donne le temps total ; le reste à faire = total - heures notées. Divers = les 20 %.
+const ATL_T5=["Débit","Usinage","Montage","Vitrage","Divers"];
+const atlFaitT=a=>(a&&a.id&&atl.hr&&atl.hr.get(a.id))||null;
+const atlFait=a=>{const F=atlFaitT(a);return F?F.tot:0};
+const atlReste=a=>Math.max(0,atlR1(atlHeures(a)-atlFait(a)));
+async function atlHrLoad(){const sb=window.sbClient;if(!sb)return;
+  try{const{data,error}=await sb.from("heures").select("atelier,tache,heures").not("atelier","is",null);if(error)throw error;
+    const m=new Map();for(const h of data){const o=m.get(h.atelier)||{tot:0};o[h.tache]=atlR1((o[h.tache]||0)+ +h.heures);o.tot=atlR1(o.tot+ +h.heures);m.set(h.atelier,o)}atl.hr=m}
+  catch(_){atl.hr=atl.hr||new Map()}}
 const ATL_DOCS=["Bon de commande matière","Bon de commande accessoires","Bon de commande vitrages","Bon de commande volets / stores","ARC","Plan / débit","Autre"];
 const atl={rows:new Map(),ok:null,open:null,dest:"",q:"",filter:"encours",pending:false,built:false,
   tri:(()=>{try{return localStorage.getItem("atelier-tri")||"pose"}catch(e){return"pose"}})()}; // même tri que la liste des chantiers (Steven, 08/11/2026)
@@ -3350,7 +3360,7 @@ function atlPlan(a){
   P.recu=atlD(a,"recu")||maxS(t,...ks.map(k=>P[k]));
   const deb=atlD(a,"debut"),fin=atlD(a,"fin");
   P.debut=deb||maxS(nextJo(t),addJo(P.recu,1));
-  P.fin=fin||a.finManu||maxS(nextJo(t),addJo(P.debut,pj-1));
+  P.fin=fin||a.finManu||(deb&&atlFait(a)>0?addJo(nextJo(t),Math.max(1,Math.ceil(atlReste(a)/ATL_H_JOUR))-1):maxS(nextJo(t),addJo(P.debut,pj-1)));
   return{besoin,pj,L,P,fin:P.fin,finSem:aFri(P.fin),retard:!fin&&!!(besoin&&L.fin&&P.fin>L.fin)};
 }
 function atlAlerts(a){
@@ -3378,7 +3388,7 @@ async function atlWrite(id,patch){const sb=window.sbClient;
   throw new Error("conflit")}
 const atlChains={};
 function atlSave(id,patch){
-  const a0=atl.rows.get(id)||{};let a=atlMerge(a0,patch);const calc=atlCalc(a);
+  const a0={...(atl.rows.get(id)||{}),id};let a=atlMerge(a0,patch);const calc=atlCalc(a);
   if(JSON.stringify(calc)!==JSON.stringify(a0.calc||{})){patch={...patch,calc};a={...a,calc}}
   atl.rows.set(id,a);atlRender();atlSheet();
   atlChains[id]=(atlChains[id]||Promise.resolve()).then(()=>atlWrite(id,patch)).catch(()=>toast("Enregistrement impossible, réessayez dans un instant."));
@@ -3387,13 +3397,13 @@ async function atlLoad(){
   const sb=window.sbClient;if(!sb)return;
   const {data,error}=await sb.from("atelier").select("id,data");
   if(error){atl.ok=false;atlRender();return}
-  atl.ok=true;atl.rows=new Map(data.filter(r=>r.id[0]!=="_").map(r=>[r.id,r.data]));atlRefresh();
+  atl.ok=true;atl.rows=new Map(data.filter(r=>r.id[0]!=="_").map(r=>[r.id,r.data]));await atlHrLoad();atlRefresh();
   sb.channel("atelier").on("postgres_changes",{event:"*",schema:"public",table:"atelier"},p=>{
     const rid=p.eventType==="DELETE"?p.old.id:p.new.id;if(!rid||rid[0]==="_")return;
     if(p.eventType==="DELETE")atl.rows.delete(rid);else atl.rows.set(rid,p.new.data);atlRefresh()}).subscribe();
-  document.addEventListener("visibilitychange",async()=>{if(document.hidden)return;const {data}=await sb.from("atelier").select("id,data");if(data){atl.rows=new Map(data.filter(r=>r.id[0]!=="_").map(r=>[r.id,r.data]));atlRefresh()}});
+  document.addEventListener("visibilitychange",async()=>{if(document.hidden)return;await atlHrLoad();const {data}=await sb.from("atelier").select("id,data");if(data){atl.rows=new Map(data.filter(r=>r.id[0]!=="_").map(r=>[r.id,r.data]));atlRefresh()}});
   // la fin prévue glisse avec le temps : on la remet à jour pour l'ARC de la fiche chantier (une fois par jour au plus)
-  if(atlCanW())setTimeout(()=>{for(const[id,a]of atl.rows)if(!atlDone(a)&&a.chantier&&atlD(a,"arc")&&atlCalc(a).finSem!==(a.calc||{}).finSem)atlSave(id,{})},4000);
+  if(atlCanW())setTimeout(()=>{for(const[id,a]of atl.rows)if(!atlDone(a)&&a.chantier&&atlD(a,"arc")&&atlCalc({...a,id}).finSem!==(a.calc||{}).finSem)atlSave(id,{})},4000);
 }
 function atlRefresh(){atlRender();const s=$("asheet");
   if(s&&!s.hidden){if(document.activeElement&&s.contains(document.activeElement)&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))atl.pending=true;else atlSheet()}
@@ -3402,7 +3412,7 @@ function atlRefresh(){atlRender();const s=$("asheet");
 // ---- liste ----
 function atlBuild(){
   const el=$("tab-atelier");if(atl.built)return;atl.built=true;
-  el.innerHTML=`<div class="stats" id="atlStats"></div>
+  el.innerHTML=`${atlRole()==="atelier"?`<p style="margin:0 0 12px"><a class="btn" href="poseurs.html#heures">🕒 Mes heures : remplir ma journée à l'atelier</a></p>`:""}<div class="stats" id="atlStats"></div>
    <div class="tools"><div id="atlChips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input type="search" id="atlQ" placeholder="Chercher un client, un n° de commande ou de devis"><select id="atlTri" aria-label="Trier les commandes atelier" style="width:auto;flex:none"><option value="pose">Trier : pose la plus proche</option><option value="alertes">Trier : retards et alertes</option><option value="alpha">Trier : ordre alphabétique (A → Z)</option></select>${atlCanW()?`<button class="btn" id="atlNew">Nouvelle commande atelier</button>`:""}</div>
    <div class="list" id="atlList"></div>
    <h3 class="atlh">Charge de l'atelier<span class="sub">temps de production réparti sur les jours prévus · ${ATL_H_SEM} h par semaine</span></h3><div id="atlLoad"></div>`;
@@ -3450,7 +3460,7 @@ function atlWeekLoad(live){
   const wk={},who={};
   live.forEach(a=>{const p=atlPlan(a),h=atlHeures(a);if(!h||atlD(a,"fin"))return;
     let d=atlD(a,"debut")?maxS(nextJo(today()),p.P.debut):p.P.debut;const ds=[];while(d<=p.P.fin&&ds.length<60){ds.push(d);d=addJo(d,1)}
-    const restant=atlD(a,"debut")?h*ds.length/Math.max(ds.length,p.pj):h;
+    const restant=atlFait(a)>0?atlReste(a):atlD(a,"debut")?h*ds.length/Math.max(ds.length,p.pj):h;
     ds.forEach(x=>{const f=aFri(x);wk[f]=(wk[f]||0)+restant/ds.length;(who[f]=who[f]||new Set).add(atlName(a))})});
   return{wk,who}}
 function atlLoadHtml(live){
@@ -3531,7 +3541,7 @@ function atlSheet(){
    <div class="kpis atlk"><div class="kpi"><b>${p.besoin?sem(p.besoin):"?"}</b><span>${a.dest==="revente"?"Enlèvement":"Pose"}${p.besoin?" le "+fr(p.besoin):" non fixée"}</span></div>
     <div class="kpi ${p.retard?"r":""}"><b>${atlD(a,"fin")?"✓":sem(p.fin)}</b><span>${atlD(a,"fin")?"Production terminée le "+fr(atlD(a,"fin")):"Fin de production prévue"+(a.finManu?" (à la main)":"")}</span></div>
     <div class="kpi"><b>${p.L.fin?sem(p.L.fin):"–"}</b><span>Fin au plus tard${p.L.fin?" ("+fr(p.L.fin)+")":""}</span></div>
-    <div class="kpi"><b>${p.pj} j</b><span>Production${atlHeures(a)?" ("+atlHeures(a)+" h"+(atlNum(a.heures)?"":", détail + 20 %")+")":" : temps à saisir"}</span></div></div>
+    <div class="kpi"><b>${atlFait(a)>0?atlReste(a)+" h":p.pj+" j"}</b><span>${atlFait(a)>0?"Reste à faire ("+atlFait(a)+" h faites sur "+atlHeures(a)+" h)":"Production"+(atlHeures(a)?" ("+atlHeures(a)+" h"+(atlNum(a.heures)?"":", détail + 20 %")+")":" : temps à saisir")}</span></div></div>
    <div class="fields">
     <label>Pour<select data-af="dest" ${ro}>${Object.entries(ATL_DEST).map(([k,l])=>`<option value="${k}" ${k===(a.dest||"mgds")?"selected":""}>${l}</option>`).join("")}</select></label>
     <label>Chantier MGDS<select data-af="chantier" ${ro}><option value="">—</option>${jl.map(([id,j])=>`<option value="${esc(id)}" ${id===a.chantier?"selected":""}>${esc(j.client)} · ${esc(id)}</option>`).join("")}</select></label>
@@ -3544,14 +3554,14 @@ function atlSheet(){
     <label class="wide">Bloqué (le motif fait passer la commande en rouge)<input type="text" data-af="bloque" value="${esc(a.bloque)}" ${ro}></label>
     <label class="wide">Remarques<textarea data-af="notes" ${ro}>${esc(a.notes)}</textarea></label></div>
    <h3>Étapes<span class="sub" style="text-transform:none;letter-spacing:0">un clic, la date s'inscrit seule · « au plus tard » depuis la date de ${a.dest==="revente"?"besoin":"pose"}</span></h3><ul class="steps">${steps}</ul>
-   <h3>Détail des temps<span class="sub" style="text-transform:none;letter-spacing:0">par tâche, en heures (Manu) · + 20 % pour déchargement, emballage, nettoyage…</span></h3>
-   <div class="tbl"><table class="atllg atltk"><thead><tr><th>Tâche</th><th class="n">Prévu (h)</th><th class="n">Réel (h)</th><th></th></tr></thead><tbody>${TK.map((x,i)=>`<tr><td><input type="text" data-atk="${i}" data-atf="t" value="${esc(x.t)}" aria-label="Tâche" ${ro}></td><td><input type="number" min="0" step="0.5" inputmode="decimal" data-atk="${i}" data-atf="h" value="${esc(x.h)}" aria-label="Prévu ${esc(x.t)}" ${ro}></td><td><input type="number" min="0" step="0.5" inputmode="decimal" data-atk="${i}" data-atf="r" value="${esc(x.r)}" aria-label="Réel ${esc(x.t)}" ${ro}></td><td>${W?`<button class="x" data-adeltk="${i}" aria-label="Retirer la tâche">×</button>`:""}</td></tr>`).join("")}
-    <tr class="tot"><td>Tâches détaillées</td><td class="n">${atlSum(TK,"h")} h</td><td class="n">${atlSum(TK,"r")} h</td><td></td></tr>
-    <tr class="tot"><td>+ ${Math.round(ATL_ALEAS*100)} % aléas <span class="sub">(déchargement, emballage, nettoyage atelier…)</span></td><td class="n">${atlR1(atlSum(TK,"h")*ATL_ALEAS)} h</td><td class="n">${atlR1(atlSum(TK,"r")*ATL_ALEAS)} h</td><td></td></tr>
-    <tr class="tot"><td><b>Total détaillé</b></td><td class="n"><b>${atlR1(atlSum(TK,"h")*(1+ATL_ALEAS))} h</b></td><td class="n"><b>${atlR1(atlSum(TK,"r")*(1+ATL_ALEAS))} h</b></td><td></td></tr></tbody></table></div>
-   ${atlNum(a.heures)&&atlSum(TK,"h")?(()=>{const d=atlR1(atlSum(TK,"h")*(1+ATL_ALEAS)-atlNum(a.heures));return`<p class="sub">${d===0?"Détail conforme au total de Christophe":"Détail "+(d>0?"au-dessus":"en dessous")+" du total de Christophe ("+atlNum(a.heures)+" h) de "+Math.abs(d)+" h"} : c'est le total de Christophe qui sert au planning.</p>`})():""}
-   ${(()=>{const F=TK.filter(x=>x.r!==""&&x.r!=null&&atlNum(x.h)),d=Math.round((atlSum(F,"r")-atlSum(F,"h"))*10)/10;return F.length?`<p class="sub">Sur les ${F.length} tâche${F.length>1?"s":""} déjà faite${F.length>1?"s":""} : ${d===0?"réel conforme au prévu":"réel "+(d>0?"au-dessus":"en dessous")+" du prévu de "+Math.abs(d)+" h"}.</p>`:""})()}
-   ${W?`<form class="add arcadd" id="atlTache"><input type="text" id="at-t" placeholder="Autre tâche (ex. cintrage, laquage)" aria-label="Nouvelle tâche"><button class="btn">+</button></form>`:""}
+   <h3>Temps passé<span class="sub" style="text-transform:none;letter-spacing:0">noté par Manu et les poseurs dans « Mes heures » · Divers = rangement, déchargement… (les 20 %)</span></h3>
+   ${(()=>{const F=atlFaitT(a)||{tot:0},H=atlHeures(a),R=atlR1(H-F.tot);
+     return`<div class="tbl"><table class="atllg atltk"><thead><tr><th>Tâche</th><th class="n">Fait (h)</th></tr></thead><tbody>${ATL_T5.map(t=>`<tr><td>${t}</td><td class="n">${F[t]?String(F[t]).replace(".",","):"–"}</td></tr>`).join("")}
+      <tr class="tot"><td><b>Total fait</b></td><td class="n"><b>${String(F.tot).replace(".",",")} h</b></td></tr>
+      <tr class="tot"><td>Temps de production (Christophe)</td><td class="n">${H?String(H).replace(".",",")+" h":"à saisir"}</td></tr>
+      <tr class="tot"><td><b>Reste à faire</b></td><td class="n"><b style="${H&&R<0?"color:var(--s-rouge)":""}">${H?String(R).replace(".",",")+" h":"–"}</b></td></tr></tbody></table></div>
+      ${H&&R<0?`<p class="sub" style="color:var(--s-rouge)">Dépassement de ${String(-R).replace(".",",")} h sur le temps vendu.</p>`:""}${atl.hr&&atl.hr.size===0&&!F.tot?`<p class="sub">Aucune heure notée pour l'instant.</p>`:""}`})()}
+   ${atlRole()==="atelier"?`<p><a class="btn ghost" href="poseurs.html#heures">🕒 Noter mes heures</a></p>`:""}
    <details class="atldet"><summary>Fournisseurs, n° de commande et délais</summary><ul class="arcs" style="margin-top:8px">${cmds}</ul></details>
    <h3>ARC atelier<span class="sub" style="text-transform:none;letter-spacing:0">cotes validées après le métré</span></h3>
    <div class="fields"><label>N° d'ARC<input type="text" data-af="arcRef" value="${esc(a.arcRef||a.id)}" ${ro}></label><div class="sub" style="align-self:end">${arcInfo}</div></div>
