@@ -1664,7 +1664,8 @@ async function loadStock(){
     <div class="stkcard stkatl"><h3>📷 Barres en trop et chutes</h3>
     <p class="sub" style="margin:0">Les barres neuves restent liées à leur chantier. N'entrent en stock que les <b>barres en trop</b> et les <b>chutes réutilisables</b>. Sur chacune, une étiquette : <b>réf. · couleur · longueur · emplacement</b> (ex. « TGY1213 · 9005 texture · 1,90 m · D 7 »). Photographiez l'étiquette, ou la feuille récapitulative si plusieurs barres sont rangées en même temps. Pas de chantier à choisir : ce stock ne compte pas dans le déboursé des chantiers.</p>
     <div id="stk-acam"></div><label class="fld">Précision (facultatif)<input type="text" id="stk-anote" placeholder="ex. 3 chutes rangées ce matin"></label></div>
-    <div class="stkcard stkatl" id="stk-alist"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>`;
+    <div class="stkcard stkatl" id="stk-alist"><span class="sub">Chargement…</span></div><div class="stkcard" id="stk-mv"></div></section>
+    <div id="stk-liste" style="margin-top:14px"></div>`;
   const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll(".stkatl").forEach(x=>x.hidden=stk.which!=="atelier");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
   el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";stk.et="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw();stkDirs()});
   $("stk-ch").onchange=e=>{stockSel=e.target.value};
@@ -1704,16 +1705,26 @@ function stkDraw(){
       ${canWrite?`<button class="btn" id="stk-inv">📋 Faire l'inventaire</button><button class="btn ghost" id="stk-add">＋ Nouvel article</button>`:""}<button class="btn ghost" id="stk-xls" title="Inventaire valorisé au format de l'Excel du serveur, quantités du jour">📥 Exporter l'Excel</button></div>
     <div class="tools stkfam"><button class="chip" data-sf="" aria-pressed="${!stk.fam}">Tout</button>${fams.map(f=>`<button class="chip" data-sf="${esc(f)}" aria-pressed="${stk.fam===f}">${esc(f)}</button>`).join("")}</div>
     ${cnt.g===A.length&&A.length?`<p class="sub">Aucun seuil d'alerte n'est encore fixé : touchez un article pour lui donner un seuil, ou fixez-les tous d'un coup dans « Faire l'inventaire ».</p>`:""}</div>`;
+  const headH=h;h="";
   // santé par famille : une barre par famille découpée par état ; un segment filtre la liste (famille + état)
   const byF=new Map();A.forEach(a=>{if(!byF.has(a.famille))byF.set(a.famille,{r:0,o:0,v:0,b:0,g:0,n:0});const c=byF.get(a.famille);c[stkEtat(a)]++;c.n++});
   if(A.length)h+=`<div class="stkcard stksante"><div class="row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;justify-content:space-between"><h3>Santé par famille</h3><div class="stkleg">${["r","o","v","b","g"].map(e=>`<span><i class="dot ${e}"></i>${STK_ICO[e]} ${STK_ETAT[e]}</span>`).join("")}</div></div>
     ${[...byF].sort((x,y)=>(y[1].r+y[1].o)-(x[1].r+x[1].o)||y[1].n-x[1].n).map(([f,c])=>`<div class="sf"><span title="${esc(f)}">${esc(f)}</span><div class="sbar">${["r","o","v","b","g"].filter(e=>c[e]).map(e=>`<button class="sseg ${e}" style="flex:${c[e]}" data-sseg="${esc(f)}" data-se="${e}" aria-pressed="${stk.fam===f&&stk.et===e}" aria-label="${esc(f)} : ${c[e]} ${STK_ETAT[e]}" title="${esc(f)} · ${STK_ETAT[e]} : ${c[e]} article${c[e]>1?"s":""}"></button>`).join("")}</div><span class="nb">${c.n}</span></div>`).join("")}
     ${stk.et||stk.fam?`<div><button class="chip" data-sf="" data-se="">✕ Retirer le filtre${stk.fam&&stk.fam!=="!"?" « "+esc(stk.fam)+" »":""}${stk.et?" · "+STK_ETAT[stk.et]:""}</button></div>`:`<span class="sub">Touchez un segment pour voir les articles de cette famille dans cet état.</span>`}</div>`;
+  const santeH=h;h="";
   // contrôle des réservations atelier : ce qui manque pour une fabrication (réservé > en stock)
   const AL=stk.which==="pose"?(stk.demLines||[]).filter(l=>l.etat==="alerte"):[];
   if(AL.length)h+=`<div class="stkcard" style="border-color:var(--s-rouge);margin-bottom:14px"><h3>⚠️ Consommables non couverts à 2 semaines de la pose</h3><span class="sub">À commander tout de suite (produits spécifiques compris).</span><table class="ctab">${AL.map(l=>`<tr><td>${stkName(l.a)}</td><td><button class="lnk" data-open="${esc(l.job)}">${esc(l.client)}</button><br><small class="sub">pose ${esc(demPose(l))}</small></td><td>manque <b>${nb(Math.ceil(l.manque))}</b> ${esc(stkU(l.a,Math.ceil(l.manque)))}</td></tr>`).join("")}</table></div>`;
   const KO=stk.which==="atelier"?A.filter(a=>stkResManque(a)>0):[];
   if(KO.length)h+=`<div class="stkcard" style="border-color:var(--s-rouge);margin-bottom:14px"><h3>⚠️ Réservations à vérifier</h3><span class="sub">Plus de réservé que de stock : il manquera ces éléments pour une fabrication.</span><div class="stkrows">${KO.map(a=>`<button class="stkrow" data-art="${a.id}"><span class="dot r"></span><span class="stkn">${stkName(a)}<small>${esc(stk.res.filter(r=>r.article===a.id).map(r=>r.commande+" : "+nb(r.qte)).join(" · "))}</small></span><span class="stkq r">manque ${nb(stkResManque(a))}<small>en stock ${nb(stkLvl(a))}</small></span></button>`).join("")}</div></div>`;
+  // alertes en haut ; recherche, santé, réservations et liste complète sous les cartes à remplir (Steven, 12/11/2026)
+  $("stk-top").innerHTML=h;h=headH+santeH;
+  // réservations atelier rangées par fabrication, avec l'emplacement et le plan (Manu, 12/11/2026)
+  if(stk.which==="atelier"&&(stk.res||[]).length){const byC=new Map();stk.res.forEach(r=>{if(!byC.has(r.commande))byC.set(r.commande,[]);byC.get(r.commande).push(r)});
+    const plan=a=>"plan-stock.html?q="+encodeURIComponent(a.emplacement||a.ref||a.nom);
+    h+=`<div class="stkcard" id="stk-resa"><h3>📌 Réservé pour les fabrications</h3><span class="sub">À sortir pour chaque commande atelier. 🗺️ montre où c'est rangé sur le plan 3D.</span>
+     ${[...byC].map(([c,L])=>{const ca=atl.rows.get(c);return`<details class="atldet" style="margin-top:8px"><summary><b>${esc(ca?atlName(ca):c)}</b> <span class="sub">· ${esc(c)} · ${L.length} article${L.length>1?"s":""}</span></summary>
+      <table class="ctab">${L.map(r=>{const a=stk.all.find(x=>x.id===r.article);if(!a)return"";return`<tr><td><button class="lnk" data-art="${a.id}">${esc(a.ref||"")}</button> ${stkName(a)}</td><td class="mono">${nb(+r.qte)}</td><td><a class="btn ghost small" href="${plan(a)}" title="Voir sur le plan">🗺️ Plan</a></td></tr>`}).join("")}</table></details>`}).join("")}</div>`}
   h+=`<div class="stkcard stkniv"><h3>${STK_WHICH[stk.which]} : niveau</h3>`;
   if(!vis.length)h+=`<span class="sub">${A.length?"Aucun article ne correspond.":stk.which==="atelier"?"Aucun article dans le stock atelier pour l'instant (barres, accessoires de fabrication, consommables atelier). Ajoutez-les avec « Nouvel article », ou envoyez l'inventaire atelier à Claude.":"Aucun article pour l'instant."}</span>`;
   let fam=null;
@@ -1722,13 +1733,13 @@ function stkDraw(){
     h+=`<button class="stkrow" data-art="${a.id}"><span class="dot ${e}" title="${STK_ETAT[e]}"></span><span class="stkn">${stkName(a)}${a.ref||a.fournisseur?`<small>${esc([a.ref,a.fournisseur].filter(Boolean).join(" · "))}</small>`:""}</span><span class="stkq ${e}">${stkQ(a,n)}${stkResQ(a)?`<small>dont ${nb(stkResQ(a))} réservé${stkResQ(a)>1?"s":""}</small>`:""}${a.seuil!=null?`<small>seuil ${nb(a.seuil)}</small>`:""}</span></button>`});
   if(fam!==null)h+=`</div>`;
   h+=`</div>`;
-  $("stk-top").innerHTML=h;
-  $("stk-top").querySelectorAll("[data-sf],[data-se]").forEach(b=>b.onclick=()=>{
+  $("stk-liste").innerHTML=h;
+  document.querySelectorAll("#stk-liste [data-sf],#stk-liste [data-se]").forEach(b=>b.onclick=()=>{
     if(b.dataset.sseg!==undefined){const same=stk.fam===b.dataset.sseg&&stk.et===b.dataset.se;stk.fam=same?"":b.dataset.sseg;stk.et=same?"":b.dataset.se}
     else if(b.dataset.se!==undefined&&b.dataset.sf===undefined){stk.et=stk.et===b.dataset.se&&!stk.fam?"":b.dataset.se;stk.fam=""}
     else{stk.fam=b.dataset.sf;if(b.dataset.se!==undefined||b.dataset.sf==="")stk.et=""}
     stkDraw();if(b.dataset.sseg!==undefined||b.dataset.se){const l=document.querySelector(".stkniv");if(l)l.scrollIntoView({behavior:"smooth",block:"start"})}});
-  $("stk-top").querySelectorAll("[data-art]").forEach(b=>b.onclick=()=>stkSheet(+b.dataset.art));
+  document.querySelectorAll("#stk-top [data-art],#stk-liste [data-art]").forEach(b=>b.onclick=()=>stkSheet(+b.dataset.art));
   const qi=$("stk-q");qi.oninput=()=>{stk.q=qi.value;clearTimeout(stkDraw.t);stkDraw.t=setTimeout(()=>{const p=qi.selectionStart;stkDraw();const n=$("stk-q");n.focus();n.setSelectionRange(p,p)},250)};
   if($("stk-inv"))$("stk-inv").onclick=stkInventaire;
   if($("stk-add"))$("stk-add").onclick=()=>stkSheet(null);

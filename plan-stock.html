@@ -338,5 +338,7 @@ function collide(){const c=cam.position;if(c.y<0.8)c.y=0.8;const t=ctl.target;t.
 const redraw=()=>{dirty=3};addEventListener("pointermove",redraw,{passive:true});addEventListener("wheel",redraw,{passive:true});addEventListener("pointerdown",redraw);addEventListener("click",redraw);
 (function loop(now){requestAnimationFrame(loop);if(tw){const k=reduce?1:Math.min(1,(now-tw.s)/(tw.dur||900)),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;cam.position.lerpVectors(tw.p0,tw.p,e);ctl.target.lerpVectors(tw.t0,tw.t,e);if(k>=1)tw=null}if(tour){const u=Math.min(1,(now-tour.s)/tour.d),e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;cam.position.copy(TP.getPoint(e));cam.lookAt(TT.getPoint(e));if(u>=1)stopTour()}else{if(ctl.update())dirty=2;if(!tw&&!walk)collide()}if(tw||tour)dirty=2;if(dirty>0){dirty--;ren.render(scene,cam)}})(performance.now());
 side(null);paint();
+// lien depuis l'appli (réservations, fiche article) : plan-stock.html?q=T740077 ou ?q=D 7 → zone en jaune et vue dessus (Steven, 12/11/2026)
+{const q0=new URLSearchParams(location.search).get("q");if(q0){const i=$("#q");i.value=q0;i.dispatchEvent(new Event("input"));const f=[...hits][0];if(f)setTimeout(()=>pick(f,true),400)}}
 
 </script>
