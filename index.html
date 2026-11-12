@@ -3357,6 +3357,7 @@ function atlAlerts(a){
   const out=[];if(atlDone(a))return out;
   const p=atlPlan(a);
   if(a.bloque)out.push(["r","Bloqué : "+a.bloque]);
+  if(a.propClaude&&a.propClaude.statut==="a_confirmer")out.push(["o","Réservation proposée par Claude : à confirmer par Christophe"]);
   atlStepsOf(a).forEach(s=>{const lim=p.L[s.k];if(!lim||!ATL_DO[s.k]||atlD(a,s.k))return;const n=-days(lim);
     if(n<0)out.push(["r",ATL_DO[s.k]+" : date limite dépassée ("+fr(lim)+")"]);else if(n<=7)out.push(["o",ATL_DO[s.k]+(n===0?" aujourd'hui":" avant le "+fr(lim))])});
   atlOn(a).forEach(k=>{const x=atlCmd(a,k);if(x.cmd&&x.cmd.d&&!(x.recu&&x.recu.d)&&x.prev&&x.prev<today())out.push(["r",x.l+" prévus "+sem(x.prev)+" non reçus"])});
@@ -3632,8 +3633,15 @@ async function atlBesDraw(a){
   if(!stk.ok||!stk.resOk){box.innerHTML=`<p class="sub">Le stock ou les réservations ne sont pas encore installés dans la base.</p>`;return}
   const C=besCompare(a),aRes=C.reduce((n,c)=>n+c.prop.length,0),aCmd=C.filter(c=>c.reste>0);
   const pl=p=>`${nb(p.q)} × 📍 <b>${esc(p.x.emplacement||"?")}</b>${p.x.longueur?" ("+nb(p.x.longueur)+" m)":""}`;
-  box.innerHTML=(C.length?`<div class="tbl"><table><thead><tr><th>Réf.</th><th>Couleur</th><th class="n">Long.</th><th class="n">Qté</th><th>Dans le stock</th><th class="n">À commander</th><th></th></tr></thead><tbody>${C.map((c,i)=>`<tr>
-      <td class="mono">${esc(c.b.ref)}</td><td>${esc(c.b.col||"")}</td><td class="n">${c.b.lg?nb(c.b.lg)+" m":""}</td><td class="n">${nb(c.b.q)}</td>
+  // réservation proposée par Claude d'après la fiche de fabrication (12/11/2026) : Christophe seul la confirme ;
+  // l'Excel « à commander » n'est déposé sur le serveur qu'après sa confirmation
+  const PC=a.propClaude||null,pcBan=!PC?"":PC.statut==="a_confirmer"
+    ?`<div class="flags" style="margin-bottom:8px;display:block;padding:10px 12px;border:2px solid var(--s-orange);border-radius:8px"><b>📋 Réservation proposée par Claude</b> d'après ${esc(PC.src||"la fiche de fabrication")}${PC.le?" ("+fr(PC.le)+")":""}. Vérifiez les lignes ci-dessous et corrigez si besoin (✕ pour retirer une ligne), puis confirmez : ce qui est en stock sera réservé, et Claude déposera ensuite sur le serveur le fichier des accessoires à commander.
+      ${W?`<div class="acts" style="margin-top:8px"><button class="btn" id="pcOk">✓ Je confirme : réserver ce qui est en stock</button><button class="btn ghost" id="pcNo">Refuser la proposition</button></div>`:`<div class="sub" style="margin-top:6px">En attente de la confirmation de Christophe.</div>`}</div>`
+    :PC.statut==="confirmee"?`<p class="sub">✓ Réservation de Claude confirmée par ${esc(PC.par||"Christophe")} le ${fr(PC.d||"")}${PC.excel?" · fichier à commander déposé sur le serveur le "+fr(PC.excel):" · fichier à commander : en préparation par Claude"}.</p>`
+    :`<p class="sub">Proposition de Claude refusée le ${fr(PC.d||"")}.</p>`;
+  box.innerHTML=pcBan+(C.length?`<div class="tbl"><table><thead><tr><th>Réf.</th><th>Couleur</th><th class="n">Long.</th><th class="n">Qté</th><th>Dans le stock</th><th class="n">À commander</th><th></th></tr></thead><tbody>${C.map((c,i)=>`<tr>
+      <td class="mono">${esc(c.b.ref)}${c.b.des?`<br><span class="sub" style="font-family:var(--f-body)">${esc(c.b.des)}${c.b.fin&&c.b.fin!=="SANS"?" · "+esc(c.b.fin):""}</span>`:""}</td><td>${esc(c.b.col||"")}</td><td class="n">${c.b.lg?nb(c.b.lg)+" m":""}</td><td class="n">${nb(c.b.q)}</td>
       <td>${c.deja?`<span class="flag">✓ ${nb(c.deja)} déjà réservé${c.deja>1?"s":""}</span> `:""}${c.prop.map(pl).join("<br>")||(c.deja?"":`<span class="sub">rien</span>`)}</td>
       <td class="n">${c.reste?`<b style="color:var(--s-rouge)">${nb(c.reste)}</b>`:"✓"}</td>
       <td>${W?`<button class="btn ghost small" data-bdel="${i}" aria-label="Retirer la ligne">✕</button>`:""}</td></tr>`).join("")}</tbody></table></div>
@@ -3648,6 +3656,11 @@ async function atlBesDraw(a){
   if($("besRes"))$("besRes").onclick=async()=>{const bt=$("besRes");bt.disabled=true;let ok=0,ko=0;
     for(const c of C)for(const p of c.prop){if(await stkReserve(p.x.id,a.id,p.q,"Besoin "+c.b.ref+(c.b.lg?" "+nb(c.b.lg)+" m":"")))ok++;else ko++;await stkResLoad()}
     toast(ok+" réservation"+(ok>1?"s":"")+" faite"+(ok>1?"s":"")+(ko?" · "+ko+" refusée"+(ko>1?"s":"")+" (déjà réservé ailleurs)":"")+".");atlSheet()};
+  const reserveTout=async()=>{let ok=0,ko=0;for(const c of C)for(const p of c.prop){if(await stkReserve(p.x.id,a.id,p.q,"Besoin "+c.b.ref+(c.b.lg?" "+nb(c.b.lg)+" m":"")))ok++;else ko++;await stkResLoad()}return[ok,ko]};
+  if($("pcOk"))$("pcOk").onclick=async()=>{const bt=$("pcOk");bt.disabled=true;const [ok,ko]=await reserveTout();
+    await atlSave(a.id,{propClaude:{...PC,statut:"confirmee",d:today(),par:(window.mgdsProfil||{}).nom||me||"Christophe",reserve:ok,refuse:ko}});
+    toast("Confirmé : "+ok+" réservation"+(ok>1?"s":"")+(ko?" · "+ko+" refusée"+(ko>1?"s":"")+" (déjà réservé ailleurs)":"")+". Claude prépare le fichier à commander.");atlSheet()};
+  if($("pcNo"))$("pcNo").onclick=async()=>{await atlSave(a.id,{propClaude:{...PC,statut:"refusee",d:today(),par:(window.mgdsProfil||{}).nom||me||"Christophe"}});toast("Proposition refusée.");atlSheet()};
   if($("besCopy"))$("besCopy").onclick=async()=>{const t="À commander · "+atlName(a)+" ("+a.id+")\n"+aCmd.map(c=>"- "+[c.b.ref,c.b.col,c.b.lg?nb(c.b.lg)+" m":""].filter(Boolean).join(" ")+" : "+nb(c.reste)).join("\n");
     try{await navigator.clipboard.writeText(t);toast("Liste copiée.")}catch(e){toast("Copie impossible sur cet appareil.")}};
 }
