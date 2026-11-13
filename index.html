@@ -3736,11 +3736,24 @@ async function atlBesDraw(a){
       <td>${c.deja?`<span class="flag">✓ ${nb(c.deja)} déjà réservé${c.deja>1?"s":""}</span> `:""}${c.prop.map(pl).join("<br>")||(c.deja?"":`<span class="sub">rien</span>`)}</td>
       <td class="n">${c.reste?`<b style="color:var(--s-rouge)">${nb(c.reste)}</b>`:"✓"}</td>
       <td>${W?`<button class="btn ghost small" data-bdel="${i}" aria-label="Retirer la ligne">✕</button>`:""}</td></tr>`).join("")}</tbody></table></div>
-    <div class="acts" style="margin-top:8px">${W&&aRes?`<button class="btn" id="besRes">📌 Réserver ce qui est en stock (${aRes})</button>`:""}${aCmd.length?`<button class="btn ghost" id="besCopy">📋 Copier ce qui reste à commander (${aCmd.length})</button>`:C.length?`<span class="flag">✓ Tout est couvert par le stock</span>`:""}</div>`
+    <div class="acts" style="margin-top:8px"><button class="btn ghost" id="besXls">📥 Exporter la feuille de réservation</button>${W&&aRes?`<button class="btn" id="besRes">📌 Réserver ce qui est en stock (${aRes})</button>`:""}${aCmd.length?`<button class="btn ghost" id="besCopy">📋 Copier ce qui reste à commander (${aCmd.length})</button>`:C.length?`<span class="flag">✓ Tout est couvert par le stock</span>`:""}</div>`
     :`<p class="sub">Aucun besoin saisi. Collez la liste de la commande : l'appli retrouve dans le stock ce qu'on a déjà.</p>`)
    +(W?`<details ${C.length?"":"open"} style="margin-top:8px"><summary class="sub" style="cursor:pointer">＋ Ajouter des besoins (coller une liste)</summary>
       <textarea id="besTxt" rows="5" style="width:100%;margin-top:6px;font:15px var(--f-mono)" placeholder="Une ligne par élément : réf. · couleur · longueur · quantité\nTGY1213 9005 texture 2,10 3\nTFZ16590 9005 6,5 2\nT1046 4   (accessoire : réf. · quantité)"></textarea>
       <div class="acts"><button class="btn ghost" id="besAdd">Ajouter et comparer au stock</button><span class="sub">Copié d'Excel (colonnes réf., couleur, longueur, qté) ou tapé. Longueur en m ou en mm.</span></div></details>`:"");
+  // feuille de réservation en Excel, pour que Christophe la contrôle (Steven, 13/11/2026)
+  if($("besXls"))$("besXls").onclick=async()=>{const b=$("besXls");b.disabled=true;
+    try{if(!window.XLSX)await new Promise((ok,ko)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc)});
+      const u=c=>/\(en m\)/.test(c.b.des||"")?"m":((c.prop[0]||{}).x||{}).unite||(c.b.lg?"barre":"pce");
+      const rows=[["Feuille de réservation · "+atlName(a)+" · commande atelier "+a.id+" · "+fr(today())],
+        [PC?"Proposition de Claude d'après "+(PC.src||"la fiche de fabrication")+" · "+(PC.statut==="a_confirmer"?"à confirmer par Christophe":PC.statut==="confirmee"?"confirmée par "+(PC.par||"Christophe")+" le "+fr(PC.d||""):"refusée"):"Besoins saisis dans la commande"],[],
+        ["Réf.","Désignation","Finition","Couleur","Longueur (m)","Unité","Besoin","Déjà réservé","Proposé depuis le stock","Emplacement(s)","À commander"]];
+      for(const c of C)rows.push([(!c.prop.length&&!c.deja?"("+c.b.ref+")":c.b.ref),c.b.des||"",c.b.fin||"",c.b.col||"",c.b.lg||"",u(c),+c.b.q||0,c.deja||0,c.prop.reduce((t,p)=>t+(+p.q||0),0),c.prop.map(p=>(p.x.emplacement||"non renseigné")+(p.x.longueur?" ("+nb(p.x.longueur)+" m)":"")+" × "+nb(p.q)).join(" ; "),c.reste||0]);
+      rows.push([],["Réf. entre parenthèses = rien dans le stock atelier pour cette ligne."]);
+      const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=[14,40,10,16,12,7,9,12,14,28,12].map(w=>({wch:w}));
+      const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Réservation");
+      XLSX.writeFile(wb,"Feuille de reservation - "+atlName(a).replace(/[\\/:*?"<>|]/g," ")+" - "+today()+".xlsx",{compression:true})}
+    catch(_){toast("Export impossible pour l'instant, réessayez.")}finally{b.disabled=false}};
   if($("besAdd"))$("besAdd").onclick=()=>{const N=besParse($("besTxt").value);if(!N.length){toast("Aucune ligne reconnue : réf. · couleur · longueur · quantité.");return}
     atlSave(a.id,{besoins:[...(a.besoins||[]),...N]});toast(N.length+" ligne"+(N.length>1?"s":"")+" ajoutée"+(N.length>1?"s":"")+".")};
   box.querySelectorAll("[data-bdel]").forEach(b=>b.onclick=()=>{const L=[...(a.besoins||[])];L.splice(+b.dataset.bdel,1);atlSave(a.id,{besoins:L})});
