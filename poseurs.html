@@ -647,16 +647,19 @@ async function formJournee(day){
   const C=[...CMD.values()],deb=c=>{if(c.debut)return c.debut;if(!c.fin)return"";const d=parse(c.fin);let n=Math.max(1,Math.ceil((+c.heures||0)/7.8))-1;while(n>0){d.setDate(d.getDate()-1);if(d.getDay()%6)n--}return iso(d)};
   const prev=C.filter(c=>c.fin&&deb(c)<=day&&day<=c.fin),autresC=C.filter(c=>!prev.includes(c));
   let L=mine.length?mine.map(h=>({k:h.atelier||(h.tache==="Autre tâche"||!h.tache?"autre":""),t:h.tache&&h.tache!=="Autre tâche"?h.tache:"",d:+h.heures,x:h.tache==="Autre tâche"||!h.tache?(h.note||""):""}))
-    :prev.length?prev.map(c=>({k:c.id,t:"",d:0,x:""})):[{k:"",t:"",d:0,x:""}];
+    :[{k:prev.length===1?prev[0].id:"",t:"",d:0,x:""}];
   const durs=Array.from({length:48},(_,i)=>(i+1)/4);
   const m=modal(`<h2>Ma journée à l'atelier</h2><div class="sub">${esc(dayLabel(day))}</div>
    <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Arrivée</div>${hmSel("debut",dft.debut)}
    <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Départ</div>${hmSel("fin",dft.fin)}
    <label class="fld">Pause<select name="pause">${[0,15,30,45,60,75,90,120].map(n=>`<option value="${n}" ${n==dft.pause?"selected":""}>${n?n+" min":"aucune"}</option>`).join("")}</select></label>
    ${autresH?`<p class="sub">Déjà noté hors atelier ce jour-là : ${hfmt(autresH)} (${autres.map(h=>esc(hLab(h))).join(", ")}) : compté dans la journée.</p>`:""}
-   <h3 style="margin:14px 0 0">Ce que j'ai fait</h3><div id="jls"></div>
+   <h3 style="margin:14px 0 0">Ce que j'ai fait</h3>
+   ${prev.length>1?`<div class="sub" style="margin-top:6px">Prévu au planning ce jour-là, touchez pour ajouter une ligne :</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">${prev.map(c=>`<button type="button" class="btn ghost small" data-jc="${esc(c.id)}">+ ${esc(c.nom)}</button>`).join("")}</div>`:""}
+   <div id="jls"></div>
    <button class="btn ghost" data-jplus style="width:100%">+ Ajouter une ligne</button>
    <div class="jtot" id="jtot"></div>
+   <p id="jerr" role="alert" style="color:var(--s-rouge);font-weight:600;margin:8px 0 0" hidden></p>
    <div class="acts">${mine.length?`<button class="btn danger" data-jdel>Effacer la journée</button>`:""}<button class="btn ghost" data-x>Annuler</button><button class="btn" data-ok>Enregistrer</button></div>`);
   const f=k=>m.querySelector(`[name=${k}]`),hm=k=>f(k+"_h").value+":"+f(k+"_m").value;
   const span=()=>{let d=tmin(hm("fin"))-tmin(hm("debut"));if(d<0)d+=1440;return(d-+f("pause").value)/60};
@@ -676,15 +679,23 @@ async function formJournee(day){
     if(t.dataset.jk!==undefined){L[i].k=t.value;draw();return}if(t.dataset.jt!==undefined)L[i].t=t.value;if(t.dataset.jd!==undefined)L[i].d=+t.value;tot()});
   m.addEventListener("input",e=>{const t=e.target;if(t.dataset.jx!==undefined)L[+t.dataset.jx].x=t.value});
   m.addEventListener("click",e=>{const r=e.target.closest("[data-jrm]");if(r){L.splice(+r.dataset.jrm,1);draw();return}
-    if(e.target.closest("[data-jplus]")){const r0=tot();L.push({k:"",t:"",d:r0>0?r0:0,x:""});draw()}});
+    if(e.target.closest("[data-jplus]")){const r0=tot();L.push({k:"",t:"",d:r0>0?r0:0,x:""});draw()}
+    const c=e.target.closest("[data-jc]");if(c){const r0=tot(),v=L.find(l=>!l.k&&!l.d);if(v)v.k=c.dataset.jc;else L.push({k:c.dataset.jc,t:"",d:r0>0?r0:0,x:""});draw()}});
   m.querySelector("[data-x]").onclick=()=>m.close();
   m.querySelector("[data-jdel]")?.addEventListener("click",async ev=>{const b=ev.currentTarget;if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="Confirmer";return}
     const{error}=await sb.from("heures").delete().in("id",mine.map(h=>h.id));if(error){toast("Suppression impossible.");return}m.close();toast("Journée effacée.");render()});
   draw();
+  // message d'erreur affiché dans la fiche (Manu ne voyait pas le message qui disparaît, 13/11/2026)
+  const err=t=>{const e=m.querySelector("#jerr");e.textContent=t;e.hidden=!t;if(t){e.scrollIntoView({block:"nearest"});toast(t)}};
   m.querySelector("[data-ok]").onclick=async ev=>{
-    for(const l of L){if(!l.k){toast("Choisissez le chantier de chaque ligne.");return}if(l.k!=="autre"&&!l.t){toast("Choisissez la tâche de chaque ligne (débit, usinage…).");return}
-      if(l.k==="autre"&&!l.x.trim()){toast("Écrivez ce que vous avez fait (autre tâche).");return}if(!l.d){toast("Indiquez la durée de chaque ligne.");return}}
-    const r=tot();if(r){toast(r>0?"Il manque "+hfmt(r)+" : la journée doit être complète.":"Il y a "+hfmt(-r)+" de trop par rapport à la journée.");return}
+    // une ligne sans durée ni rien de choisi est ignorée
+    L=L.filter(l=>l.d||l.t||(l.x||"").trim());
+    if(!L.length){L=[{k:"",t:"",d:0,x:""}];draw();err("Ajoutez au moins une ligne : chantier, tâche et durée.");return}
+    draw();
+    for(const[i,l]of L.entries()){const n="Ligne "+(i+1)+" : ";if(!l.k){err(n+"choisissez le chantier.");return}if(l.k!=="autre"&&!l.t){err(n+"choisissez la tâche (débit, usinage, montage, vitrage, divers).");return}
+      if(l.k==="autre"&&!l.x.trim()){err(n+"écrivez ce que vous avez fait.");return}if(!l.d){err(n+"indiquez la durée.");return}}
+    const r=tot();if(r){err(r>0?"Il manque "+hfmt(r)+" : ajoutez une ligne ou corrigez l'heure de départ.":"Il y a "+hfmt(-r)+" de trop par rapport à la journée : corrigez une durée ou l'heure de départ.");return}
+    err("");
     // horaires enchaînés : la pause est placée dans la ligne qui passe midi
     let cur=tmin(hm("debut")),pz=+f("pause").value,placed=false;
     const rows=L.map((l,i)=>{const st=cur;let en=st+Math.round(l.d*60),p=0;if(!placed&&pz&&(en>720||i===L.length-1)){p=pz;en+=pz;placed=true}cur=en;
@@ -694,7 +705,7 @@ async function formJournee(day){
     const{error}=await sb.from("heures").insert(rows);
     if(!error&&mine.length){const d=await sb.from("heures").delete().in("id",mine.map(h=>h.id));if(d.error)toast("Anciennes lignes non effacées : prévenez Marine.")}
     b.disabled=false;
-    if(error){toast(/column|schema/.test(error.message)?"La base n'est pas encore prête pour les heures atelier (Claude prévient Steven).":"Enregistrement impossible. Vérifiez le réseau et réessayez.");return}
+    if(error){err((/column|schema/.test(error.message)?"La base n'est pas encore prête pour les heures atelier.":"Enregistrement impossible. Vérifiez le réseau et réessayez.")+" (détail : "+(error.message||error.code||"?")+")");return}
     try{localStorage.setItem("atelier.jour."+wd,JSON.stringify({debut:hm("debut"),fin:hm("fin"),pause:+f("pause").value}))}catch(_){}
     m.close();toast("Journée enregistrée ✓ ("+hfmt(L.reduce((t,l)=>t+l.d,0))+")");render()};
 }
