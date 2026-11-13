@@ -208,6 +208,7 @@ function tabsFor(){return TABS[role==="poseur"?"poseur":role==="editeur"?"editeu
 // ancre #planning / #heures / #photos : ouvre directement l'onglet correspondant au rôle
 function fromHash(){const h=location.hash.slice(1),ks=tabsFor().map(t=>t[0]);return ks.find(k=>k===h)||ks.find(k=>k==="g"+h)||null}
 function setTab(t){tab=t;try{localStorage.setItem("poseurs.tab",t)}catch(_){}
+  $("tabs").hidden=document.documentElement.classList.contains("embed")&&tabsFor().length===1; // un seul onglet dans l'appli : pas de barre
   $("tabs").innerHTML=tabsFor().map(([k,l])=>`<button type="button" data-tab="${k}" aria-pressed="${k===t}">${l}</button>`).join("");render()}
 $("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b)setTab(b.dataset.tab)});
 function weekNav(){return`<div class="weeknav"><button class="btn ghost" data-week="-1" aria-label="Semaine précédente">◀</button>

@@ -299,11 +299,12 @@ textarea{min-height:64px;resize:vertical}
     <h1>Chantiers MGDS<small id="sum">Chargement des chantiers…</small></h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="newBtn" hidden>Nouveau chantier</button></div>
   </header>
-  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button><button role="tab" data-tab="atelier" id="tabAtl" aria-selected="false" hidden>Atelier</button><button role="tab" data-tab="direction" id="tabDir" aria-selected="false" hidden>Direction</button></nav>
+  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button><button role="tab" data-tab="atelier" id="tabAtl" aria-selected="false" hidden>Atelier</button><button role="tab" data-tab="heures" id="tabHeures" aria-selected="false" hidden>Mes heures</button><button role="tab" data-tab="direction" id="tabDir" aria-selected="false" hidden>Direction</button></nav>
   <div id="tab-planning" hidden></div>
   <div id="tab-stock" hidden></div>
   <section id="tab-atelier" hidden aria-label="Atelier"></section>
   <section id="tab-direction" hidden aria-label="Direction"></section>
+  <section id="tab-heures" hidden aria-label="Mes heures"></section>
   <div id="tab-chantiers">
   <div class="stats" id="stats"></div>
   <div class="tools">
@@ -865,10 +866,12 @@ async function renderSheet(){
 // ---- onglets (version en ligne seulement) ----
 function showTab(t){
   // Christophe (atelier, reserve_stock) voit aussi le Planning : charge de l'atelier et de la pose, devis en attente (Steven, 11/11/2026)
-  if(window.mgdsProfil&&mgdsProfil.role==="atelier"&&t!=="stock"&&!(t==="planning"&&mgdsProfil.reserve_stock===true))t="atelier";
-  if(!["chantiers","planning","stock","atelier","direction"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="atelier"&&$("tabAtl").hidden))t="chantiers";
+  if(window.mgdsProfil&&mgdsProfil.role==="atelier"&&t!=="stock"&&!(t==="heures"&&!$("tabHeures").hidden)&&!(t==="planning"&&mgdsProfil.reserve_stock===true))t="atelier";
+  if(!["chantiers","planning","stock","atelier","direction","heures"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="atelier"&&$("tabAtl").hidden)||(t==="heures"&&$("tabHeures").hidden))t="chantiers";
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
-  for(const k of ["chantiers","planning","stock","atelier","direction"])$("tab-"+k).hidden=k!==t;
+  for(const k of ["chantiers","planning","stock","atelier","direction","heures"])$("tab-"+k).hidden=k!==t;
+  // Mes heures (Manu, 13/11/2026) : la page des heures dans l'appli, comme le planning
+  if(t==="heures"&&!$("tab-heures").firstChild)$("tab-heures").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#heures" title="Mes heures"></iframe>`;
   if(t==="planning"){if(window.planRender)planRender();else if(!$("tab-planning").firstChild)$("tab-planning").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`}
   if(t==="stock")loadStock();
   if(t==="direction")renderDir();
@@ -876,7 +879,7 @@ function showTab(t){
   try{history.replaceState(null,"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
 }
 window.mgdsHash0=location.hash;
-if(window.sbClient){$("tabs").hidden=false;$("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b)showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
+if(window.sbClient){$("tabs").hidden=false;document.addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b&&(b.closest("#tabs")||b.closest("#tab-atelier")))showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
 // ---- terrain : ce que les poseurs ont noté pour ce chantier ----
 const CAT={avant:"Avant chantier",fin:"Fin de chantier",conso_sortie:"Consommables sortis",conso_retour:"Consommables remis",autre:"Autres"};
 async function loadTerrain(id){
@@ -3436,7 +3439,7 @@ function atlRefresh(){atlRender();const s=$("asheet");
 // ---- liste ----
 function atlBuild(){
   const el=$("tab-atelier");if(atl.built)return;atl.built=true;
-  el.innerHTML=`${atlRole()==="atelier"?`<p style="margin:0 0 12px"><a class="btn" href="poseurs.html#heures">🕒 Mes heures : remplir ma journée à l'atelier</a></p>`:""}<div class="stats" id="atlStats"></div>
+  el.innerHTML=`${atlRole()==="atelier"?`<p style="margin:0 0 12px"><button type="button" class="btn" data-tab="heures">🕒 Mes heures : remplir ma journée à l'atelier</button></p>`:""}<div class="stats" id="atlStats"></div>
    <div class="tools"><div id="atlChips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input type="search" id="atlQ" placeholder="Chercher un client, un n° de commande ou de devis"><select id="atlTri" aria-label="Trier les commandes atelier" style="width:auto;flex:none"><option value="pose">Trier : pose la plus proche</option><option value="alertes">Trier : retards et alertes</option><option value="alpha">Trier : ordre alphabétique (A → Z)</option></select>${atlCanW()?`<button class="btn" id="atlNew">Nouvelle commande atelier</button>`:""}</div>
    <div class="list" id="atlList"></div>
    <h3 class="atlh">Charge de l'atelier<span class="sub">temps de production réparti sur les jours prévus · ${ATL_H_SEM} h par semaine</span></h3><div id="atlLoad"></div>`;
@@ -3585,7 +3588,7 @@ function atlSheet(){
       <tr class="tot"><td>Temps de production (Christophe)</td><td class="n">${H?String(H).replace(".",",")+" h":"à saisir"}</td></tr>
       <tr class="tot"><td><b>Reste à faire</b></td><td class="n"><b style="${H&&R<0?"color:var(--s-rouge)":""}">${H?String(R).replace(".",",")+" h":"–"}</b></td></tr></tbody></table></div>
       ${H&&R<0?`<p class="sub" style="color:var(--s-rouge)">Dépassement de ${String(-R).replace(".",",")} h sur le temps vendu.</p>`:""}${atl.hr&&atl.hr.size===0&&!F.tot?`<p class="sub">Aucune heure notée pour l'instant.</p>`:""}`})()}
-   ${atlRole()==="atelier"?`<p><a class="btn ghost" href="poseurs.html#heures">🕒 Noter mes heures</a></p>`:""}
+   ${atlRole()==="atelier"?`<p><button type="button" class="btn ghost" data-tab="heures">🕒 Noter mes heures</button></p>`:""}
    <details class="atldet"><summary>Fournisseurs, n° de commande et délais</summary><ul class="arcs" style="margin-top:8px">${cmds}</ul></details>
    <h3>ARC atelier<span class="sub" style="text-transform:none;letter-spacing:0">cotes validées après le métré</span></h3>
    <div class="fields"><label>N° d'ARC<input type="text" data-af="arcRef" value="${esc(a.arcRef||a.id)}" ${ro}></label><div class="sub" style="align-self:end">${arcInfo}</div></div>
@@ -3804,7 +3807,8 @@ function atlSubmit(e){e.preventDefault();e.stopPropagation();
   if(r==="atelier"){
     // Christophe : seulement l'atelier
     // Christophe : l'atelier et le stock (entrées / sorties), rien d'autre
-    document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.hidden=!(["atelier","stock"].includes(b.dataset.tab)||(b.dataset.tab==="planning"&&mgdsProfil.reserve_stock===true)));
+    // Manu (atelier, sans validation des réservations) : onglet « Mes heures » à côté d'Atelier et Stock (Steven, 13/11/2026)
+    document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.hidden=!(["atelier","stock"].includes(b.dataset.tab)||(b.dataset.tab==="planning"&&mgdsProfil.reserve_stock===true)||(b.dataset.tab==="heures"&&mgdsProfil.reserve_stock!==true)));
     try{if(!localStorage.getItem("stk-which"))stk.which="atelier"}catch(_){stk.which="atelier"}
     $("newBtn").style.display="none";document.querySelector(".top h1").firstChild.textContent="Atelier MGDS";$("sum").style.display="none";
     document.title="Atelier MGDS";showTab("atelier");
