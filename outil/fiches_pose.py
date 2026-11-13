@@ -63,7 +63,9 @@ def main(essai):
             if doc.get("type") not in FICHES or not doc.get("rempli") or not str(doc.get("id", "")).startswith("app/"): continue
             pdf = req("GET", "/storage/v1/object/documents/" + q(doc["id"]), raw=True)
             sha = hashlib.sha256(pdf).hexdigest()
-            if (etat.get(doc["id"]) or {}).get("sha") == sha: continue
+            E = etat.get(doc["id"]) or {}
+            # déjà envoyé, sauf si le dossier du chantier a changé de nom sur le serveur depuis
+            if E.get("sha") == sha and f"/{chemin}/POSE/" in E.get("cible", ""): continue
             base = nom_fiche(doc)
             if doc["type"] == "Réception":   # réception de chantier : une version par modification
                 cible = f"vers-serveur/{chemin}/POSE/{base} - {maintenant:%Y-%m-%d %Hh%M}.pdf"
