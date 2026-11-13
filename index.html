@@ -551,9 +551,10 @@ window.claude={use:async name=>{await ready;return services[name]||null}};
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 
 <script>
-// k : clé stockée ; man : date saisie à la main ; only : reno | neuf | plans (plans d'exé à faire valider) ; opt : étape facultative
+// k : clé stockée ; man : date saisie à la main ; only : reno | neuf | plans (plans d'exé à faire valider) | acompte (sauf « pas d'acompte ») ; opt : étape facultative
+// Marine, 13/11/2026 : étape « Facture d'acompte envoyée » et option « Pas d'acompte » (j.sansAcompte) qui retire les deux étapes d'acompte
 const STEPS=[
- {k:"signe",l:"Devis signé",ph:"Démarrage"},{k:"acompte",l:"Acompte reçu",ph:"Démarrage"},
+ {k:"signe",l:"Devis signé",ph:"Démarrage"},{k:"facac",l:"Facture d'acompte envoyée",only:"acompte",ph:"Démarrage"},{k:"acompte",l:"Acompte reçu",only:"acompte",ph:"Démarrage"},
  {k:"rdv",l:"RDV métré",man:1,only:"reno",ph:"Métré"},{k:"metre",l:"Métré réalisé",only:"reno",ph:"Métré"},
  {k:"plans",l:"Plans d'exé réalisés (Steven)",only:"plans",ph:"Plans"},{k:"plansok",l:"Plans validés par le MOE",only:"plans",ph:"Plans"},
  {k:"cmd",l:"Commande saisie",ph:"Commande"},{k:"cmdok",l:"Commande validée",ph:"Commande"},{k:"arc",l:"ARC validé",ph:"Commande"},
@@ -565,7 +566,7 @@ const STEPS=[
 const SK=Object.fromEntries(STEPS.map(s=>[s.k,s]));
 const LIEUX={depot:"au dépôt MGDS",chantier:"sur le chantier",mixte:"dépôt et chantier"};
 const lab=(j,s)=>s.k==="livre"&&LIEUX[j.livraison]?`Matériel livré ${LIEUX[j.livraison]}`:s.l;
-const NEXT={signe:"Saisir le devis signé",acompte:"Encaisser l'acompte",rdv:"Fixer le RDV métré (Marine)",metre:"Réaliser le métré (Yannick)",plans:"Réaliser les plans d'exé (Steven)",plansok:"Faire valider les plans par le MOE",cmd:"Saisir la commande (commercial)",cmdok:"Valider la commande (commercial)",arc:"Contrôler l'ARC (Yannick)",livprev:"Noter la semaine de livraison de l'ARC (Yannick)",conso:"Valider les consommables (Yannick)",livre:"Réceptionner le matériel",support:"Faire la réception de support",poseprop:"Proposer 2 dates de pose au client (Marine)",posevalid:"Noter la date choisie par le client (Marine)",prepa:"Remplir la fiche de préparation (découverte chantier)",pose:"Poser le chantier",recep:"Faire la réception avec le client",levees:"Lever les réserves",facture:"Facturer",paye:"Encaisser le solde"};
+const NEXT={signe:"Saisir le devis signé",facac:"Envoyer la facture d'acompte (Marine)",acompte:"Encaisser l'acompte",rdv:"Fixer le RDV métré (Marine)",metre:"Réaliser le métré (Yannick)",plans:"Réaliser les plans d'exé (Steven)",plansok:"Faire valider les plans par le MOE",cmd:"Saisir la commande (commercial)",cmdok:"Valider la commande (commercial)",arc:"Contrôler l'ARC (Yannick)",livprev:"Noter la semaine de livraison de l'ARC (Yannick)",conso:"Valider les consommables (Yannick)",livre:"Réceptionner le matériel",support:"Faire la réception de support",poseprop:"Proposer 2 dates de pose au client (Marine)",posevalid:"Noter la date choisie par le client (Marine)",prepa:"Remplir la fiche de préparation (découverte chantier)",pose:"Poser le chantier",recep:"Faire la réception avec le client",levees:"Lever les réserves",facture:"Facturer",paye:"Encaisser le solde"};
 const NEED_PLANS=["cmd","cmdok","arc"];
 // étapes validées par une fiche remplie dans l'appli (toutes les cases obligatoires faites)
 const FORM_STEPS={metre:"Métré",prepa:"Préparation",recep:"Réception",support:"Support"};
@@ -630,12 +631,13 @@ let jobs=new Map(),openId=null,filter="encours",who="Tous",q="",pendingSheet=fal
 let tri=(()=>{try{return localStorage.getItem("chantiers-tri")||"pose"}catch(e){return"pose"}})();
 
 const sd=(j,k)=>{const v=(j.steps||{})[k];return v&&v.d?v.d:""};
-function stepsOf(j){return STEPS.filter(s=>!s.only||(s.only==="reno"&&j.type!=="neuf")||(s.only==="neuf"&&j.type==="neuf")||(s.only==="plans"&&j.plans))}
+function stepsOf(j){return STEPS.filter(s=>!s.only||(s.only==="reno"&&j.type!=="neuf")||(s.only==="neuf"&&j.type==="neuf")||(s.only==="plans"&&j.plans)||(s.only==="acompte"&&!j.sansAcompte))}
 function nDone(j){return stepsOf(j).filter(s=>sd(j,s.k)).length}
-function curStep(j){const ss=stepsOf(j);for(let n=0;n<ss.length;n++){const s=ss[n];if(s.opt)continue;if(s.k==="levees"&&!sd(j,"reserves"))continue;if((s.man||s.k==="prepa")&&ss.slice(n+1).some(x=>sd(j,x.k)))continue;if(!sd(j,s.k))return s.k}return null}
+function curStep(j){const ss=stepsOf(j);for(let n=0;n<ss.length;n++){const s=ss[n];if(s.opt)continue;if(s.k==="levees"&&!sd(j,"reserves"))continue;if(s.k==="facac"&&sd(j,"acompte"))continue;if((s.man||s.k==="prepa")&&ss.slice(n+1).some(x=>sd(j,x.k)))continue;if(!sd(j,s.k))return s.k}return null}
 function locked(j,k){return !!(j.plans&&NEED_PLANS.includes(k)&&!sd(j,"plansok"))}
 const LATE=[
- [j=>sd(j,"signe")&&!sd(j,"acompte")&&days(sd(j,"signe"))>14,"acompte",j=>"Acompte attendu depuis "+days(sd(j,"signe"))+" j"],
+ [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"facac")&&!sd(j,"acompte")&&days(sd(j,"signe"))>3,"facac",j=>"Facture d'acompte à envoyer (devis signé depuis "+days(sd(j,"signe"))+" j)"],
+ [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"acompte")&&days(sd(j,"facac")||sd(j,"signe"))>14,"acompte",j=>"Acompte attendu depuis "+days(sd(j,"facac")||sd(j,"signe"))+" j"],
  [j=>j.type!=="neuf"&&sd(j,"rdv")&&sd(j,"rdv")<today()&&!sd(j,"metre"),"metre",j=>"Métré du "+fr(sd(j,"rdv"))+" non validé"],
  [j=>arcsOf(j).some(a=>a.prev&&a.prev<today()&&!(a.livre&&a.livre.d)),"livre",j=>{const a=arcsOf(j).find(a=>a.prev&&a.prev<today()&&!(a.livre&&a.livre.d));return"Livraison "+(a.four||"")+" prévue "+sem(a.prev)+" non reçue"}],
  [j=>!hasArcs(j)&&sd(j,"livprev")&&sd(j,"livprev")<today()&&!sd(j,"livre"),"livre",j=>"Livraison prévue "+sem(sd(j,"livprev"))+" non reçue"],
@@ -835,6 +837,7 @@ async function renderSheet(){
     <label>Type de chantier<select id="f-type" data-field="type" ${ro}><option value="reno" ${j.type!=="neuf"?"selected":""}>Rénovation</option><option value="neuf" ${j.type==="neuf"?"selected":""}>Neuf</option></select></label>
     <label>Lieu de livraison<select id="f-liv" data-field="livraison" ${ro||(hasArcs(j)?"disabled title='Déduit des ARC'":"")}>${[["","à préciser"],["depot","Dépôt MGDS"],["chantier","Chantier"],["mixte","Les deux (voir remarques)"]].map(([v,t])=>`<option value="${v}" ${v===(j.livraison||"")?"selected":""}>${t}</option>`).join("")}</select></label>
     <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="f-plans" data-flag="plans" ${j.plans?"checked":""} ${ro} style="width:18px;height:18px">Plans d'exé à faire valider par le MOE</label>
+    <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="f-sansac" data-flag="sansAcompte" ${j.sansAcompte?"checked":""} ${ro} style="width:18px;height:18px">Pas d'acompte sur ce chantier</label>
     <label>Suivi<select id="f-suivi" data-field="suivi" ${ro}>${["","Yannick","Steven"].map(x=>`<option ${x===(j.suivi||"")?"selected":""}>${x}</option>`).join("")}</select></label>
     <label class="wide">Bloqué (le motif fait passer le chantier en rouge)<input type="text" id="f-bloque" data-field="bloque" value="${esc(j.bloque)}" ${ro}></label>
     <label class="wide">Remarques<textarea id="f-notes" data-field="notes" ${ro}>${esc(j.notes)}</textarea></label>
