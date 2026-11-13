@@ -232,6 +232,15 @@ textarea{min-height:64px;resize:vertical}
 .tbl .n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}.tbl select{min-width:190px}.tbl input[type=number]{font:14px var(--f-mono);width:7.5em;text-align:right;border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:var(--surface);color:var(--ink)}
 .tbl .des{min-width:220px}.up{color:var(--s-rouge);font-weight:600}.dn{color:var(--s-vert);font-weight:600}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.chart{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}.chart h3{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+.dhrow{display:grid;grid-template-columns:minmax(120px,220px) minmax(0,1fr);gap:4px 14px;padding:8px 0;border-top:1px solid var(--line);align-items:center}
+.dhn{display:grid;gap:2px;min-width:0}.dhn .lnk{text-align:left}.dhbars{display:grid;gap:5px;min-width:0}
+.dhb{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13px}.dhb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dhl{color:var(--muted)}.dht{position:relative;height:12px;display:block}.dht i{position:absolute;left:0;top:0;height:12px;border-radius:0 4px 4px 0;display:block}
+.dhb .dhp{opacity:.25}.dhb.pose i.dhp,.dhb.pose i.dhr{background:var(--accent)}.dhb.atelier i.dhp,.dhb.atelier i.dhr{background:var(--s-orange,#E08A52)}
+.dhb i.dho{background:var(--s-rouge,#CC4141);border-left:2px solid var(--surface)}.dhv{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}.dhv.r{color:var(--s-rouge,#CC4141);font-weight:700}
+.dhleg{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}.dhleg .sw{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.dhleg .sw.pose{background:var(--accent)}.dhleg .sw.atelier{background:var(--s-orange,#E08A52)}.dhleg .sw.prev{background:var(--muted);opacity:.3}.dhleg .sw.over{background:var(--s-rouge,#CC4141)}
+@media (max-width:560px){.dhrow{grid-template-columns:1fr}}
 .hb{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:14px;margin-bottom:8px}.hb i{grid-column:1/-1;height:9px;border-radius:2px;background:var(--accent);display:block;min-width:2px}.hb b{font:500 13px var(--f-mono)}
 .tabs{display:flex;gap:4px;margin:0 0 14px;border-bottom:1px solid var(--line)}
 .tabs button{font:600 15px var(--f-body);padding:10px 16px;border:0;background:none;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;margin-bottom:-1px}
@@ -3218,6 +3227,49 @@ if(/iP(ad|hone|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&
 // direction/fac_* : {kind:"facture",four,num,date,lignes:[{ref,des,fam,qte,pu,ht,aff,doute}]} ; aff = "stock" | "fg" | n° de chantier
 // direction/prev_<chantier> : {kind:"prevu",achat} ; direction/tarifs : {kind:"tarifs",items:{"four|ref":pu}}
 let dirDocs=new Map(),dirTab="affecter",dirMois="",dirAll=false,dirWait=false;
+// ---- Direction : heures prévues et réalisées par affaire (Steven, 13/11/2026) ----
+// Pose : prévu = jours d'équipe de 2 saisis ici (chantier.jp) × 2 × 8,75 h, sinon jours-poseur du planning × 8,75 h ;
+// réalisé = heures des poseurs sur le chantier (hors atelier). Atelier : prévu = temps de production de Christophe,
+// réalisé = heures notées par commande atelier (Manu, poseurs à l'atelier).
+const dirH={ok:false,loading:false,hs:[],pl:[],tout:false};
+async function dirHLoad(){if(dirH.loading)return;dirH.loading=true;const sb=window.sbClient;
+  try{const[a,b]=await Promise.all([sb.from("heures").select("chantier,atelier,tache,heures").limit(20000),sb.from("planning").select("chantier,poseur,note").not("chantier","is",null).limit(20000)]);
+    dirH.hs=a.data||[];dirH.pl=(b.data||[]).filter(p=>!/atelier/i.test(p.note||""));dirH.ok=true}catch(_){dirH.ok=false}
+  dirH.loading=false;renderDir()}
+function dirHeuresData(){
+  const A=new Map(),get=(k,nom,j)=>{if(!A.has(k))A.set(k,{k,nom,j,pp:0,ppSrc:"",pr:0,ap:0,ar:0,fin:false});return A.get(k)};
+  for(const[id,j]of jobs){const o=get(id,j.client||id,j);o.fin=done(j);if(+j.jp>0){o.pp=+j.jp*PL_EQ;o.ppSrc="jp"}}
+  const cmdKey=new Map();
+  for(const[aid,a]of atl.rows){const k=a.chantier&&jobs.has(a.chantier)?a.chantier:"atl:"+aid;cmdKey.set(aid,k);const o=get(k,atlName({id:aid,...a}),null);o.ap+=atlHeures(a)||0;if(!a.chantier)o.fin=atlDone(a)}
+  for(const h of dirH.hs){const n=+h.heures||0;if(h.atelier){const k=cmdKey.get(h.atelier);if(k)get(k,k).ar+=n}else if(h.chantier&&!h.tache&&A.has(h.chantier))A.get(h.chantier).pr+=n}
+  const pj=new Map();dirH.pl.forEach(p=>pj.set(p.chantier,(pj.get(p.chantier)||0)+1));
+  for(const[id,n]of pj){const o=A.get(id);if(o&&!o.pp){o.pp=n*PL_H;o.ppSrc="planning"}}
+  return[...A.values()].filter(o=>o.pp||o.pr||o.ap||o.ar).filter(o=>dirH.tout||!o.fin||o.pr||o.ar);
+}
+const h1=n=>String(Math.round(n*10)/10).replace(".",",");
+function dirHBar(kind,prev,real,max){
+  const w=v=>Math.max(0,v)/max*100,over=prev&&real>prev,pc=prev?Math.round(real/prev*100):null;
+  const tip=`${kind==="pose"?"Pose":"Atelier"} : ${h1(real)} h réalisées sur ${prev?h1(prev)+" h prévues ("+pc+" %)":"aucune heure prévue"}${kind==="pose"&&prev?" · "+h1(prev/PL_EQ)+" j d'équipe prévus, "+h1(real/PL_EQ)+" faits":""}`;
+  return`<div class="dhb ${kind}" title="${esc(tip)}" tabindex="0" aria-label="${esc(tip)}"><span class="dhl">${kind==="pose"?"Pose":"Atelier"}</span>
+   <span class="dht">${prev?`<i class="dhp" style="width:${w(prev)}%"></i>`:""}<i class="dhr" style="width:${w(Math.min(real,prev||real))}%"></i>${over?`<i class="dho" style="left:${w(prev)}%;width:${w(real-prev)}%"></i>`:""}</span>
+   <span class="dhv${over?" r":""}">${h1(real)} / ${prev?h1(prev):"–"} h${over?" ⚠":""}</span></div>`}
+function dirHeuresHtml(){
+  if(!dirH.ok){if(!dirH.loading)dirHLoad();return`<p class="sub">Chargement des heures…</p>`}
+  const L=dirHeuresData().sort((x,y)=>Math.max(y.pp,y.pr)+Math.max(y.ap,y.ar)-Math.max(x.pp,x.pr)-Math.max(x.ap,x.ar));
+  const max=Math.max(1,...L.map(o=>Math.max(o.pp,o.pr,o.ap,o.ar)));
+  const T=L.reduce((t,o)=>({pp:t.pp+o.pp,pr:t.pr+o.pr,ap:t.ap+o.ap,ar:t.ar+o.ar}),{pp:0,pr:0,ap:0,ar:0});
+  const sansPrev=L.filter(o=>o.j&&!o.pp&&!o.fin).length;
+  return`<div class="kpis"><div class="kpi"><b>${h1(T.pr)} h</b><span>Pose réalisée sur ${h1(T.pp)} h prévues</span></div><div class="kpi"><b>${h1(T.ar)} h</b><span>Atelier réalisé sur ${h1(T.ap)} h prévues</span></div><div class="kpi ${L.some(o=>(o.pp&&o.pr>o.pp)||(o.ap&&o.ar>o.ap))?"r":""}"><b>${L.filter(o=>(o.pp&&o.pr>o.pp)||(o.ap&&o.ar>o.ap)).length}</b><span>Affaire(s) en dépassement</span></div></div>
+   <div class="tools"><button class="chip" id="dirHtout" aria-pressed="${dirH.tout}">Afficher aussi les affaires terminées</button></div>
+   <div class="chart dhchart"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3>Heures par affaire</h3>
+    <div class="dhleg"><span><i class="sw pose"></i>Pose</span><span><i class="sw atelier"></i>Atelier</span><span><i class="sw prev"></i>Prévu</span><span><i class="sw over"></i>Dépassement</span></div></div>
+    <p class="sub">Barre pleine = heures réalisées ; fond clair = heures prévues. Touchez une barre pour le détail.</p>
+    ${L.length?L.map(o=>`<div class="dhrow"><div class="dhn">${o.j?`<button class="lnk" data-open="${esc(o.k)}">${esc(o.nom)}</button>`:esc(o.nom)}<small class="sub">${o.ppSrc==="planning"?"pose prévue d'après le planning":o.ppSrc==="jp"?h1(+o.j.jp)+" j d'équipe prévus":o.j&&!o.fin?"pose prévue à saisir":""}</small></div>
+      <div class="dhbars">${o.j?dirHBar("pose",o.pp,o.pr,max):""}${o.ap||o.ar?dirHBar("atelier",o.ap,o.ar,max):""}</div></div>`).join(""):`<p class="sub">Aucune heure prévue ni réalisée pour l'instant.</p>`}</div>
+   <details class="atldet" ${sansPrev?"open":""}><summary><b>Pose prévue par affaire</b> <span class="sub">en jours d'équipe de 2 (${h1(PL_EQ)} h par jour d'équipe)${sansPrev?" · "+sansPrev+" à saisir":""}</span></summary>
+    <div class="tbl"><table><thead><tr><th>Chantier</th><th class="n">Jours d'équipe prévus</th><th class="n">Réalisé (jours d'équipe)</th></tr></thead><tbody>
+    ${L.filter(o=>o.j).map(o=>`<tr><td>${esc(o.nom)}</td><td class="n"><input type="number" min="0" step="0.5" inputmode="decimal" data-dirjp="${esc(o.k)}" value="${esc(o.j.jp||"")}" placeholder="${o.ppSrc==="planning"?h1(o.pp/PL_EQ):""}" aria-label="Jours d'équipe prévus pour ${esc(o.nom)}" style="max-width:90px;text-align:right" ${canWrite?"":"disabled"}></td><td class="n">${h1(o.pr/PL_EQ)}</td></tr>`).join("")}</tbody></table></div></details>`;
+}
 const eur=n=>Math.round(n||0).toLocaleString("fr-FR")+" €",eur2=n=>(n||0).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 const dirLines=()=>[...dirDocs].filter(([,d])=>d.kind==="facture").flatMap(([fid,f])=>(f.lignes||[]).map((l,i)=>({...l,fid,i,four:f.four||"?",num:f.num||"",date:f.date||""}))).sort((a,b)=>a.date.localeCompare(b.date)||a.fid.localeCompare(b.fid)||a.i-b.i);
 const affLab=a=>a==="stock"?"Stock":a==="fg"?"Frais généraux":jobs.has(a)?jobs.get(a).client:a;
@@ -3234,11 +3286,12 @@ function renderDir(){
   const ls=dirMois?all.filter(l=>l.date.startsWith(dirMois)):all;
   const ecs=prixEcarts(all).filter(e=>!dirMois||e.date.startsWith(dirMois));
   const total=ls.reduce((s,l)=>s+(l.ht||0),0),stock=ls.filter(l=>l.aff==="stock").reduce((s,l)=>s+(l.ht||0),0),todo=ls.filter(toSort),sur=ecs.filter(e=>e.sur>0).reduce((s,e)=>s+e.sur,0);
-  const head=`<div class="dtop">${[["affecter","À affecter ("+todo.length+")"],["debourses","Déboursés"],["prix","Prix d'achat ("+ecs.length+")"],["analyses","Analyses"]].map(([k,t])=>`<button class="chip" data-dirtab="${k}" aria-pressed="${dirTab===k}">${t}</button>`).join("")}
+  const head=`<div class="dtop">${[["affecter","À affecter ("+todo.length+")"],["debourses","Déboursés"],["prix","Prix d'achat ("+ecs.length+")"],["analyses","Analyses"],["heures","Heures"]].map(([k,t])=>`<button class="chip" data-dirtab="${k}" aria-pressed="${dirTab===k}">${t}</button>`).join("")}
    <select id="dirMois" aria-label="Période"><option value="">Toute la période</option>${mois.map(m=>`<option value="${m}" ${m===dirMois?"selected":""}>${m.slice(5)}/${m.slice(0,4)}</option>`).join("")}</select></div>
    <div class="kpis"><div class="kpi"><b>${eur(total)}</b><span>Achats HT</span></div><div class="kpi"><b>${eur(stock)}</b><span>Entrés en stock</span></div><div class="kpi ${todo.length?"o":""}"><b>${todo.length}</b><span>Lignes à affecter</span></div><div class="kpi ${sur>0?"r":""}"><b>${eur(sur)}</b><span>Surcoût des hausses de prix</span></div></div>`;
   let body="";
-  if(!all.length)body=`<div class="empty">Aucune facture pour l'instant. Envoie l'export Cense à Claude : il chargera et affectera les lignes ici.</div>`;
+  if(dirTab==="heures")body=dirHeuresHtml();
+  else if(!all.length)body=`<div class="empty">Aucune facture pour l'instant. Envoie l'export Cense à Claude : il chargera et affectera les lignes ici.</div>`;
   else if(dirTab==="affecter"){
     const rows=dirAll?ls:todo;
     const jl=[...jobs.entries()].sort((x,y)=>String(x[1].client).localeCompare(y[1].client));
@@ -3254,11 +3307,12 @@ function renderDir(){
     const desc=r=>r.sort((x,y)=>y[1]-x[1]);
     body=`<div class="charts"><div class="chart"><h3>Par fournisseur</h3>${bars(desc(sumBy(ls,l=>l.four)).slice(0,10))}</div><div class="chart"><h3>Par famille</h3>${bars(desc(sumBy(ls,l=>l.fam||"Non classé")).slice(0,10))}</div><div class="chart"><h3>Par destination</h3>${bars(desc(sumBy(ls,l=>l.aff==="stock"||l.aff==="fg"?affLab(l.aff):l.aff?"Chantiers":"À affecter")))}</div><div class="chart"><h3>Par mois</h3>${bars(sumBy(all,l=>l.date.slice(0,7)||"?").sort((x,y)=>x[0].localeCompare(y[0])).slice(-12).map(([m,v])=>[m.slice(5)+"/"+m.slice(0,4),v]))}</div></div>`;
   }
-  $("tab-direction").innerHTML=head+body;
+  $("tab-direction").innerHTML=(dirTab==="heures"?head.replace(/<div class="kpis">[\s\S]*$/,""):head)+body;
 }
 async function dirPut(id,d){try{await dirDb.put(id,d)}catch(_){toast("Enregistrement impossible, réessayez.")}}
-$("tab-direction").addEventListener("click",e=>{const b=e.target.closest("[data-dirtab],#dirAll");if(!b)return;if(b.id==="dirAll")dirAll=!dirAll;else dirTab=b.dataset.dirtab;renderDir()});
+$("tab-direction").addEventListener("click",e=>{if(e.target.closest("#dirHtout")){dirH.tout=!dirH.tout;renderDir();return}const b=e.target.closest("[data-dirtab],#dirAll");if(!b)return;if(b.id==="dirAll")dirAll=!dirAll;else dirTab=b.dataset.dirtab;if(dirTab==="heures")dirH.ok=false;renderDir()});
 $("tab-direction").addEventListener("change",e=>{const t=e.target;
+  if(t.dataset.dirjp){const id=t.dataset.dirjp,j=jobs.get(id);if(!j||!canWrite)return;const v=t.value===""?"":Math.max(0,+String(t.value).replace(",","."))||"";jobs.set(id,{...j,jp:v});save(id,{jp:v});renderDir();return}
   if(t.id==="dirMois"){dirMois=t.value;renderDir();return}
   if(t.dataset.aff!==undefined){const fid=t.dataset.aff,f=dirDocs.get(fid);if(!f)return;const lignes=f.lignes.map(x=>({...x})),l=lignes[+t.dataset.i];l.aff=t.value;delete l.doute;
     dirDocs.set(fid,{...f,lignes});renderDir();dirPut(fid,{...f,lignes});return}
