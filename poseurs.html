@@ -554,11 +554,20 @@ async function vHeures(v){
   if(!CMD.size)await loadCmd();
   const days=weekDays(),hs=(await loadHeures(days[0],days[6])).filter(h=>h.poseur===me);
   const tot=hs.reduce((s,h)=>s+(+h.heures||0),0),t=today();
+  // journée incomplète (Steven, 13/11/2026) : jour passé, ou aujourd'hui après l'heure habituelle de départ
+  const manque=d=>{if(role!=="atelier")return 0;const wd=(parse(d).getDay()+6)%7;if(wd>4||d>t)return 0;
+    let L={};try{L=JSON.parse(localStorage.getItem("atelier.jour."+wd)||"{}")}catch(_){}const fin=L.fin||(wd===4?"13:00":"17:30"),now=new Date();
+    if(d===t&&now.getHours()*60+now.getMinutes()<tmin(fin))return 0;
+    const exp=L.debut&&L.fin?(tmin(L.fin)-tmin(L.debut)-(+L.pause||0))/60:(wd===4?5:8.5),f=hs.filter(h=>h.jour===d).reduce((s,h)=>s+(+h.heures||0),0);
+    return Math.max(0,Math.round((exp-f)*100)/100)};
+  const inc=days.filter(d=>manque(d)>0);
   v.innerHTML=weekNav()+`<div class="tot"><span>Total de la semaine</span><b>${hfmt(tot)}</b></div>`
-   +days.map((d,i)=>{const items=hs.filter(h=>h.jour===d);if(i===6&&!items.length)return"";
+   +(inc.length?`<div class="box" role="alert" style="border-left:6px solid var(--s-rouge);background:var(--t-rouge);margin-top:10px"><b>⚠ Journée${inc.length>1?"s":""} incomplète${inc.length>1?"s":""}</b><br>${inc.map(d=>esc(dayLabel(d))+" : il manque "+hfmt(manque(d))).join("<br>")}</div>`:"")
+   +days.map((d,i)=>{const items=hs.filter(h=>h.jour===d);if(i===6&&!items.length)return"";const mq=manque(d);
      return`<section class="day${d===t?" today":""}"><div class="day-h">${d===t?"Aujourd'hui · ":""}${dayLabel(d)}</div>
       ${items.map(lineH).join("")}
-      ${role==="atelier"?`<button class="btn small" data-jadd="${d}">${items.length?"Modifier ma journée":"Remplir ma journée"}</button>`
+      ${mq?`<p style="color:var(--s-rouge);font-weight:600;margin:4px 0">⚠ Journée incomplète : il manque ${hfmt(mq)}</p>`:""}
+      ${role==="atelier"?`<button class="btn small" data-jadd="${d}">${items.length?"Compléter ou modifier ma journée":"Remplir ma journée"}</button>`
         :`<button class="btn ghost small" data-hadd="${d}">+ Ajouter des heures</button> <button class="btn ghost small" data-jadd="${d}">🟧 Journée à l'atelier</button>`}</section>`}).join("")
    +`<p class="sub" style="margin-top:18px">Marine reçoit vos heures pour les salaires. Une ligne validée par Marine (✓) ne peut plus être modifiée : demandez-lui en cas d'erreur.</p>`;
   v._heures=hs;
@@ -642,8 +651,9 @@ async function formJournee(day){
   if(mine.some(h=>h.valide_le)){toast("Journée validée par Marine : demandez-lui pour la corriger.");return}
   const autresH=Math.round(autres.reduce((t,h)=>t+(+h.heures||0),0)*100)/100,wd=(parse(day).getDay()+6)%7;
   let last={};try{last=JSON.parse(localStorage.getItem("atelier.jour."+wd)||"{}")}catch(_){}
-  const dft=mine.length?{debut:(mine[0].debut||"08:00").slice(0,5),fin:(mine[mine.length-1].fin||"17:00").slice(0,5),pause:mine.reduce((t,h)=>t+(h.pause_min||0),0)}
-    :{debut:last.debut||"08:00",fin:last.fin||(wd===4?"13:00":"17:30"),pause:last.pause??(wd===4?0:60)};
+  // journée remplie au fil de l'eau (Steven, 13/11/2026) : départ et pause habituels tant que la journée n'est pas finie
+  const usu={debut:last.debut||"08:00",fin:last.fin||(wd===4?"13:00":"17:30"),pause:last.pause??(wd===4?0:60)},pz0=mine.reduce((t,h)=>t+(h.pause_min||0),0),fin0=mine.length?(mine[mine.length-1].fin||"").slice(0,5):"";
+  const dft=mine.length?{debut:(mine[0].debut||usu.debut).slice(0,5),fin:fin0>usu.fin?fin0:usu.fin,pause:pz0||usu.pause}:usu;
   // commandes prévues ce jour-là : production lancée ou fin prévue proche (7,8 h par jour)
   const C=[...CMD.values()],deb=c=>{if(c.debut)return c.debut;if(!c.fin)return"";const d=parse(c.fin);let n=Math.max(1,Math.ceil((+c.heures||0)/7.8))-1;while(n>0){d.setDate(d.getDate()-1);if(d.getDay()%6)n--}return iso(d)};
   const prev=C.filter(c=>c.fin&&deb(c)<=day&&day<=c.fin),autresC=C.filter(c=>!prev.includes(c));
@@ -675,7 +685,7 @@ async function formJournee(day){
       <select data-jd="${i}" aria-label="Durée"><option value="0">Durée…</option>${durs.map(n=>`<option value="${n}" ${n===l.d?"selected":""}>${hfmt(n)}</option>`).join("")}</select>
       ${L.length>1?`<button class="btn ghost small x" data-jrm="${i}" aria-label="Retirer la ligne">×</button>`:""}</div></div>`).join("");tot()};
   const tot=()=>{const S=Math.round(span()*100)/100,need=Math.round((S-autresH)*100)/100,got=Math.round(L.reduce((t,l)=>t+(+l.d||0),0)*100)/100,r=Math.round((need-got)*100)/100,e=m.querySelector("#jtot");
-    e.className="jtot"+(r?" ko":"");e.innerHTML=`<span>Journée ${hfmt(Math.max(0,S))}${autresH?" (dont "+hfmt(autresH)+" hors atelier)":""}</span><span>${r>0?"reste "+hfmt(r)+" à noter":r<0?hfmt(-r)+" de trop":"complète ✓"}</span>`;return r};
+    e.className="jtot"+(r?" ko":"");e.innerHTML=`<span>Journée ${hfmt(Math.max(0,S))}${autresH?" (dont "+hfmt(autresH)+" hors atelier)":""}</span><span>${r>0?"reste "+hfmt(r)+" à noter (enregistrable)":r<0?hfmt(-r)+" de trop":"complète ✓"}</span>`;return r};
   m.addEventListener("change",e=>{const t=e.target,i=+(t.dataset.jk??t.dataset.jt??t.dataset.jd??-1);
     if(t.dataset.jk!==undefined){L[i].k=t.value;draw();return}if(t.dataset.jt!==undefined)L[i].t=t.value;if(t.dataset.jd!==undefined)L[i].d=+t.value;tot()});
   m.addEventListener("input",e=>{const t=e.target;if(t.dataset.jx!==undefined)L[+t.dataset.jx].x=t.value});
@@ -695,11 +705,12 @@ async function formJournee(day){
     draw();
     for(const[i,l]of L.entries()){const n="Ligne "+(i+1)+" : ";if(!l.k){err(n+"choisissez le chantier.");return}if(l.k!=="autre"&&!l.t){err(n+"choisissez la tâche (débit, usinage, montage, vitrage, divers).");return}
       if(l.k==="autre"&&!l.x.trim()){err(n+"écrivez ce que vous avez fait.");return}if(!l.d){err(n+"indiquez la durée.");return}}
-    const r=tot();if(r){err(r>0?"Il manque "+hfmt(r)+" : ajoutez une ligne ou corrigez l'heure de départ.":"Il y a "+hfmt(-r)+" de trop par rapport à la journée : corrigez une durée ou l'heure de départ.");return}
+    // on peut enregistrer une journée en cours : seul le trop-plein est refusé
+    const r=tot();if(r<0){err("Il y a "+hfmt(-r)+" de trop par rapport à la journée : corrigez une durée ou l'heure de départ.");return}
     err("");
     // horaires enchaînés : la pause est placée dans la ligne qui passe midi
     let cur=tmin(hm("debut")),pz=+f("pause").value,placed=false;
-    const rows=L.map((l,i)=>{const st=cur;let en=st+Math.round(l.d*60),p=0;if(!placed&&pz&&(en>720||i===L.length-1)){p=pz;en+=pz;placed=true}cur=en;
+    const rows=L.map((l,i)=>{const st=cur;let en=st+Math.round(l.d*60),p=0;if(!placed&&pz&&(en>720||st>=720)){p=pz;en+=pz;placed=true}cur=en;
       const c=CMD.get(l.k);return{jour:day,chantier:c&&c.chantier||null,atelier:l.k==="autre"?null:l.k,tache:l.k==="autre"?"Autre tâche":l.t,
         debut:hhmm(st%1440),fin:hhmm(en%1440),pause_min:p,heures:l.d,note:l.k==="autre"?l.x.trim().slice(0,200):null}});
     const b=ev.currentTarget;b.disabled=true;
@@ -708,7 +719,7 @@ async function formJournee(day){
     b.disabled=false;
     if(error){err((/column|schema/.test(error.message)?"La base n'est pas encore prête pour les heures atelier.":"Enregistrement impossible. Vérifiez le réseau et réessayez.")+" (détail : "+(error.message||error.code||"?")+")");return}
     try{localStorage.setItem("atelier.jour."+wd,JSON.stringify({debut:hm("debut"),fin:hm("fin"),pause:+f("pause").value}))}catch(_){}
-    m.close();toast("Journée enregistrée ✓ ("+hfmt(L.reduce((t,l)=>t+l.d,0))+")");render()};
+    m.close();toast(r>0?"Enregistré ✓ : il reste "+hfmt(r)+" à noter d'ici la fin de la journée.":"Journée enregistrée ✓ ("+hfmt(L.reduce((t,l)=>t+l.d,0))+")");render()};
 }
 // heures et minutes en listes déroulantes (pas de 15 min)
 function hmSel(name,v){const[h0,m0]=(v||"08:00").split(":").map(Number),m=Math.round(m0/15)*15%60;
