@@ -168,7 +168,7 @@ html.embed body{background:transparent}html.embed header.top,html.embed .who{dis
 if(/[?&]embed=1/.test(location.search))document.documentElement.classList.add("embed");
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let sb,me,role="lecteur",profils=[],chantiers=new Map(),week,tab,openId=null;
+let sb,me,role="lecteur",chr=false,profils=[],chantiers=new Map(),week,tab,openId=null;
 let tT;function toast(t){const e=$("toast");e.textContent=t;e.hidden=false;clearTimeout(tT);tT=setTimeout(()=>e.hidden=true,3500)}
 
 // ---------- dates (heure locale) ----------
@@ -204,7 +204,8 @@ const TABS={poseur:[["planning","Mon planning"],["stockphoto","Stock"],["heures"
   editeur:[["gplanning","Planning"],["gheures","Heures"],["gphotos","Photos"]],
   atelier:[["heures","Mes heures"]], // Manu note sa journée à l'atelier (Steven, 12/11/2026)
   autre:[["gplanning","Planning"],["gphotos","Photos"]]};
-function tabsFor(){return TABS[role==="poseur"?"poseur":role==="editeur"?"editeur":role==="atelier"?"atelier":"autre"]}
+// chr = Christophe (atelier qui valide les réservations) : il ne note pas d'heures, il voit le planning comme les autres (13/11/2026)
+function tabsFor(){return TABS[role==="poseur"?"poseur":role==="editeur"?"editeur":role==="atelier"&&!chr?"atelier":"autre"]}
 // ancre #planning / #heures / #photos : ouvre directement l'onglet correspondant au rôle
 function fromHash(){const h=location.hash.slice(1),ks=tabsFor().map(t=>t[0]);return ks.find(k=>k===h)||ks.find(k=>k==="g"+h)||null}
 function setTab(t){tab=t;try{localStorage.setItem("poseurs.tab",t)}catch(_){}
@@ -555,7 +556,7 @@ async function vHeures(v){
   const days=weekDays(),hs=(await loadHeures(days[0],days[6])).filter(h=>h.poseur===me);
   const tot=hs.reduce((s,h)=>s+(+h.heures||0),0),t=today();
   // journée incomplète (Steven, 13/11/2026) : jour passé, ou aujourd'hui après l'heure habituelle de départ
-  const manque=d=>{if(role!=="atelier")return 0;const wd=(parse(d).getDay()+6)%7;if(wd>4||d>t)return 0;
+  const manque=d=>{if(role!=="atelier"||chr)return 0;const wd=(parse(d).getDay()+6)%7;if(wd>4||d>t)return 0;
     let L={};try{L=JSON.parse(localStorage.getItem("atelier.jour."+wd)||"{}")}catch(_){}const fin=L.fin||(wd===4?"13:00":"17:30"),now=new Date();
     if(d===t&&now.getHours()*60+now.getMinutes()<tmin(fin))return 0;
     const exp=L.debut&&L.fin?(tmin(L.fin)-tmin(L.debut)-(+L.pause||0))/60:(wd===4?5:8.5),f=hs.filter(h=>h.jour===d).reduce((s,h)=>s+(+h.heures||0),0);
@@ -889,14 +890,16 @@ document.addEventListener("click",e=>{const c=e.target.closest("[data-gcat]");if
 (async()=>{
   await claude.use("user");sb=window.sbClient;
   const{data:{session}}=await sb.auth.getSession();me=session.user.id;
-  profils=(await sb.from("profils").select("id,email,nom,role")).data||[];
+  profils=(await sb.from("profils").select("id,email,nom,role,reserve_stock")).data||[];
   role=(profils.find(p=>p.id===me)||{}).role||"lecteur";
+  chr=role==="atelier"&&(profils.find(p=>p.id===me)||{}).reserve_stock===true;
+  if(chr&&!document.documentElement.classList.contains("embed")){location.replace("index.html");return}
   // accès par poste (Steven, 09/11/2026) : l'atelier (Christophe, Manu) a l'appli principale (Atelier + Stock) et ici « Mes heures » (12/11/2026)
   // hors poseurs, l'espace poseurs ne s'ouvre que dans l'onglet Planning de l'appli principale (Yannick tombait sur la page poseurs avec un ancien raccourci, 09/11/2026)
   if(role!=="poseur"&&role!=="atelier"&&!document.documentElement.classList.contains("embed")){location.replace("index.html");return}
   const p=profils.find(x=>x.id===me)||{};
   $("hello").textContent="Bonjour "+(p.nom||(p.email||"").split("@")[0]);
-  if(role==="atelier")$("hello").insertAdjacentHTML("beforeend",' · <a href="index.html">Atelier et stock</a>');
+  if(role==="atelier"&&!chr)$("hello").insertAdjacentHTML("beforeend",' · <a href="index.html">Atelier et stock</a>');
   loadCmd();
   $("app").hidden=false;$("tabs").hidden=false;week=monday(new Date());
   try{await loadChantiers()}catch(_){}

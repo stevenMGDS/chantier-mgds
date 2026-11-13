@@ -285,9 +285,21 @@ def importe(fichier, essai):
         return patch
 
     # 1. dossiers ATELIER des chantiers MGDS
+    # dossier renommé sur le serveur (13/11/2026 : 13 doublons créés) : on reprend la commande du même chantier
+    # dont l'ancien dossier n'existe plus, au lieu d'en créer une deuxième
+    srcs_now = {p["src"] for p in j.get("productions", [])}
+    def par_chantier_renomme(cid):
+        if not cid: return None
+        L = sorted(k for k, r in rows.items() if (r["data"] or {}).get("chantier") == cid and (r["data"] or {}).get("src") not in srcs_now)
+        return L[0] if L else None
     for p in j.get("productions", []):
         aid = par_src(p["src"])
         cid = trouve_chantier(p["dossier"], chantiers)
+        if not aid:
+            aid = par_chantier_renomme(cid)
+            if aid:
+                ecrit(aid, {"src": p["src"]}); rows[aid]["data"]["src"] = p["src"]
+                resume["maj"].append(f"{aid} : dossier renommé sur le serveur -> {p['dossier']}")
         serveur = [{"n": d["n"], "d": d["d"], "t": d.get("t", "")} for d in p["docs"][:40]]
         if not aid:
             aid = nouveau_id()
