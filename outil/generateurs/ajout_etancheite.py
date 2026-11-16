@@ -31,17 +31,20 @@ for page in d:
     # page 1 : la case « type » des fixations est raccourcie, l'étanchéité prend la fin de la ligne
     if "rem_fix" in noms:
         w = noms["rem_fix"]; r = w.rect
-        w.rect = pymupdf.Rect(r.x0, r.y0, 590, r.y1); w.update()
-        page.insert_text((596, r.y1 - 2.5), "Étanchéité :", fontsize=8, fontname="hebo", color=GRIS)
+        if r.x1 > 591:
+            w.rect = pymupdf.Rect(r.x0, r.y0, 590, r.y1); w.update()
+            page.insert_text((596, r.y1 - 2.5), "Étanchéité :", fontsize=8, fontname="hebo", color=GRIS)
         champ(page, "rem_etanch_base", pymupdf.Rect(648, r.y0, 822, r.y1)); ajout += 1
     # menuiseries : la ligne « Infos devis » est partagée
     for nom, w in noms.items():
         if not nom.startswith("rem_info_"):
             continue
         k = nom.split("_")[-1]; r = w.rect
-        w.rect = pymupdf.Rect(r.x0, r.y0, 520, r.y1); w.update()
-        page.insert_text((526, r.y1 - 2.5), "Étanchéité (si différente) :", fontsize=7.5, fontname="helv", color=GRIS)
-        champ(page, "rem_etanch_" + k, pymupdf.Rect(632, r.y0, r.x1, r.y1)); ajout += 1
+        deja = r.x1 <= 521   # modèle déjà découpé (libellé présent dans la page) : on remet seulement le champ
+        if not deja:
+            w.rect = pymupdf.Rect(r.x0, r.y0, 520, r.y1); w.update()
+            page.insert_text((526, r.y1 - 2.5), "Étanchéité (si différente) :", fontsize=7.5, fontname="helv", color=GRIS)
+        champ(page, "rem_etanch_" + k, pymupdf.Rect(632, r.y0, r.x1 if not deja else 814, r.y1)); ajout += 1
 d.save(dst, garbage=1, deflate=True)
 apres = {k: v.get("/V") for k, v in (PdfReader(dst).get_fields() or {}).items()}
 perdus = [k for k in avant if avant[k] not in (None, "", "/Off") and apres.get(k) != avant[k]]
