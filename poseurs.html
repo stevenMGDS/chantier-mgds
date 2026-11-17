@@ -536,6 +536,8 @@ document.addEventListener("click",e=>{
 });
 
 // ---------- heures ----------
+// horaires de Manu (Steven, 17/11/2026) : lundi-jeudi 7 h 30-12 h / 13 h-17 h (8 h 30), vendredi 7 h 30-12 h 30 (5 h)
+const ATL_HOR=wd=>wd===4?{debut:"07:30",fin:"12:30",pause:0}:{debut:"07:30",fin:"17:00",pause:60};
 // production à l'atelier (Steven, 12/11/2026) : chaque ligne = commande atelier + tâche (Débit, Usinage, Montage, Vitrage, Divers),
 // ou « Autre tâche » hors production (ex. décharger un camion). La journée doit être complète : lignes = arrivée - départ - pause.
 const T5=["Débit","Usinage","Montage","Vitrage","Divers"];
@@ -557,7 +559,7 @@ async function vHeures(v){
   const tot=hs.reduce((s,h)=>s+(+h.heures||0),0),t=today();
   // journée incomplète (Steven, 13/11/2026) : jour passé, ou aujourd'hui après l'heure habituelle de départ
   const manque=d=>{if(role!=="atelier"||chr)return 0;const wd=(parse(d).getDay()+6)%7;if(wd>4||d>t)return 0;
-    let L={};try{L=JSON.parse(localStorage.getItem("atelier.jour."+wd)||"{}")}catch(_){}const fin=L.fin||(wd===4?"13:00":"17:30"),now=new Date();
+    const L=ATL_HOR(wd),fin=L.fin,now=new Date();
     if(d===t&&now.getHours()*60+now.getMinutes()<tmin(fin))return 0;
     const exp=L.debut&&L.fin?(tmin(L.fin)-tmin(L.debut)-(+L.pause||0))/60:(wd===4?5:8.5),f=hs.filter(h=>h.jour===d).reduce((s,h)=>s+(+h.heures||0),0);
     return Math.max(0,Math.round((exp-f)*100)/100)};
@@ -653,13 +655,14 @@ async function formJournee(day){
   const autresH=Math.round(autres.reduce((t,h)=>t+(+h.heures||0),0)*100)/100,wd=(parse(day).getDay()+6)%7;
   let last={};try{last=JSON.parse(localStorage.getItem("atelier.jour."+wd)||"{}")}catch(_){}
   // journée remplie au fil de l'eau (Steven, 13/11/2026) : départ et pause habituels tant que la journée n'est pas finie
-  const usu={debut:last.debut||"08:00",fin:last.fin||(wd===4?"13:00":"17:30"),pause:last.pause??(wd===4?0:60)},pz0=mine.reduce((t,h)=>t+(h.pause_min||0),0),fin0=mine.length?(mine[mine.length-1].fin||"").slice(0,5):"";
+  // atelier : horaires fixes de Manu ; poseur à l'atelier : ses derniers horaires
+  const usu=role==="atelier"?ATL_HOR(wd):{debut:last.debut||"07:30",fin:last.fin||(wd===4?"12:30":"17:00"),pause:last.pause??(wd===4?0:60)},pz0=mine.reduce((t,h)=>t+(h.pause_min||0),0),fin0=mine.length?(mine[mine.length-1].fin||"").slice(0,5):"";
   const dft=mine.length?{debut:(mine[0].debut||usu.debut).slice(0,5),fin:fin0>usu.fin?fin0:usu.fin,pause:pz0||usu.pause}:usu;
   // commandes prévues ce jour-là : production lancée ou fin prévue proche (7,8 h par jour)
   const C=[...CMD.values()],deb=c=>{if(c.debut)return c.debut;if(!c.fin)return"";const d=parse(c.fin);let n=Math.max(1,Math.ceil((+c.heures||0)/7.8))-1;while(n>0){d.setDate(d.getDate()-1);if(d.getDay()%6)n--}return iso(d)};
   const prev=C.filter(c=>c.fin&&deb(c)<=day&&day<=c.fin),autresC=C.filter(c=>!prev.includes(c));
   let L=mine.length?mine.map(h=>({k:h.atelier||(h.tache==="Autre tâche"||!h.tache?"autre":""),t:h.tache&&h.tache!=="Autre tâche"?h.tache:"",d:+h.heures,x:h.tache==="Autre tâche"||!h.tache?(h.note||""):""}))
-    :[{k:prev.length===1?prev[0].id:"",t:"",d:0,x:""}];
+    :[{k:prev.length===1?prev[0].id:"",t:"",d:prev.length===1?Math.round(((tmin(dft.fin)-tmin(dft.debut))-dft.pause)/15)/4:0,x:""}];   // un seul chantier prévu : toute la journée dessus
   const durs=Array.from({length:48},(_,i)=>(i+1)/4);
   const m=modal(`<h2>Ma journée à l'atelier</h2><div class="sub">${esc(dayLabel(day))}</div>
    <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Arrivée</div>${hmSel("debut",dft.debut)}
