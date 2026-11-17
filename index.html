@@ -3456,7 +3456,7 @@ function atlPlan0(a,b){
 function atlPlan(a){const s=a&&a.id&&window.atlSchedOf?atlSchedOf(a.id):null;if(!s)return atlPlan0(a);
   const p=atlPlan0(a,s.besoin||undefined);if(atlD(a,"fin"))return p;
   if(s.debut&&!atlD(a,"debut"))p.P.debut=s.debut;if(s.fin){p.P.fin=s.fin;p.fin=s.fin;p.finSem=aFri(s.fin)}
-  p.wk=s.wk;p.src=s.src;p.jit=!!s.besoin;p.retard=s.retard;p.tard=s.tard;return p}
+  p.wk=s.wk;p.src=s.src;p.jit=!!s.besoin;p.retard=s.retard;p.marge=s.marge;p.tard=s.tard;return p}
 function atlAlerts(a){
   const out=[];if(atlDone(a))return out;
   const p=atlPlan(a);
@@ -3564,7 +3564,7 @@ function atlLoadHtml(live){
   const {wk,who}=atlWeekLoad(live),mon=addJo(addDays(today(),-((aD(today()).getDay()+6)%7)),0),pl=window.PLN_OK&&window.PLN_OK();
   let h="";for(let i=0;i<8;i++){const m=addDays(mon,7*i),f=aFri(m),v=Math.round((wk[f]||0)*10)/10,rf=pl?Math.round(plWeek(m).renf*10)/10:0,cap=pl?Math.round([0,1,2,3,4].map(k=>addDays(m,k)).filter(d=>d>=today()).reduce((t,d)=>t+atlCapJour(d),0)*10)/10:ATL_H_SEM+rf,pc=Math.min(100,v/cap*100);
     h+=`<div class="atlwk"><b class="mono">${sem(f)}</b><span class="g"><i class="${v>cap+.05?"r":v>cap*.85?"o":""}" style="width:${pc}%"></i></span><span class="mono">${String(v).replace(".",",")} h / ${String(cap).replace(".",",")} h</span>${rf?`<small>dont ${String(rf).replace(".",",")} h de renfort des poseurs</small>`:""}${who[f]?`<small>${[...who[f]].map(esc).join(", ")}</small>`:""}</div>`}
-  return h+`<p class="sub">Chaque commande est fabriquée au plus près de sa pose, dans les semaines où l'atelier a de la place, jamais avant l'arrivée de la matière. Les commandes sans temps de production ne comptent pas. Manu : ${ATL_H_SEM} h par semaine ; les jours où des poseurs sont à l'atelier s'ajoutent.</p>`}
+  return h+`<p class="sub">Chaque commande est fabriquée au plus près de sa pose, en gardant si possible une semaine de sécurité, dans les semaines où l'atelier a de la place, jamais avant l'arrivée de la matière. Les commandes sans temps de production ne comptent pas. Manu : ${ATL_H_SEM} h par semaine ; les jours où des poseurs sont à l'atelier s'ajoutent.</p>`}
 
 // ---- fiche d'une commande ----
 function atlOpen(id){if(openId)closeSheet();atl.open=id;const s=$("asheet");s.hidden=false;$("scrim").hidden=false;atlSheet();s.scrollTop=0}
@@ -4056,6 +4056,9 @@ const dvLive=()=>[...PLN.devis].map(([id,d])=>({id,...d})).filter(d=>(d.etat||"a
 // est fabriquée au plus près de son besoin de pose : on remonte le temps depuis la veille de la pose, dans les jours où l'atelier a de la
 // place (Manu + poseurs à l'atelier au planning de Marine), jamais avant l'arrivée de la matière. Les commandes déjà lancées passent
 // d'abord, à partir d'aujourd'hui. Sans date de pose : au plus tôt après la matière. Ce qui ne tient pas avant la pose est « en retard ».
+// Semaine de sécurité (Steven, 17/11/2026) : la production vise une fin 5 jours ouvrés avant la pose ; elle n'empiète sur cette semaine
+// que faute de place avant (« sans semaine de sécurité »), et n'est « en retard » qu'au-delà de la veille de la pose.
+const ATL_SECU=5;
 const atlCourt=a=>{const n=atlName(a);return n.split(/\s+-\s+/)[0].replace(/\s*\(.*\)\s*$/,"")||n};
 function atlBesoinPose(a){
   if(a.besoin)return{d:a.besoin,src:"date saisie dans la commande"};
@@ -4076,7 +4079,7 @@ function atlSchedule(){
   if(atlSchedule.c)return atlSchedule.c;if(atlSchedule.busy||!atl.rows||!atl.rows.size)return null;atlSchedule.busy=true;
   try{const t=today(),t1=nextJo(t),free=new Map(),cap=d=>{if(!free.has(d))free.set(d,atlCapJour(d));return free.get(d)},out=new Map();
     const it=[...atl.rows].map(([id,a])=>({id,...a})).filter(a=>!atlDone(a)&&!atlD(a,"fin")).map(a=>{const p0=atlPlan0(a),st=!!atlD(a,"debut"),b=atlBesoinPose(a);
-      return{a,st,b,R:atlSuivi(a)?atlReste(a):atlHeures(a),last:a.finManu||(b.d?addJo(b.d,-1):""),E:st?t1:maxS(t1,p0.P.debut)}});
+      return{a,st,b,R:atlSuivi(a)?atlReste(a):atlHeures(a),last:a.finManu||(b.d?addJo(b.d,-ATL_SECU):""),hard:a.finManu||(b.d?addJo(b.d,-1):""),E:st?t1:maxS(t1,p0.P.debut)}});
     it.sort((x,y)=>(y.st-x.st)||((!x.last)-(!y.last))||(x.last||x.E).localeCompare(y.last||y.E));
     const put=(o,d)=>{const f=cap(d);if(f>1e-6){const h=Math.min(f,o.r);free.set(d,f-h);o.days.push([d,h]);o.r-=h}};
     const fwd=(o,from)=>{let d=nextJo(from),n=0;while(o.r>1e-6&&n<700){put(o,d);d=addJo(d,1);n++}};
@@ -4084,8 +4087,8 @@ function atlSchedule(){
     it.forEach(x=>{const o={r:x.R,days:[]},ok=x.last&&x.last>=x.E;
       if(x.R>0){if(x.st||!x.last)fwd(o,x.E);else{if(ok)back(o,x.last,x.E);if(o.r>1e-6)fwd(o,ok?addJo(x.last,1):x.E)}}
       const ds=o.days.map(z=>z[0]).sort(),fin=ds[ds.length-1]||(ok?x.last:x.E),wk={};
-      o.days.forEach(([d,h])=>{const f=aFri(d),w=wk[f]||(wk[f]={h:0,tard:0});w.h+=h;if(x.last&&d>x.last)w.tard+=h});
-      out.set(x.a.id,{debut:ds[0]||"",fin,wk,besoin:x.b.d,src:x.b.src,last:x.last,retard:!!(x.last&&fin>x.last),tard:o.days.reduce((s,[d,h])=>s+(x.last&&d>x.last?h:0),0)})});
+      o.days.forEach(([d,h])=>{const f=aFri(d),w=wk[f]||(wk[f]={h:0,tard:0});w.h+=h;if(x.hard&&d>x.hard)w.tard+=h});
+      out.set(x.a.id,{debut:ds[0]||"",fin,wk,besoin:x.b.d,src:x.b.src,last:x.last,retard:!!(x.hard&&fin>x.hard),marge:!!(x.last&&fin>x.last&&!(x.hard&&fin>x.hard)),tard:o.days.reduce((s,[d,h])=>s+(x.hard&&d>x.hard?h:0),0)})});
     atlSchedule.c=out;setTimeout(()=>{atlSchedule.c=null},0);return out}
   finally{atlSchedule.busy=false}}
 window.atlCourt=atlCourt;window.atlSchedOf=id=>{let S=null;try{S=atlSchedule()}catch(_){}return S?S.get(id)||null:null};
@@ -4164,11 +4167,11 @@ function plAtlHtml(){
   let h=`<div class="plw"><header><b>Charge de l'atelier</b><span>Manu 39 h par semaine, plus le renfort des poseurs</span></header>${W.map(w=>
     plBar(sem(w.mon),[[w.A.c,"pk1","à produire"],[w.A.r,"pk5","en retard sur la pose"],[w.A.d,"pk4","devis probables"]],w.A.cap,max,plTxt(w.A,["à produire"])+(w.A.renf?" (dont "+plNf(w.A.renf)+" h de renfort)":""),w.A.it.length?plItems(w.A.it,false,"à produire"):"")).join("")}</div>
    <div class="leg"><span><i class="sw pk1"></i>À produire</span><span><i class="sw pk5"></i>En retard sur la pose</span><span><i class="sw pk4"></i>Devis en attente (probables)</span><span><i class="sw" style="width:2px;background:var(--ink)"></i>Heures disponibles</span></div>
-   <p class="plnote">Touchez une semaine pour voir les commandes. Chaque commande est fabriquée au plus près de sa pose, en remontant le temps dans les jours où l'atelier a de la place, jamais avant l'arrivée de la matière ; les commandes déjà lancées passent d'abord. Les heures en rouge ne tiennent pas avant la pose.</p>`;
+   <p class="plnote">Touchez une semaine pour voir les commandes. Chaque commande est fabriquée au plus près de sa pose en gardant une semaine de sécurité, en remontant le temps dans les jours où l'atelier a de la place, jamais avant l'arrivée de la matière ; les commandes déjà lancées passent d'abord. Faute de place, la production empiète sur la semaine de sécurité ; les heures en rouge ne tiennent pas avant la pose.</p>`;
   const rows=live.map(a=>({a,p:atlPlan(a)})).sort((x,y)=>(x.p.besoin||"9999").localeCompare(y.p.besoin||"9999")||(x.p.fin||"").localeCompare(y.p.fin||"")).map(({a,p})=>{
     const st=k=>{const x=atlCmd(a,k);return!x.on?"—":x.recu&&x.recu.d?"reçu":p.P[k]?sem(p.P[k]):"—"},fin=atlD(a,"fin");
     const prod=fin?"terminée":!atlHeures(a)?"heures à saisir":p.P.debut&&sem(p.P.debut)!==sem(p.fin)?sem(p.P.debut)+" à "+sem(p.fin):sem(p.fin);
-    return `<tr data-aopen="${esc(a.id)}"><td>${esc(atlCourt(a))}</td><td class="mono">${atlHeures(a)?plNf(atlHeures(a))+" h":"—"}</td><td class="mono">${st("mat")}</td><td class="mono">${st("vitr")}</td><td class="mono">${prod}${!fin&&p.retard?` <span class="flag r">retard</span>`:""}</td><td>${p.besoin?`<span class="mono">${sem(p.besoin)}</span> <small class="sub">${esc(p.src||"")}</small>`:`<small class="sub">pose non fixée</small>`}</td></tr>`}).join("");
+    return `<tr data-aopen="${esc(a.id)}"><td>${esc(atlCourt(a))}</td><td class="mono">${atlHeures(a)?plNf(atlHeures(a))+" h":"—"}</td><td class="mono">${st("mat")}</td><td class="mono">${st("vitr")}</td><td class="mono">${prod}${!fin&&p.retard?` <span class="flag r">retard</span>`:!fin&&p.marge?` <span class="flag o">sans semaine de sécurité</span>`:""}</td><td>${p.besoin?`<span class="mono">${sem(p.besoin)}</span> <small class="sub">${esc(p.src||"")}</small>`:`<small class="sub">pose non fixée</small>`}</td></tr>`}).join("");
   h+=`<div class="plcard"><h3>Commandes en cours</h3><div class="pltbl"><table><thead><tr><th>Commande</th><th>Heures</th><th>Matière</th><th>Vitrages</th><th>Production</th><th>Pose</th></tr></thead><tbody>${rows||`<tr><td colspan="6" class="sub">Aucune commande en cours.</td></tr>`}</tbody></table></div>
     <p class="plnote">Touchez une commande pour ouvrir sa fiche. Sans date de pose, la commande est fabriquée au plus tôt : ajoutez une date (planning de Marine, planning prévu de la fiche chantier ou date de besoin de la commande) pour la caler sur la pose.</p></div>`;
   return h}
