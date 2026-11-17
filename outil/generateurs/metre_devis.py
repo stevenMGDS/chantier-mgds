@@ -89,7 +89,8 @@ for i, p in enumerate(d):
                         new = str(int(t) + 8 * (i - 1)) if sp["bbox"][0] < 70 else str(i + 1)
                         p.add_redact_annot(pymupdf.Rect(sp["bbox"]), fill=None); p.apply_redactions(images=0, graphics=0)
                         p.insert_text(sp["origin"], new, fontsize=sp["size"], fontname="hebo" if sp["bbox"][0] < 70 else "helv")
-    p.insert_text((700, 558), spec["client_nom"].replace("M. ", "").replace("MME ", "")[:30], fontsize=6.5, color=(0.35, 0.37, 0.4))
+    nomc = spec["client_nom"].replace("M. ", "").replace("MME ", "")[:28]   # avant « page N » (x ≈ 760)
+    p.insert_text((min(700, 756 - pymupdf.get_text_length(nomc, fontname="helv", fontsize=6.5)), 558), nomc, fontsize=6.5, color=(0.35, 0.37, 0.4))
     if i == 0 and spec.get("devis"):   # en-tête « N° devis / date … du … » : date puis n° après « du »
         p.insert_text((588, 81), " ".join(x for x in (spec.get("date_devis", ""), "(" + spec["devis"] + ")") if x), fontsize=8.5, color=(0.1, 0.12, 0.15))
 d.save(dst, garbage=1, deflate=True)
