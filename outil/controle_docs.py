@@ -12,7 +12,8 @@ nouvelles fiches, devis, ARC, plans… »). Outil de la tâche planifiée « Con
         {"client_nom": "M. X", "client_adresse": "…", "adresse_chantier": "…", "devis": "D26…", "date_devis": "jj/mm/aaaa",
          "contact": "HENRY STÉPHANIE 07.87.64.29.78" (« Votre contact » du devis),
          "releve": ["point à vérifier relevé sur le devis", …] (2 au plus ; les autres en points relevés),
-         "menuiseries": texte court de la ligne « Contrôle par menuiserie » de la réception, ex. « 6 menuiseries (voir métré) »}.
+         "menuiseries": texte court de la ligne « Contrôle par menuiserie » de la réception, ex. « 6 menuiseries (voir métré) »,
+         "nb": nombre de menuiseries du devis (aide de la page Consommables)}.
         Efface ce qui vient du chantier modèle (n°, date, contact, relevé, pieds de page). À utiliser à la place de « remplir ».
   python3 -I controle_docs.py ajoute <chantier> <type> <pdf> "<nom affiché>"  ajoute une fiche au chantier (Préparation, Métré, Support, Réception)
 
@@ -138,6 +139,9 @@ def entete(modele, vals, sortie):
             elif y0 > 780 and " · devis " in t:   # pied de page : « Découverte chantier · devis … · NOM · page »
                 num = [z["bbox"][0] for z in spans if z["bbox"][1] > 780 and z["text"].strip().isdigit()]
                 efface.append(s["bbox"]); ecrit.append((s["origin"], t.split(" · devis ")[0] + f" · devis {dv} · {nom} · page", s["size"], col, (min(num) if num else x1) - 12))
+            elif pi > 0 and t.startswith("Aide :") and "menuiseries au devis" in t:   # aide des consommables du modèle
+                efface.append(s["bbox"])
+                if v.get("nb"): ecrit.append((s["origin"], f"Aide : {v['nb']} menuiseries au devis.", s["size"], col, None))
             elif pi > 0 and y0 < 90 and " · D" in t:   # « NOM · DEVIS » en haut des pages suivantes
                 efface.append(s["bbox"]); ecrit.append((s["origin"], f"{nom} · {dv}", s["size"], col, None))
             elif pi == 0 and t.startswith("–") and 480 < y0 < 560:   # ancien « Relevé sur le devis »
