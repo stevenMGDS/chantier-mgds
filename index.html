@@ -3394,10 +3394,15 @@ const atlHeures=a=>atlNum(a.heures)||atlR1(atlSum(a.taches||[],"h")*(1+ATL_ALEAS
 const ATL_T5=["Débit","Usinage","Montage","Vitrage","Divers"];
 const atlFaitT=a=>(a&&a.id&&atl.hr&&atl.hr.get(a.id))||null;
 const atlFait=a=>{const F=atlFaitT(a);return F?F.tot:0};
-const atlReste=a=>Math.max(0,atlR1(atlHeures(a)-atlFait(a)));
+// point d'avancement (Steven, 17/11/2026) : Manu ou Christophe notent « il reste X h » à une date (a.avct = {h, d}) ;
+// le reste à faire = X − heures pointées après ce jour. Sert pour les productions commencées avant le pointage des heures (12/11).
+const atlAvct=a=>a&&a.avct&&a.avct.d&&a.avct.h!==""&&a.avct.h!=null&&isFinite(+a.avct.h)?a.avct:null;
+const atlApres=a=>{const v=atlAvct(a),F=atlFaitT(a);if(!v||!F||!F.j)return 0;return atlR1(F.j.filter(x=>x[0]>v.d).reduce((t,x)=>t+x[1],0))};
+const atlReste=a=>{const v=atlAvct(a);return v?Math.max(0,atlR1(+v.h-atlApres(a))):Math.max(0,atlR1(atlHeures(a)-atlFait(a)))};
+const atlSuivi=a=>!!atlAvct(a)||atlFait(a)>0;   // reste à faire connu (point d'avancement ou heures pointées)
 async function atlHrLoad(){const sb=window.sbClient;if(!sb)return;
-  try{const{data,error}=await sb.from("heures").select("atelier,tache,heures").not("atelier","is",null);if(error)throw error;
-    const m=new Map();for(const h of data){const o=m.get(h.atelier)||{tot:0};o[h.tache]=atlR1((o[h.tache]||0)+ +h.heures);o.tot=atlR1(o.tot+ +h.heures);m.set(h.atelier,o)}atl.hr=m}
+  try{const{data,error}=await sb.from("heures").select("atelier,tache,heures,jour").not("atelier","is",null);if(error)throw error;
+    const m=new Map();for(const h of data){const o=m.get(h.atelier)||{tot:0,j:[]};o[h.tache]=atlR1((o[h.tache]||0)+ +h.heures);o.tot=atlR1(o.tot+ +h.heures);o.j.push([h.jour||"",+h.heures]);m.set(h.atelier,o)}atl.hr=m}
   catch(_){atl.hr=atl.hr||new Map()}}
 const ATL_DOCS=["Bon de commande matière","Bon de commande accessoires","Bon de commande vitrages","Bon de commande volets / stores","ARC","Plan / débit","Autre"];
 const atl={rows:new Map(),ok:null,open:null,dest:"",q:"",filter:"encours",pending:false,built:false,
@@ -3444,7 +3449,7 @@ function atlPlan0(a,b){
   P.recu=atlD(a,"recu")||maxS(t,...ks.map(k=>P[k]));
   const deb=atlD(a,"debut"),fin=atlD(a,"fin");
   P.debut=deb||maxS(nextJo(t),addJo(P.recu,1));
-  P.fin=fin||a.finManu||(deb&&atlFait(a)>0?addJo(nextJo(t),Math.max(1,Math.ceil(atlReste(a)/ATL_H_JOUR))-1):maxS(nextJo(t),addJo(P.debut,pj-1)));
+  P.fin=fin||a.finManu||(deb&&atlSuivi(a)?addJo(nextJo(t),Math.max(1,Math.ceil(atlReste(a)/ATL_H_JOUR))-1):maxS(nextJo(t),addJo(P.debut,pj-1)));
   return{besoin,pj,L,P,fin:P.fin,finSem:aFri(P.fin),retard:!fin&&!!(besoin&&L.fin&&P.fin>L.fin)};
 }
 // dates retenues d'une commande : celles de la production calée sur la pose quand elle est calculée (atlSchedule, onglet Planning)
@@ -3552,7 +3557,7 @@ function atlWeekLoad(live){
     return{wk,who,by}}
   live.forEach(a=>{const p=atlPlan(a),h=atlHeures(a);if(!h||atlD(a,"fin"))return;
     let d=atlD(a,"debut")?maxS(nextJo(today()),p.P.debut):p.P.debut;const ds=[];while(d<=p.P.fin&&ds.length<60){ds.push(d);d=addJo(d,1)}
-    const restant=atlFait(a)>0?atlReste(a):atlD(a,"debut")?h*ds.length/Math.max(ds.length,p.pj):h;
+    const restant=atlSuivi(a)?atlReste(a):atlD(a,"debut")?h*ds.length/Math.max(ds.length,p.pj):h;
     ds.forEach(x=>{const f=aFri(x);wk[f]=(wk[f]||0)+restant/ds.length;(who[f]=who[f]||new Set).add(atlName(a))})});
   return{wk,who,by}}
 function atlLoadHtml(live){
@@ -3633,7 +3638,7 @@ function atlSheet(){
    <div class="kpis atlk"><div class="kpi"><b>${p.besoin?sem(p.besoin):"?"}</b><span>${a.dest==="revente"?"Enlèvement":"Pose"}${p.besoin?" le "+fr(p.besoin):" non fixée"}</span></div>
     <div class="kpi ${p.retard?"r":""}"><b>${atlD(a,"fin")?"✓":sem(p.fin)}</b><span>${atlD(a,"fin")?"Production terminée le "+fr(atlD(a,"fin")):"Fin de production prévue"+(a.finManu?" (à la main)":"")}</span></div>
     <div class="kpi"><b>${p.L.fin?sem(p.L.fin):"–"}</b><span>Fin au plus tard${p.L.fin?" ("+fr(p.L.fin)+")":""}</span></div>
-    <div class="kpi"><b>${atlFait(a)>0?atlReste(a)+" h":p.pj+" j"}</b><span>${atlFait(a)>0?"Reste à faire ("+atlFait(a)+" h faites sur "+atlHeures(a)+" h)":"Production"+(atlHeures(a)?" ("+atlHeures(a)+" h"+(atlNum(a.heures)?"":", détail + 20 %")+")":" : temps à saisir")}</span></div></div>
+    <div class="kpi"><b>${atlSuivi(a)?String(atlReste(a)).replace(".",",")+" h":p.pj+" j"}</b><span>${atlAvct(a)?"Reste à faire (point du "+fr(a.avct.d)+(atlApres(a)?", moins "+String(atlApres(a)).replace(".",",")+" h pointées depuis":"")+")":atlFait(a)>0?"Reste à faire ("+atlFait(a)+" h faites sur "+atlHeures(a)+" h)":"Production"+(atlHeures(a)?" ("+atlHeures(a)+" h"+(atlNum(a.heures)?"":", détail + 20 %")+")":" : temps à saisir")}</span></div></div>
    <div class="fields">
     <label>Pour<select data-af="dest" ${ro}>${Object.entries(ATL_DEST).map(([k,l])=>`<option value="${k}" ${k===(a.dest||"mgds")?"selected":""}>${l}</option>`).join("")}</select></label>
     <label>Chantier MGDS<select data-af="chantier" ${ro}><option value="">—</option>${jl.map(([id,j])=>`<option value="${esc(id)}" ${id===a.chantier?"selected":""}>${esc(j.client)} · ${esc(id)}</option>`).join("")}</select></label>
@@ -3647,12 +3652,14 @@ function atlSheet(){
     <label class="wide">Remarques<textarea data-af="notes" ${ro}>${esc(a.notes)}</textarea></label></div>
    <h3>Étapes<span class="sub" style="text-transform:none;letter-spacing:0">un clic, la date s'inscrit seule · « au plus tard » depuis la date de ${a.dest==="revente"?"besoin":"pose"}</span></h3><ul class="steps">${steps}</ul>
    <h3>Temps passé<span class="sub" style="text-transform:none;letter-spacing:0">noté par Manu et les poseurs dans « Mes heures » · Divers = rangement, déchargement… (les 20 %)</span></h3>
-   ${(()=>{const F=atlFaitT(a)||{tot:0},H=atlHeures(a),R=atlR1(H-F.tot);
+   ${(()=>{const F=atlFaitT(a)||{tot:0},H=atlHeures(a),V=atlAvct(a),R=V?atlReste(a):atlR1(H-F.tot);
      return`<div class="tbl"><table class="atllg atltk"><thead><tr><th>Tâche</th><th class="n">Fait (h)</th></tr></thead><tbody>${ATL_T5.map(t=>`<tr><td>${t}</td><td class="n">${F[t]?String(F[t]).replace(".",","):"–"}</td></tr>`).join("")}
       <tr class="tot"><td><b>Total fait</b></td><td class="n"><b>${String(F.tot).replace(".",",")} h</b></td></tr>
       <tr class="tot"><td>Temps de production (Christophe)</td><td class="n">${H?String(H).replace(".",",")+" h":"à saisir"}</td></tr>
-      <tr class="tot"><td><b>Reste à faire</b></td><td class="n"><b style="${H&&R<0?"color:var(--s-rouge)":""}">${H?String(R).replace(".",",")+" h":"–"}</b></td></tr></tbody></table></div>
-      ${H&&R<0?`<p class="sub" style="color:var(--s-rouge)">Dépassement de ${String(-R).replace(".",",")} h sur le temps vendu.</p>`:""}${atl.hr&&atl.hr.size===0&&!F.tot?`<p class="sub">Aucune heure notée pour l'instant.</p>`:""}`})()}
+      ${V?`<tr class="tot"><td>Point d'avancement du ${fr(V.d)} : il restait</td><td class="n">${String(+V.h).replace(".",",")} h</td></tr><tr class="tot"><td>Pointé depuis</td><td class="n">${String(atlApres(a)).replace(".",",")} h</td></tr>`:""}
+      <tr class="tot"><td><b>Reste à faire</b></td><td class="n"><b style="${H&&R<0?"color:var(--s-rouge)":""}">${H||V?String(R).replace(".",",")+" h":"–"}</b></td></tr></tbody></table></div>
+      <div class="fields"><label>Point d'avancement : il reste aujourd'hui (h)<input type="number" min="0" step="0.5" inputmode="decimal" id="atl-avct" data-aavct="1" value="" placeholder="${V?"dernier point : "+String(+V.h).replace(".",",")+" h le "+fr(V.d):"ex. 40"}" ${ro}><span class="sub">à remplir quand une production a avancé sans que les heures soient pointées (avant le 12/11), ou pour recaler le reste ; les heures pointées ensuite s'en déduisent</span></label></div>
+      ${H&&!V&&R<0?`<p class="sub" style="color:var(--s-rouge)">Dépassement de ${String(-R).replace(".",",")} h sur le temps vendu.</p>`:""}${atl.hr&&atl.hr.size===0&&!F.tot?`<p class="sub">Aucune heure notée pour l'instant.</p>`:""}`})()}
    ${atlRole()==="atelier"?`<p><button type="button" class="btn ghost" data-tab="heures">🕒 Noter mes heures</button></p>`:""}
    <details class="atldet"><summary>Fournisseurs, n° de commande et délais</summary><ul class="arcs" style="margin-top:8px">${cmds}</ul></details>
    <h3>ARC atelier<span class="sub" style="text-transform:none;letter-spacing:0">cotes validées après le métré</span></h3>
@@ -3851,6 +3858,7 @@ function atlClick(e){
 function atlChange(e){
   const t=e.target,id=atl.open,a=id&&atl.rows.get(id);if(!a)return;e.stopPropagation();
   if(t.type==="date"&&t.value&&!/^20\d\d-/.test(t.value))return;
+  if(t.dataset.aavct){if(t.value==="")return;const h=Math.max(0,+String(t.value).replace(",",".")||0);atlSave(id,{avct:{h,d:today(),by:me||""}});toast("Point d'avancement noté : "+String(h).replace(".",",")+" h restantes.");return}
   if(t.dataset.af){const k=t.dataset.af;let v=k==="heures"?Math.max(0,+String(t.value).replace(",",".")||0):t.value.trim();if((a[k]??"")===v)return;
     const patch={[k]:v};if(k==="chantier"&&v&&!a.devis)patch.devis=v;atlSave(id,patch)}
   else if(t.dataset.acmd&&(t.dataset.ack==="fin"||t.dataset.ack==="presta")){
@@ -4068,7 +4076,7 @@ function atlSchedule(){
   if(atlSchedule.c)return atlSchedule.c;if(atlSchedule.busy||!atl.rows||!atl.rows.size)return null;atlSchedule.busy=true;
   try{const t=today(),t1=nextJo(t),free=new Map(),cap=d=>{if(!free.has(d))free.set(d,atlCapJour(d));return free.get(d)},out=new Map();
     const it=[...atl.rows].map(([id,a])=>({id,...a})).filter(a=>!atlDone(a)&&!atlD(a,"fin")).map(a=>{const p0=atlPlan0(a),st=!!atlD(a,"debut"),b=atlBesoinPose(a);
-      return{a,st,b,R:atlFait(a)>0?atlReste(a):atlHeures(a),last:a.finManu||(b.d?addJo(b.d,-1):""),E:st?t1:maxS(t1,p0.P.debut)}});
+      return{a,st,b,R:atlSuivi(a)?atlReste(a):atlHeures(a),last:a.finManu||(b.d?addJo(b.d,-1):""),E:st?t1:maxS(t1,p0.P.debut)}});
     it.sort((x,y)=>(y.st-x.st)||((!x.last)-(!y.last))||(x.last||x.E).localeCompare(y.last||y.E));
     const put=(o,d)=>{const f=cap(d);if(f>1e-6){const h=Math.min(f,o.r);free.set(d,f-h);o.days.push([d,h]);o.r-=h}};
     const fwd=(o,from)=>{let d=nextJo(from),n=0;while(o.r>1e-6&&n<700){put(o,d);d=addJo(d,1);n++}};
