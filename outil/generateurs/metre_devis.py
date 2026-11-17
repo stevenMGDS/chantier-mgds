@@ -79,13 +79,13 @@ for i, p in enumerate(d):
     for r in p.search_for("FOYER LES BELETTES"):
         p.add_redact_annot(r, fill=(1, 1, 1))
     p.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE)
-    if 2 <= i <= m:   # pages copiées : numéros des menuiseries et de page
+    if i >= 2:   # pages copiées (et annexe après elles) : numéros des menuiseries et de page
         for b in p.get_text("dict")["blocks"]:
             for l in b.get("lines", []):
                 for sp in l["spans"]:
                     t = sp["text"].strip()
                     cnt = min(8, n - 4 - 8 * (i - 1))   # lignes utilisées sur cette page (les autres sont masquées)
-                    if t.isdigit() and ((sp["bbox"][0] < 70 and int(t) - 4 <= cnt) or sp["bbox"][1] > 540):
+                    if t.isdigit() and ((i <= m and sp["bbox"][0] < 70 and int(t) - 4 <= cnt) or sp["bbox"][1] > 540):
                         new = str(int(t) + 8 * (i - 1)) if sp["bbox"][0] < 70 else str(i + 1)
                         p.add_redact_annot(pymupdf.Rect(sp["bbox"]), fill=None); p.apply_redactions(images=0, graphics=0)
                         p.insert_text(sp["origin"], new, fontsize=sp["size"], fontname="hebo" if sp["bbox"][0] < 70 else "helv")
