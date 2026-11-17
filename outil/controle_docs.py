@@ -8,6 +8,12 @@ nouvelles fiches, devis, ARC, plans… »). Outil de la tâche planifiée « Con
   python3 -I controle_docs.py modeles <dossier>             télécharge les modèles de fiches et les générateurs
   python3 -I controle_docs.py champs <pdf>                  liste les champs d'une fiche (pour la pré-remplir)
   python3 -I controle_docs.py remplir <pdf> '<json>' <sortie.pdf>          remplit des champs texte d'une fiche
+  python3 -I controle_docs.py entete <modele.pdf> '<json>' <sortie.pdf>     en-tête d'une fiche Préparation / Réception :
+        {"client_nom": "M. X", "client_adresse": "…", "adresse_chantier": "…", "devis": "D26…", "date_devis": "jj/mm/aaaa",
+         "contact": "HENRY STÉPHANIE 07.87.64.29.78" (« Votre contact » du devis),
+         "releve": ["point à vérifier relevé sur le devis", …] (4 au plus, facultatif),
+         "menuiseries": texte court de la ligne « Contrôle par menuiserie » de la réception, ex. « 6 menuiseries (voir métré) »}.
+        Efface ce qui vient du chantier modèle (n°, date, contact, relevé, pieds de page). À utiliser à la place de « remplir ».
   python3 -I controle_docs.py ajoute <chantier> <type> <pdf> "<nom affiché>"  ajoute une fiche au chantier (Préparation, Métré, Support, Réception)
 
 Les écritures passent par le compteur de version (comme l'appli). Rien n'est jamais supprimé. Aucun prix n'est lu.
@@ -112,6 +118,53 @@ def remplir(pdf, vals, sortie):
     w.write(sortie); print(sortie)
 
 
+def entete(modele, vals, sortie):
+    """Préparation / Réception : le modèle est la fiche d'un autre chantier ; tout ce qui est propre à ce chantier
+    (n° et date du devis, réf., contact, « Relevé sur le devis », pieds de page) est effacé puis réécrit."""
+    import pymupdf
+    v = json.loads(vals); d = pymupdf.open(modele)
+    nom = v.get("client_nom", ""); dv = v.get("devis", "")
+    cible = {(406, 73): dv, (406, 113): v.get("date_devis", ""), (141, 159): v.get("contact", "")}
+    for pi, p in enumerate(d):
+        efface, ecrit, deja = [], [], set()
+        spans = [s for b in p.get_text("dict")["blocks"] for l in b.get("lines", []) for s in l["spans"]]
+        for s in spans:
+            x0, y0, x1, y1 = s["bbox"]; t = s["text"]; c = s["color"]
+            col = ((c >> 16) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255)
+            if pi == 0 and (round(x0), round(y0)) in cible:
+                efface.append(s["bbox"]); ecrit.append((s["origin"], cible[(round(x0), round(y0))], s["size"], col, None))
+            elif pi == 0 and round(x0) in (406,) and round(y0) in (73, 113, 141) or (pi == 0 and round(x0) == 141 and round(y0) == 159):
+                pass
+            elif y0 > 780 and " · devis " in t:   # pied de page : « Découverte chantier · devis … · NOM · page »
+                efface.append(s["bbox"]); ecrit.append((s["origin"], t.split(" · devis ")[0] + f" · devis {dv} · {nom} · page", s["size"], col, x1 - 4))
+            elif pi > 0 and y0 < 90 and " · D" in t:   # « NOM · DEVIS » en haut des pages suivantes
+                efface.append(s["bbox"]); ecrit.append((s["origin"], f"{nom} · {dv}", s["size"], col, None))
+            elif pi == 0 and t.startswith("–") and 480 < y0 < 560:   # ancien « Relevé sur le devis »
+                efface.append(s["bbox"])
+            elif pi == 0 and 426 < y0 < 466 and x0 < 250 and "AUTOCONTR" in " ".join(z["text"] for z in spans[:3]):
+                # réception : ligne « Contrôle par menuiserie » du chantier modèle -> une ligne pour toutes les menuiseries
+                efface.append(s["bbox"])
+                k = "rep" if round(x0) < 100 else "des"
+                if k not in deja:
+                    deja.add(k)
+                    ecrit.append(((41, s["origin"][1]), "Toutes", 8, (0, 0, 0), None) if k == "rep" else
+                                 ((113, s["origin"][1]), (v.get("menuiseries") or "Toutes les menuiseries")[:32], 8, (0, 0, 0), None))
+        for r in efface: p.add_redact_annot(pymupdf.Rect(r), fill=None)
+        if efface: p.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE)
+        if pi == 0 and any("Relevé sur le devis" in s["text"] for s in spans):
+            y = next(s["origin"][1] for s in spans if "Relevé sur le devis" in s["text"])
+            for k, l in enumerate((v.get("releve") or [])[:4]):
+                ecrit.append(((36, y + 12.5 * (k + 1)), "-  " + l[:88], 9, (0, 0, 0), None))
+        for o, t, sz, col, fin in ecrit:
+            if not t: continue
+            x = fin - pymupdf.get_text_length(t, fontname="helv", fontsize=sz) if fin else o[0]
+            p.insert_text((x, o[1]), t, fontsize=sz, fontname="helv", color=col)
+        for w in p.widgets():
+            k = w.field_name[:-2] if w.field_name.endswith("_0") else None
+            if k in ("client_nom", "client_adresse", "adresse_chantier") and v.get(k): w.field_value = v[k]; w.update()
+    d.save(sortie, garbage=1, deflate=True); print(sortie)
+
+
 def ajoute(cid, typ, pdf, nom):
     if typ not in FICHES: raise SystemExit("type : " + ", ".join(FICHES))
     b = open(pdf, "rb").read(); k = f"app/{uuid.uuid4()}-{os.path.basename(pdf)}"
@@ -125,4 +178,4 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     {"liste": lambda: liste(), "telecharge": lambda: telecharge(*a[1:4]), "note": lambda: note(a[1], a[2]),
      "traite": lambda: traite(a[1], a[2:]), "modeles": lambda: modeles(a[1]), "champs": lambda: champs(a[1]),
-     "remplir": lambda: remplir(a[1], a[2], a[3]), "ajoute": lambda: ajoute(a[1], a[2], a[3], a[4])}[a[0]]()
+     "remplir": lambda: remplir(a[1], a[2], a[3]), "entete": lambda: entete(a[1], a[2], a[3]), "ajoute": lambda: ajoute(a[1], a[2], a[3], a[4])}[a[0]]()
