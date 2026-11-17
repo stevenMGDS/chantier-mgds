@@ -19,7 +19,7 @@ H = {"apikey": "x", "Authorization": "Bearer x"}  # l'hôte est authentifié par
 FICHES = ("Préparation", "Métré", "Support", "Réception")
 MODELES = {  # modèles vierges (en-tête client à remplacer) et générateurs, dans le stockage « outil »
     "modeles/preparation.pdf", "modeles/reception.pdf", "modeles/metre.pdf", "modeles/support-mancosu.pdf",
-    "generateurs/support_rs.py", "generateurs/ajout_etancheite.py", "generateurs/apparences.py"}
+    "generateurs/support_rs.py", "generateurs/metre_devis.py", "generateurs/ajout_etancheite.py", "generateurs/apparences.py"}
 
 
 def req(method, path, body=None, extra=None, raw=False):
