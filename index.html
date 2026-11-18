@@ -149,6 +149,9 @@ textarea{min-height:64px;resize:vertical}
 .new{font:600 11px var(--f-body);color:var(--s-orange);margin-left:6px;text-transform:uppercase}.new.ok{color:var(--s-vert)}
 .viewer .pg{position:relative;margin:0 auto;flex:none;container-type:inline-size}.viewer .pg canvas{display:block;width:100%;max-width:none}
 /* tracé au stylet : calque transparent au-dessus de la page, actif seulement en mode « Dessiner » */
+.viewer .vnav{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;display:flex;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 8px;box-shadow:0 6px 24px rgba(0,0,0,.22);white-space:nowrap;max-width:calc(100% - 24px)}
+.viewer .vnav .btn{padding:6px 12px}.viewer .vnav #vpgpos{font:600 14px var(--f-body);min-width:92px;text-align:center}
+.viewer .pages.apercu .pg{cursor:zoom-in}
 .viewer .pg canvas.hd{position:absolute;z-index:0;max-width:none;pointer-events:none;box-shadow:none}
 .viewer .pg canvas.ink{position:absolute;inset:0;width:100%;height:100%;z-index:3;background:transparent;box-shadow:none;pointer-events:none}
 .viewer.drawing .pg canvas.ink{pointer-events:auto;touch-action:none;cursor:crosshair}
@@ -352,7 +355,7 @@ textarea{min-height:64px;resize:vertical}
 <div class="scrim" id="scrim" hidden></div>
 <div class="vscrim" id="vscrim" hidden></div>
 <aside class="sheet" id="sheet" hidden aria-label="Fiche chantier"></aside>
-<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span class="vtools"><span id="vfill" role="status"></span><button class="btn miss" id="vmiss" hidden>📋 Ce qui manque</button><span class="zoom" id="vzoomg" hidden><button class="btn ghost" id="vzout" aria-label="Rétrécir la page">−</button><span id="vzoom">100 %</span><button class="btn ghost" id="vzin" aria-label="Agrandir la page">+</button></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn ghost" id="vconso" hidden>🧰 Consommables</button><button class="btn ghost" id="vdraw" hidden>✏️ Dessiner</button><span class="pens" id="vpens" hidden><button class="pen on" data-pen="#D0021B" style="background:#D0021B" aria-label="Crayon rouge"></button><button class="pen" data-pen="#1F5FBF" style="background:#1F5FBF" aria-label="Crayon bleu"></button><button class="pen" data-pen="#111111" style="background:#111" aria-label="Crayon noir"></button><button class="btn ghost" id="vundo">↶ Effacer le dernier trait</button></span><button class="btn ghost" id="vphoto" hidden>📷 Photo</button><input type="file" accept="image/*" multiple hidden id="vphotoin"><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div><div class="cam" id="cam" hidden role="dialog" aria-label="Appareil photo"><video id="camv" playsinline muted autoplay></video><div class="camb"><button class="btn ghost" id="camx">Annuler</button><button class="shot" id="camshot" aria-label="Prendre la photo"></button><button class="btn ghost" id="camfile">Photo existante</button></div></div><div class="cpanel" id="npanel" hidden role="dialog" aria-label="Cases à remplir"><div class="cbar"><b>📋 À remplir pour valider</b><button class="btn" id="ndone">Fermer</button></div><p class="sub" style="margin:0;padding:8px 16px">Ces cases bloquent la validation de la fiche. Touchez une ligne pour y aller. Les remarques et les consommables ne bloquent pas.</p><div class="clist" id="nlist"></div></div><div class="cpanel" id="cpanel" hidden role="dialog" aria-label="Consommables"><div class="cbar"><b>🧰 Consommables</b><button class="btn" id="cdone">Terminé</button></div><p class="sub" style="margin:0;padding:8px 16px">Indiquez les quantités avec − et +. Tout est facultatif : ne remplissez que ce qui sert.</p><div class="clist" id="clist"></div></div></div>
+<div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span class="vtools"><span id="vfill" role="status"></span><button class="btn miss" id="vmiss" hidden>📋 Ce qui manque</button><span class="zoom" id="vzoomg" hidden><button class="btn ghost" id="vzout" aria-label="Rétrécir la page">−</button><span id="vzoom">100 %</span><button class="btn ghost" id="vzin" aria-label="Agrandir la page">+</button></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn ghost" id="vconso" hidden>🧰 Consommables</button><button class="btn ghost" id="vdraw" hidden>✏️ Dessiner</button><span class="pens" id="vpens" hidden><button class="pen on" data-pen="#D0021B" style="background:#D0021B" aria-label="Crayon rouge"></button><button class="pen" data-pen="#1F5FBF" style="background:#1F5FBF" aria-label="Crayon bleu"></button><button class="pen" data-pen="#111111" style="background:#111" aria-label="Crayon noir"></button><button class="btn ghost" id="vundo">↶ Effacer le dernier trait</button></span><button class="btn ghost" id="vphoto" hidden>📷 Photo</button><input type="file" accept="image/*" multiple hidden id="vphotoin"><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div><div class="vnav" id="vnav" hidden><button type="button" class="btn ghost" id="vpgprev" aria-label="Feuille précédente">◀</button><span id="vpgpos"></span><button type="button" class="btn ghost" id="vpgnext" aria-label="Feuille suivante">▶</button><button type="button" class="btn ghost" id="vpgall">Toutes les feuilles</button></div><div class="cam" id="cam" hidden role="dialog" aria-label="Appareil photo"><video id="camv" playsinline muted autoplay></video><div class="camb"><button class="btn ghost" id="camx">Annuler</button><button class="shot" id="camshot" aria-label="Prendre la photo"></button><button class="btn ghost" id="camfile">Photo existante</button></div></div><div class="cpanel" id="npanel" hidden role="dialog" aria-label="Cases à remplir"><div class="cbar"><b>📋 À remplir pour valider</b><button class="btn" id="ndone">Fermer</button></div><p class="sub" style="margin:0;padding:8px 16px">Ces cases bloquent la validation de la fiche. Touchez une ligne pour y aller. Les remarques et les consommables ne bloquent pas.</p><div class="clist" id="nlist"></div></div><div class="cpanel" id="cpanel" hidden role="dialog" aria-label="Consommables"><div class="cbar"><b>🧰 Consommables</b><button class="btn" id="cdone">Terminé</button></div><p class="sub" style="margin:0;padding:8px 16px">Indiquez les quantités avec − et +. Tout est facultatif : ne remplissez que ce qui sert.</p><div class="clist" id="clist"></div></div></div>
 <div class="toast" id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
@@ -1109,7 +1112,7 @@ document.addEventListener("submit",async e=>{
 });
 $("q").addEventListener("input",e=>{q=e.target.value.trim().toLowerCase();render()});
 $("tri").addEventListener("change",e=>{tri=e.target.value;try{localStorage.setItem("chantiers-tri",tri)}catch(x){}render()});
-document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("viewer").hidden){$("viewer").hidden=true;$("vpages").innerHTML=""}else if(openId)closeSheet()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("viewer").hidden&&vFocus!=null){vFocusOff();return}if(!$("viewer").hidden){$("viewer").hidden=true;$("vpages").innerHTML=""}else if(openId)closeSheet()});
 // Les fiches 01-02-03 portent un champ « adresse_chantier_N » : on y écrit l'adresse saisie dans la fiche
 const ADDR_DOCS=["Préparation","Métré","Réception","Support"];
 // polices standard du PDF : pas d'apostrophe typographique ni de œ
@@ -1169,6 +1172,7 @@ async function viewDoc(d){
       await page.render({canvasContext:c.getContext("2d"),viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
       vPages.push({page,box,c,vp,w0:v0.width,h0:v0.height});
     }
+    if(vPages.length>1&&!vForm)pg.classList.add("apercu");
     if((canWrite||canFill)&&assets&&d.type in FORM_TYPES&&!$("viewer").hidden){const fs=(await pdf.getFieldObjects())||{};if(Object.keys(fs).length){$("vedit").hidden=false;if(d.rempli)showFill(d.rempli.reste)}}
     if(d.type==="Préparation"&&!$("viewer").hidden)setTimeout(()=>{prepFromMetre(d);prepFromSupport(d)},50);
   }catch(_){pg.innerHTML='<p class="sub">Ce document ne peut pas s\'afficher ici.'+(downloads?' Utilisez « Télécharger ».':'')+'</p>';if(vBlob)$("vdl").hidden=!downloads}
@@ -1179,15 +1183,42 @@ async function viewDoc(d){
 // visible est redessinée à la définition de l'écran (canvas « hd » posé dessus), si bien que le plan reste net à tout zoom.
 let vZoom=1;const ZOOMS=[1,1.25,1.5,1.75,2,2.5,3,4,5,6,8,10,12,16,20,25,32,40,50];
 function fitW(){return Math.max(280,Math.min($("vpages").clientWidth-32,1000))}
-function showZoom(){$("vzoom").textContent=Math.round(vZoom*100)+" %";$("vzout").disabled=vZoom<=ZOOMS[0];$("vzin").disabled=vZoom>=ZOOMS[ZOOMS.length-1]}
+function showZoom(){$("vzoom").textContent=Math.round(vZoom*100)+" %";$("vzout").disabled=vZoom<=ZOOMS[0]&&vFocus==null;$("vzin").disabled=vZoom>=ZOOMS[ZOOMS.length-1]}
 function setZoom(z,cx,cy){
-  const pg=$("vpages");if(cx==null){cx=pg.clientWidth/2;cy=pg.clientHeight/2}
-  const ry=pg.scrollHeight?(pg.scrollTop+cy)/pg.scrollHeight:0,rx=pg.scrollWidth?(pg.scrollLeft+cx)/pg.scrollWidth:0;
-  vZoom=Math.max(ZOOMS[0],Math.min(ZOOMS[ZOOMS.length-1],z));const w=Math.round(fitW()*vZoom);
+  const pg=$("vpages"),R=pg.getBoundingClientRect();if(cx==null){cx=pg.clientWidth/2;cy=pg.clientHeight/2}
+  const multi=vPages.length>1&&!vForm;
+  // mode feuille (Steven, 18/11/2026) : dézoomer sous 100 % revient à toutes les feuilles
+  if(multi&&vFocus!=null&&z<.86){vFocusOff();return}
+  z=Math.max(ZOOMS[0],Math.min(ZOOMS[ZOOMS.length-1],z));
+  // la feuille sous le point visé, et la position du point sur cette feuille
+  const X=R.left+cx,Y=R.top+cy,vis=vPages.filter(P=>!P.box.hidden);let A=null,fx=.5,fy=.5;
+  if(vis.length){A=vis.find(P=>{const b=P.box.getBoundingClientRect();return Y>=b.top&&Y<=b.bottom})||vis.reduce((m,P)=>{const b=P.box.getBoundingClientRect(),d=Math.min(Math.abs(Y-b.top),Math.abs(Y-b.bottom));return d<m[0]?[d,P]:m},[1e9,vis[0]])[1];
+    const b=A.box.getBoundingClientRect();fx=(X-b.left)/b.width;fy=(Y-b.top)/b.height}
+  // zoomer sur l'aperçu de toutes les feuilles : on ne garde que la feuille visée, les autres ne défilent plus
+  if(multi&&vFocus==null&&z>1.001&&A)vFocusOn(vPages.indexOf(A),true);
+  vZoom=z;const w=Math.round(fitW()*vZoom);
   vPages.forEach(P=>P.box.style.width=w+"px");showZoom();
-  pg.scrollTop=ry*pg.scrollHeight-cy;pg.scrollLeft=rx*pg.scrollWidth-cx;hdPlan();
+  if(A){const b=A.box.getBoundingClientRect();pg.scrollLeft+=b.left+fx*b.width-X;pg.scrollTop+=b.top+fy*b.height-Y}
   if(vForm)try{localStorage.setItem("mgds-zoom",String(vZoom))}catch(_){}
+  hdPlan();
 }
+// ---- mode feuille : une seule feuille à l'écran pendant le zoom ; changer de feuille avec ◀ ▶, en glissant à 100 %,
+// ou en revenant à toutes les feuilles (bouton, − à 100 %, pincer pour dézoomer, Échap, retour) ----
+let vFocus=null;
+function vFocusOn(i,garde){if(!vPages[i])return;vFocus=i;vPages.forEach((P,k)=>P.box.hidden=k!==i);$("vpages").classList.remove("apercu");
+  $("vnav").hidden=false;$("vpgpos").textContent=`Feuille ${i+1} / ${vPages.length}`;$("vpgprev").disabled=i===0;$("vpgnext").disabled=i===vPages.length-1;
+  if(!garde){$("vpages").scrollTop=0;$("vpages").scrollLeft=0}showZoom();hdPlan()}
+function vFocusOff(){const i=vFocus;vFocus=null;vPages.forEach(P=>P.box.hidden=false);$("vnav").hidden=true;vZoom=1;
+  const w=Math.round(fitW());vPages.forEach(P=>P.box.style.width=w+"px");showZoom();
+  const pg=$("vpages");pg.classList.toggle("apercu",vPages.length>1&&!vForm);if(i!=null&&vPages[i])pg.scrollTop+=vPages[i].box.getBoundingClientRect().top-pg.getBoundingClientRect().top-16;pg.scrollLeft=0;hdPlan()}
+function vGo(d){if(vFocus==null)return;const i=vFocus+d;if(!vPages[i])return;vZoom=1;vPages.forEach(P=>P.box.style.width=Math.round(fitW())+"px");vFocusOn(i)}
+$("vpgprev").addEventListener("click",()=>vGo(-1));$("vpgnext").addEventListener("click",()=>vGo(1));$("vpgall").addEventListener("click",()=>vFocusOff());
+$("vpages").addEventListener("click",e=>{if(vFocus!=null||vForm||vDraw.on||vPages.length<2)return;const P=vPages.find(Q=>Q.box.contains(e.target));if(P)vFocusOn(vPages.indexOf(P))});
+(()=>{const pg=$("vpages");let x0=null,y0=0;
+  pg.addEventListener("touchstart",e=>{x0=e.touches.length===1&&vFocus!=null&&vZoom<=1.001&&!vDraw.on&&e.touches[0].clientX>28?e.touches[0].clientX:null;y0=e.touches[0].clientY},{passive:true});
+  pg.addEventListener("touchend",e=>{if(x0===null)return;const t=e.changedTouches[0],dx=t.clientX-x0,dy=Math.abs(t.clientY-y0);x0=null;if(Math.abs(dx)>70&&dy<60)vGo(dx<0?1:-1)},{passive:true});
+  document.addEventListener("keydown",e=>{if($("viewer").hidden||vFocus==null||/INPUT|TEXTAREA|SELECT/.test((e.target.tagName||"")))return;
+    if(e.key==="ArrowRight"&&vZoom<=1.001)vGo(1);else if(e.key==="ArrowLeft"&&vZoom<=1.001)vGo(-1)},true)})();
 // ---- netteté au zoom : seule la partie visible de chaque page est redessinée, à la définition de l'écran ----
 let hdT=null;const hdTasks=new Set();
 function hdPlan(){clearTimeout(hdT);hdT=setTimeout(hdRender,140)}
@@ -1224,7 +1255,7 @@ $("vpages").addEventListener("scroll",()=>{if(vZoom>1)hdPlan()},{passive:true});
 })();
 function resetTools(){
   ["vedit","vsave","vnext","vdraw","vpens","vphoto","vzoomg","vconso","cpanel","npanel","vmiss"].forEach(x=>$(x).hidden=true);if(camStream)closeCam();
-  hdClear();vDraw.on=false;$("viewer").classList.remove("drawing");$("vdraw").classList.remove("on");$("vdraw").textContent="✏️ Dessiner";
+  hdClear();vFocus=null;$("vnav").hidden=true;$("vpages").classList.remove("apercu");vDraw.on=false;$("viewer").classList.remove("drawing");$("vdraw").classList.remove("on");$("vdraw").textContent="✏️ Dessiner";
 }
 // ---------- dessin au stylet ----------
 // traits gardés en coordonnées relatives à la page (0 à 1) ; écrits dans le PDF à l'enregistrement
@@ -2687,6 +2718,7 @@ async function startFill(){
   // faux aplomb / faux niveau : on ne note que les défauts (liste vide = d'aplomb / de niveau)
   fields.forEach(f=>{if(f.ch&&chKey(f.name)){f.req=false;f.free=true;f.el.classList.add("opt")}});
   try{chSetup(fields)}catch(_){}
+  if(vFocus!=null)vFocusOff();$("vpages").classList.remove("apercu");
   vForm={fields,dirty:false,saving:false};
   P0:{const upd=()=>{let n=0;const groups={};
     fields.forEach(f=>{if(f.cb){if(!f.free)(groups[f.group]=groups[f.group]||[]).push(f);else f.el.classList.remove("need")}else{const need=f.req&&!f.el.value.trim();f.el.classList.toggle("need",need);if(need)n++}});
@@ -3330,7 +3362,7 @@ $("viewer").addEventListener("click",e=>{
   if(t.id==="vconso"||t.dataset.conso){if(vDraw.on)setDraw(false);$("npanel").hidden=true;openConso();return}
   if(t.id==="cdone"){$("cpanel").hidden=true;return}
   if(t.id==="vzin")setZoom(ZOOMS.find(z=>z>vZoom+.01)||vZoom);
-  else if(t.id==="vzout")setZoom([...ZOOMS].reverse().find(z=>z<vZoom-.01)||vZoom);
+  else if(t.id==="vzout"){if(vFocus!=null&&vZoom<=1.001)vFocusOff();else setZoom([...ZOOMS].reverse().find(z=>z<vZoom-.01)||vZoom)}
   else if(t.id==="vdraw")setDraw(!vDraw.on);
   else if(t.id==="vundo"){const P=vDraw.stack.pop();if(P){P.strokes.pop();inkRedraw(P)}else toast("Rien à effacer depuis le dernier enregistrement.")}
   else if(t.dataset.pen){vDraw.color=t.dataset.pen;document.querySelectorAll("#vpens .pen").forEach(b=>b.classList.toggle("on",b===t))}
@@ -3596,7 +3628,7 @@ async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=
   const ovs=()=>[["viewer",$("viewer")],["asheet",$("asheet")],["sheet",$("sheet")]].filter(([,el])=>el&&!el.hidden);
   let entree=false,sauter=0,restaure=false,curTab=null;
   function fermeHaut(){const o=ovs()[0];if(!o)return false;
-    if(o[0]==="viewer")$("vclose").click();else if(o[0]==="asheet"&&window.atlClose)atlClose();else closeSheet();return true}
+    if(o[0]==="viewer"){if(vFocus!=null)vFocusOff();else $("vclose").click()}else if(o[0]==="asheet"&&window.atlClose)atlClose();else closeSheet();return true}
   function sync(){const ouvert=ovs().length>0,vs=$("vscrim");if(vs.hidden!==$("viewer").hidden)vs.hidden=$("viewer").hidden;
     if(ouvert&&!entree){history.pushState({ov:1,tab:curTab},"");entree=true}
     else if(!ouvert&&entree){entree=false;if(history.state&&history.state.ov){sauter++;history.back()}}}
