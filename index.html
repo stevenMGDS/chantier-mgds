@@ -3304,9 +3304,10 @@ function dirHeuresHtml(){
 // (exprimée en journée d'équipe de 2, comme l'objectif).
 // Données : direction/objectif, direction/vente_<chantier> (total HT des devis lu par outil/rentabilite.py, ou saisi :
 // man), direction/achat_<chantier> (ARC), direction/prev_<chantier> (achats prévus), factures affectées (fac_*).
-// Objectifs fixés par Steven le 18/11/2026 : charges baissées de 200 000 € (1 204 000 € au bilan 2025-2026) et un deuxième
-// opérateur à l'atelier. RT_BILAN = la situation du bilan, affichée pour comparaison.
-const RT_DEF={charges:1004000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8};
+// Objectifs fixés par Steven le 18/11/2026 : 100 000 € de charges en moins (1 204 000 € au bilan 2025-2026), un deuxième
+// opérateur à l'atelier et 2,2 M€ de chiffre d'affaires. RT_BILAN = la situation du bilan, affichée pour comparaison.
+// rtObj() sert aussi à la Charge (devis à venir) : les autres comptes ne lisent pas direction/objectif, ils ont RT_DEF.
+const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8};
 const RT_BILAN={charges:1204000,atelierN:1};
 const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"]};
 const rt={tout:false};
@@ -3373,7 +3374,7 @@ function rtHtml(){
      ${M.length?`<div class="tbl"><table><thead><tr><th>Mois</th><th class="n">En pose</th><th class="n">À l'atelier</th><th class="n">Autres / non pointées</th><th class="n">Marge non couverte</th></tr></thead><tbody>
      ${M.map(x=>{const au=Math.max(0,x.dispo-x.pose-x.atl);return`<tr><td>${x.m.slice(5)}/${x.m.slice(0,4)}</td><td class="n">${h1(x.pose)}</td><td class="n">${h1(x.atl)}</td><td class="n">${h1(au)}</td><td class="n">${au?eur(au*O.obj):"–"}</td></tr>`}).join("")}</tbody></table></div>
      <p class="sub">Les heures sont pointées depuis le 12/11/2026 : les mois précédents sont incomplets.</p>`:`<p class="sub">Aucune heure pointée pour l'instant.</p>`}</div>
-   <details class="atldet"><summary><b>Calcul de l'objectif</b> <span class="sub">· ${eur(O.obj)} par journée d'équipe · charges réduites et 2<sup>e</sup> opérateur à l'atelier</span></summary>
+   <details class="atldet"><summary><b>Calcul de l'objectif</b> <span class="sub">· ${eur(O.obj)} par journée d'équipe · 100 000 € de charges en moins et 2<sup>e</sup> opérateur à l'atelier</span></summary>
      <div class="rtobjg">${Object.entries(RT_LAB).map(([k,[l,u]])=>`<label>${l} <small class="sub">${u}</small><input type="number" min="0" step="any" inputmode="decimal" data-rtobj="${k}" value="${O[k]}"></label>`).join("")}</div>
      <p class="sub">(${eur(O.charges)} + ${eur(O.resultat)}) ÷ ${Math.round(O.hAn).toLocaleString("fr-FR")} heures productives (${O.mois} mois × ${O.jours} j × (${O.poseurs} poseurs × ${h1(O.hPose)} h + ${O.atelierN} à l'atelier × ${h1(O.hAtl)} h)) = <b>${eur(O.taux)} par heure</b>, soit <b>${eur(O.obj)}</b> par journée d'équipe de 2.</p>
      <p class="sub">${(()=>{const b={...O,...RT_BILAN},h=b.mois*b.jours*(b.poseurs*b.hPose+b.atelierN*b.hAtl),t=(b.charges+b.resultat)/h;return`Situation du bilan 2025-2026 (charges ${eur(b.charges)}, ${b.atelierN} à l'atelier) : ${eur(t)} par heure, ${eur(t*PL_EQ)} par journée d'équipe.`})()}</p></details>`;
@@ -4083,6 +4084,9 @@ button.plc{cursor:pointer}
 .pldvr label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);min-width:0}
 .pldvr input,.pldvr select{font:14px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
 .pldvr .acts{display:flex;gap:6px}
+.dvch{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}.dvch.warn{color:var(--s-orange,#E08A52);font-weight:600}
+.dvup{cursor:pointer;font-size:13px}.dvmj.ok{color:var(--s-vert,#2f7d4a)}.dvmj.o{color:var(--s-orange,#E08A52)}.dvmj.r{color:var(--s-rouge,#CC4141)}
+.dvobj{display:grid;gap:4px;border-left:4px solid var(--accent);background:var(--surface-2,rgba(9,82,161,.06));padding:10px 12px;border-radius:0 8px 8px 0;margin:6px 0 10px;font-size:14px}.dvobj span{color:var(--muted);font-size:13px}
 @media (max-width:760px){.pldvr{grid-template-columns:1fr 1fr}.pldvr label:first-child,.pldvr .acts{grid-column:1/-1}}
 .plnote{font-size:13px;color:var(--muted)}
 </style>
@@ -4336,11 +4340,24 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
    <label>Pose (jours)<input type="number" min="0" step="0.5" inputmode="decimal" id="dv-jp-${id}" ${a} data-k="jp" value="${v("jp")}" ${ro}></label>
    <label>Atelier (h)<input type="number" min="0" step="1" inputmode="numeric" id="dv-ha-${id}" ${a} data-k="ha" value="${v("ha")}" ${ro}></label>
    <label>Pose souhaitée<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d?d.periode||"":"")}</select></label>
-   <div class="acts">${!plW()?"":d?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:`<button class="btn">Ajouter</button>`}</div></${d?"div":"form"}>`}
+   <div class="acts">${!plW()?"":d?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:`<button class="btn">Ajouter</button>`}</div>${d?dvChif(d):""}</${d?"div":"form"}>`}
+// Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
+// (outil/chiffrage.py) qui remplit achats, main-d'œuvre, marge prévue et jours de pose. Marge jour prévue =
+// (montant HT − achats) ÷ (jours de pose + heures d'atelier ÷ 17,5), face à l'objectif de la page Direction > Rentabilité.
+const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,j=(+d.jp||0)+(+d.ha||0)/PL_EQ;return m&&a&&j?(m-a)/j:null};
+function dvChif(d){const id=esc(d.id),O=rtObj(),mj=dvMj(d),c=d.chif;
+  const up=plW()?`<label class="btn ghost dvup">${c?"Remplacer la capture":"📷 Joindre la capture du chiffrage"}<input type="file" accept="image/*,application/pdf" data-dvchif="${id}" hidden></label>`:"";
+  if(!c&&mj==null)return`<div class="dvch warn"><span>📷 Capture du chiffrage manquante : sans elle, pas de marge jour prévue.</span>${up}</div>`;
+  const cls=mj==null?"":mj>=O.obj?"ok":mj>=O.obj*.9?"o":"r";
+  return`<div class="dvch"><span>${c?`📷 Capture reçue le ${fr(c.le)}`:"Chiffrage saisi"}${d.lu?"":c?" · lue par Claude au prochain passage (12 h 27 ou 18 h 27)":""}${d.achats?` · achats prévus ${plEur(+d.achats)}`:""}${d.mo?` · main-d'œuvre ${plEur(+d.mo)}`:""}${mj!=null?` · <b class="dvmj ${cls}">marge jour prévue ${plEur(mj)}</b> pour ${plEur(O.obj)} visés`:""}${d.alerte?` · <b class="dvmj r">${esc(d.alerte)}</b>`:""}</span>${up}</div>`}
 function dvHtml(DV){
   if(PLN.devisOk===false)return `<div class="plcard"><h3>Devis en attente</h3><p class="sub">La liste des devis n'est pas encore activée dans la base : il faut coller <span class="mono">outil/devis.sql</span> dans Supabase (SQL Editor, New query, Run). Les graphiques fonctionnent déjà sans elle.</p></div>`;
   const L=DV.sort((a,b)=>(a.periode||"9999").localeCompare(b.periode||"9999")||String(a.client||"").localeCompare(String(b.client||"")));
-  return `<div class="plcard"><h3>Devis en attente</h3><p class="plnote">Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
+  const O=rtObj(),mjs=L.map(d=>[dvMj(d),+d.montant||0]).filter(x=>x[0]!=null),tm=mjs.reduce((s,x)=>s+x[1],0);
+  return `<div class="plcard"><h3>Devis en attente</h3>
+   <div class="dvobj"><p style="margin:0"><b>Objectif : ${plEur(O.obj)} de marge par journée d'équipe de 2</b>, soit ${plEur(O.taux)} par heure de production, en pose comme à l'atelier.</p>
+    <span>Marge jour d'un devis = (prix de vente HT − achats) ÷ (jours de pose + heures d'atelier ÷ ${plNf(PL_EQ)}). À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
+   <p class="plnote">Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
    <div class="pldv">${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
 async function dvSave(id,patch){const sb=window.sbClient,d={...(PLN.devis.get(id)||{}),...patch};PLN.devis.set(id,d);
   const {error}=await sb.from("devis").upsert({id,data:d,maj_le:new Date().toISOString()});if(error){toast("Enregistrement impossible, réessayez dans un instant.");return false}return true}
@@ -4359,7 +4376,13 @@ document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.datase
 document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.dataset.dvadd)return;e.preventDefault();
   const g=k=>f.querySelector(`[data-k="${k}"]`).value.trim(),client=g("client");if(!client){toast("Indiquez le client ou l'affaire.");return}
   const num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0),id="DV"+Date.now().toString(36);
-  dvSave(id,{client,montant:num("montant"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),etat:"attente",cree:today(),par:me||""}).then(()=>dvKeep(planRender))});
+  dvSave(id,{client,montant:num("montant"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),etat:"attente",cree:today(),par:me||""}).then(ok=>{dvKeep(planRender);if(ok)toast("Devis ajouté. Joignez la capture du chiffrage (📷) sur sa ligne.")})});
+document.addEventListener("change",async e=>{const t=e.target;if(!t.dataset||!t.dataset.dvchif)return;const f=t.files&&t.files[0],id=t.dataset.dvchif;t.value="";if(!f)return;
+  if(f.size>15e6){toast("Fichier trop lourd (15 Mo au plus).");return}
+  const ext=(f.name.match(/\.([a-z0-9]{2,4})$/i)||[,f.type==="application/pdf"?"pdf":"jpg"])[1].toLowerCase(),path=`chiffrage/${id}/${Date.now().toString(36)}.${ext}`;
+  toast("Envoi de la capture…");const{error}=await window.sbClient.storage.from("documents").upload(path,f,{contentType:f.type||"application/octet-stream",upsert:false});
+  if(error){toast("Envoi impossible : la base doit d'abord autoriser les captures (outil/chiffrage.sql).");return}
+  const ok=await dvSave(id,{chif:{path,le:today(),par:me||""},lu:false});if(ok)toast("Capture enregistrée. Claude la lira au prochain passage.");dvKeep(planRender)});
 try{const v=localStorage.getItem("pln-view");if(["sem","atl","chg","jour"].includes(v))PLN.view=v}catch(_){}
 window.planRender=planRender;window.PLN_OK=()=>PLN.ok;window.plLoad=plLoad;window.plDecompte=plDecompte;
 // planning de Marine chargé dès la connexion : il donne les dates de pose sur lesquelles se cale la production de l'atelier
