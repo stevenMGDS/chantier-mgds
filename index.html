@@ -1564,7 +1564,7 @@ async function sendConsoPhotos(chantier,cat,files,note){
   const sb=window.sbClient,{data:{user:u}}=await sb.auth.getUser();let ok=0;
   for(const [n,f] of files.entries()){
     toast(`Envoi de la photo ${n+1} sur ${files.length}…`);
-    const b=await shrink(f),chemin=`${u.id}/${chantier||"stock"}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const b=await shrink(f,3000,.88),chemin=`${u.id}/${chantier||"stock"}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
     const up=await sb.storage.from("photos").upload(chemin,b,{contentType:"image/jpeg",upsert:false});if(up.error)continue;
     const ins=await sb.from("photos").insert({chantier:chantier||null,categorie:cat,chemin,note:note||null});
     if(ins.error){await sb.storage.from("photos").remove([chemin]);continue}ok++}
@@ -1584,6 +1584,7 @@ function consoCamera(getChantier,onSent,noteEl,cats=CONSO_BTN){
     i.onchange=async()=>{const files=[...i.files];i.value="";const c=getChantier();if(!files.length)return;if(!c&&need){toast("Choisissez d'abord le chantier.");return}
       const note=noteEl?noteEl.value.trim():"";const n=await sendConsoPhotos(c,cat,files,note);if(n&&noteEl)noteEl.value="";if(n&&onSent)onSent()};
     box.appendChild(l)});
+  const tip=document.createElement("p");tip.className="sub ccamtip";tip.textContent="Pour que Claude lise bien : une étagère, un bac ou un sachet par photo, étiquettes face à l'appareil, sans reflet, assez près pour que les références soient lisibles ; attendez que l'image soit nette.";box.appendChild(tip);
   const g=document.createElement("label");g.className="sub ccamgal";g.innerHTML="ou <u>choisir dans la galerie</u> comme :";
   const gi=document.createElement("input");gi.type="file";gi.accept="image/*";gi.multiple=true;gi.hidden=true;g.appendChild(gi);
   gi.onchange=async()=>{const files=[...gi.files];gi.value="";const c=getChantier();if(!files.length)return;if(!c&&need){toast("Choisissez d'abord le chantier.");return}
@@ -2804,12 +2805,13 @@ async function saveFill(opts={}){
 }
 
 // ---------- photos du métré et annexe de la fiche de préparation ----------
-// photo réduite (1800 px max) pour ne pas remplir le stockage
-async function shrink(f){
+// photo réduite pour ne pas remplir le stockage : 1800 px pour les photos du métré (elles vont dans le PDF) ;
+// 3000 px et meilleure qualité pour les photos de stock et d'inventaire, que Claude doit lire (Steven, 18/11/2026)
+async function shrink(f,max=1800,q=.82){
   try{const url=URL.createObjectURL(f),im=new Image();im.src=url;await im.decode();
-    const k=Math.min(1,1800/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement("canvas");
+    const k=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement("canvas");
     c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(url);
-    const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.82));c.width=0;return b||f}catch(_){return f}
+    const b=await new Promise(r=>c.toBlob(r,"image/jpeg",q));c.width=0;return b||f}catch(_){return f}
 }
 // photo prise pendant le remplissage du métré : nouvelle page à la fin de la fiche, dessinable comme les autres
 async function photoPage(b,name){

@@ -349,16 +349,17 @@ async function signed(paths){
 // ouvrir une fiche en lecture dans l'appli (certains ordinateurs téléchargeaient le PDF au lieu de l'afficher)
 document.addEventListener("click",e=>{const b=e.target.closest("[data-doc]");if(!b)return;openFill(b.dataset.doc,false)});
 
-// photos : réduites (1600 px, JPEG) avant l'envoi pour rester dans l'espace gratuit
+// photos : réduites avant l'envoi pour rester dans l'espace gratuit ; 3000 px et meilleure qualité depuis le 18/11/2026
+// (Steven : Claude doit lire les étiquettes et les quantités sur les photos de consommables)
 async function shrink(file){
   const url=URL.createObjectURL(file);
   try{
     const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
-    const k=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
+    const k=Math.min(1,3000/Math.max(img.naturalWidth,img.naturalHeight));
     const c=document.createElement("canvas");c.width=Math.round(img.naturalWidth*k);c.height=Math.round(img.naturalHeight*k);
     c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-    return await new Promise(ok=>c.toBlob(ok,"image/jpeg",.72));
-  }catch(_){return file.type==="image/jpeg"&&file.size<5e6?file:null}
+    return await new Promise(ok=>c.toBlob(ok,"image/jpeg",.86));
+  }catch(_){return file.type==="image/jpeg"&&file.size<8e6?file:null}
   finally{URL.revokeObjectURL(url)}
 }
 document.addEventListener("change",async e=>{const inp=e.target.closest("[data-up]");if(!inp||!inp.files.length)return;
