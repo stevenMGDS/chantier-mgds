@@ -244,11 +244,16 @@ textarea{min-height:64px;resize:vertical}
 .tbl .n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}.tbl select{min-width:190px}.tbl input[type=number]{font:14px var(--f-mono);width:7.5em;text-align:right;border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:var(--surface);color:var(--ink)}
 .tbl .des{min-width:220px}.up{color:var(--s-rouge);font-weight:600}.dn{color:var(--s-vert);font-weight:600}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.chart{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}.chart h3{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+.rtg svg{width:100%;height:auto;display:block}.rtg text{font:11px var(--f-body);fill:var(--muted)}.rtg .gl{stroke:var(--line);stroke-width:1}
+.rtg .rtg-r,.sw.rtg-r{fill:var(--s-vert,#2f7d4a);background:var(--s-vert,#2f7d4a)}.rtg .rtg-p,.sw.rtg-p{fill:var(--accent);background:var(--accent)}.sw.rtg-d{background:repeating-linear-gradient(45deg,var(--accent) 0 2px,transparent 2px 5px)}
+.rtg .rtg-dbg{fill:transparent}.rtg .rtg-dl{stroke:var(--accent)}.rtg .rtg-c{stroke:var(--ink,#1d2633);stroke-width:2;stroke-dasharray:6 4}.rtg .rtg-n{font-weight:700;fill:var(--s-orange,#E08A52)}.rtg .rtg-now{font-weight:700;fill:var(--ink)}
+.rtg .hit{fill:transparent;cursor:pointer}.rtg .hit:hover,.rtg .hit:focus{fill:rgba(9,82,161,.06);outline:none}
 .regp{display:grid;gap:18px;max-width:900px}.regs{display:grid;gap:10px;border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface)}.regs h3{margin:0}
 .regg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.regg label,.regf label{display:grid;gap:3px;font-size:14px;font-weight:600}.regg label span{font-weight:400;font-size:12.5px;color:var(--muted)}
 .regg input,.regf input{font:15px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
 .regf{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:8px;min-width:0}.regf legend{font-weight:600;padding:0 4px}
 .regobj{font-size:16px}.regobj b{font:600 20px var(--f-mono);color:var(--accent)}.rega{border-left:4px solid var(--s-orange,#E08A52);padding:8px 12px;background:var(--surface)}.regm{margin:0;color:var(--s-vert,#2f7d4a);font-weight:600}
+.dtop.dsub{margin-top:-4px}.dtop.dsub .chip{font-size:13px}
 .rttab td{vertical-align:middle}.rtbc{min-width:110px}.rtm{color:var(--s-orange,#E08A52);font-weight:600}
 .rtb .rtt{position:relative;display:block;height:14px;background:var(--line);border-radius:3px}.rtb i{position:absolute;top:0;bottom:0;left:0;border-radius:3px}
 .rtb i.rtp{background:var(--accent);opacity:.25}.rtb i.rtr{top:3px;bottom:3px}.rtb i.rtr.ok,.sw.rtok{background:var(--s-vert,#2f7d4a)}.rtb i.rtr.o{background:var(--s-orange,#E08A52)}.rtb i.rtr.r,.sw.rtr0{background:var(--s-rouge,#CC4141)}.rtb i.rtr:not(.ok):not(.o):not(.r){background:var(--muted)}
@@ -3486,6 +3491,12 @@ function rtData(){
     // achats prévus lus dans un chiffrage : le prix de Christophe y comprend l'atelier ; on n'en garde que la matière
     const achPm=o.achPSrc==="prévu"?Math.max(0,o.achP-o.atlP*O.taux0):o.achP;
     o.mjPrev=mj(achPm,o.hPrev);o.mjAct=mj(Math.max(achPm,o.achR),o.hAct);
+    // chantier terminé : la marge réelle, avec les vrais achats et les vraies heures
+    o.achPm=achPm;o.margeP=o.vente&&achPm>0?o.vente-achPm:null;
+    o.margeR=o.fin&&o.vente&&o.achR>0?o.vente-o.achR:null;
+    if(o.fin){const hR=o.jReel*PL_EQ+o.atlH;o.mjAct=mj(o.achR||achPm,hR||o.hPrev)}
+    let dp=o.j?(sd(o.j,"pose")||sd(o.j,"recep")):"";if(!dp&&o.j){try{const x=posePrevue(o.id,o.j);dp=x&&x.d||""}catch(_){}}if(!dp&&o.j&&o.j.delai)dp=o.j.delai;
+    o.mois=(dp||"").slice(0,7);
     o.manque=[!o.vente&&"prix de vente",!o.achAct&&"achats",!o.hAct&&"temps de pose"].filter(Boolean);
     return o}).filter(o=>rt.tout||!o.fin);
 }
@@ -3493,6 +3504,50 @@ function rtMois(O){const M=new Map(),staff=dirH.staff||new Set();
   for(const h of dirH.hs){if(staff.has(h.poseur)||!h.jour)continue;const m=h.jour.slice(0,7);if(!M.has(m))M.set(m,{pose:0,atl:0,autre:0});const x=M.get(m),n=+h.heures||0;
     if(h.atelier)x.atl+=n;else if(h.chantier&&!h.tache)x.pose+=n;else x.autre+=n}
   return[...M].sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4).map(([m,x])=>({m,dispo:O.poseurs*O.jours/2,pose:x.pose/PL_EQ,atl:x.atl/PL_EQ,autre:x.autre/PL_EQ}))}
+// ---- graphique de rentabilité par mois de pose (Steven, 18/11/2026), sur le modèle de la Charge :
+// vert = marge réelle des chantiers terminés, bleu = marge prévue des chantiers en cours, hachuré = devis en attente
+// (marge de la capture × chance de signature) ; trait = marge à faire chaque mois (charges + résultat) ÷ 12 ----
+rt.sel=rt.sel||null;
+// bilan gardé dans direction/bilan_<chantier> dès que le chantier est posé : un chantier rangé dans Z.TERMINÉS
+// quitte l'appli, son bilan reste dans le graphique
+function rtBilans(L){if(!window.dirDb||!dirDb.ok())return;
+  for(const o of L){if(!o.j||!(sd(o.j,"pose")||sd(o.j,"recep")))continue;
+    const b={kind:"bilan",client:o.j.client||o.id,mois:o.mois,vente:o.vente||0,achats:o.fin?(o.achR||o.achPm||0):(o.achPm||0),margeP:o.margeP,margeR:o.margeR,
+      mjPrev:o.mjPrev!=null?Math.round(o.mjPrev):null,mjReel:o.fin&&o.mjAct!=null?Math.round(o.mjAct):null,fin:!!o.fin,hPose:Math.round(o.poseH*10)/10,hAtl:Math.round((o.atlH+o.posAtlH)*10)/10};
+    const id="bilan_"+o.id,old=dirDocs.get(id);if(old&&JSON.stringify(old)===JSON.stringify(b))continue;dirDocs.set(id,b);dirPut(id,b)}}
+function rtMoisData(O,L){
+  const now=new Date(),M=[];for(let i=-5;i<=6;i++){const d=new Date(now.getFullYear(),now.getMonth()+i,1);M.push({mois:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"),r:0,p:0,d:0,it:[],manque:0})}
+  const ix=new Map(M.map(m=>[m.mois,m]));
+  rtBilans(L);
+  // chantiers déjà sortis de l'appli : leur bilan gardé
+  for(const[id,b]of dirDocs){if(b.kind!=="bilan"||jobs.has(id.slice(6)))continue;const m=ix.get(b.mois);if(!m)continue;
+    if(b.margeR!=null){m.r+=b.margeR;m.it.push({k:"b",b})}else if(b.margeP!=null){m.p+=b.margeP;m.it.push({k:"b",b})}}
+  for(const o of L){const m=ix.get(o.mois);if(!m)continue;
+    if(o.fin&&o.margeR!=null){m.r+=o.margeR;m.it.push({k:"r",o})}else if(o.margeP!=null){m.p+=o.margeP;m.it.push({k:"p",o})}else{m.manque++;m.it.push({k:"x",o})}}
+  const DV=typeof dvLive==="function"?dvLive():[];
+  for(const d of DV){const m=ix.get(d.periode||"");if(!m)continue;const mg=+d.montant&&+d.achats?(+d.montant-+d.achats+(+d.ha||0)*O.tauxAtl):null,ch=(DV_CH[d.chance]||DV_CH.moyenne)[1];
+    if(mg!=null)m.d+=mg*ch;m.it.push({k:"d",d,mg,ch})}
+  return M}
+function rtChart(O,L){
+  const M=rtMoisData(O,L),cible=(O.charges+O.resultat)/12,top=Math.max(cible*1.25,...M.map(m=>m.r+m.p+m.d)),step=[10000,20000,25000,50000,100000].find(x=>top/x<=5)||200000,max=Math.ceil(top/step)*step;
+  const W=720,H=230,Lm=46,B=24,T=10,pw=(W-Lm)/M.length,bw=Math.min(30,pw-10),y=v=>T+(H-T-B)*(1-v/max),now=new Date().toISOString().slice(0,7);
+  let g="";for(let v=0;v<=max;v+=step)g+=`<line class="gl" x1="${Lm}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${Lm-6}" y="${y(v)+4}" text-anchor="end">${v?Math.round(v/1000)+" k":"0"}</text>`;
+  const cols=M.map((m,i)=>{const x=Lm+i*pw+(pw-bw)/2;let acc=0,r="";
+    [[m.r,"rtg-r"],[m.p,"rtg-p"],[m.d,"rtg-d"]].forEach(([v,k])=>{if(v<=0)return;const y1=y(acc+v),hh=y(acc)-y1;acc+=v;r+=`<rect class="${k}" ${k==="rtg-d"?'fill="url(#rtg-hat)"':""} x="${x}" y="${y1}" width="${bw}" height="${Math.max(1,hh-1)}" rx="2"/>`});
+    const lab=PL_MOIS[+m.mois.slice(5,7)-1];
+    return r+(m.manque?`<text class="rtg-n" x="${x+bw/2}" y="${y(acc)-5}" text-anchor="middle">+${m.manque}?</text>`:"")+`<text class="${m.mois===now?"rtg-now":""}" x="${x+bw/2}" y="${H-7}" text-anchor="middle">${lab}</text><rect class="hit" data-rtm="${m.mois}" x="${Lm+i*pw}" y="${T}" width="${pw}" height="${H-T}" tabindex="0" role="button" aria-label="${lab} ${m.mois.slice(0,4)}"/>`}).join("");
+  const sel=M.find(m=>m.mois===rt.sel)||M.find(m=>m.mois===now)||M[5];
+  const det=sel.it.length?`<div class="tbl"><table class="rttab"><thead><tr><th>Chantier</th><th>État</th><th class="n">Marge prévue</th><th class="n">Marge réelle</th><th class="n">Marge jour</th></tr></thead><tbody>${sel.it.map(e=>{
+      if(e.k==="b"){const b=e.b;return`<tr><td>${esc(b.client)}</td><td>terminé, rangé</td><td class="n">${b.margeP!=null?eur(b.margeP):"–"}</td><td class="n">${b.margeR!=null?eur(b.margeR):"–"}</td><td class="n">${b.mjPrev!=null?`<small class="sub">prévu</small> <b class="rtv ${rtCls(b.mjPrev,O)}">${eur(b.mjPrev)}</b>`:""}${b.mjReel!=null?`<br><small class="sub">réel</small> <b class="rtv ${rtCls(b.mjReel,O)}">${eur(b.mjReel)}</b>`:""}</td></tr>`}
+      if(e.k==="d")return`<tr><td>${esc(e.d.client||"Devis")}</td><td>devis en attente (${Math.round(e.ch*100)} %)</td><td class="n">${e.mg!=null?eur(e.mg):"capture à joindre"}</td><td class="n">–</td><td class="n">${(()=>{const mj=dvMj(e.d);return mj!=null?`<b class="rtv ${rtCls(mj,O)}">${eur(mj)}</b>`:"–"})()}</td></tr>`;
+      const o=e.o;return`<tr><td><button class="lnk" data-open="${esc(o.id)}">${esc(o.j?o.j.client:o.id)}</button></td><td>${e.k==="r"?"terminé":e.k==="p"?"en cours":"<span class=rtm>achats à compléter</span>"}</td><td class="n">${o.margeP!=null?eur(o.margeP):"–"}</td><td class="n">${o.margeR!=null?eur(o.margeR):"–"}</td>
+        <td class="n">${o.mjPrev!=null?`<small class="sub">prévu</small> <b class="rtv ${rtCls(o.mjPrev,O)}">${eur(o.mjPrev)}</b>`:""}${o.fin&&o.mjAct!=null?`<br><small class="sub">réel</small> <b class="rtv ${rtCls(o.mjAct,O)}">${eur(o.mjAct)}</b>`:""}${o.mjPrev==null&&!(o.fin&&o.mjAct!=null)?"–":""}</td></tr>`}).join("")}</tbody></table></div>`:`<p class="sub">Aucun chantier ni devis posé ce mois-là.</p>`;
+  const tot=sel.r+sel.p+sel.d;
+  return`<div class="chart"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3>Marge par mois de pose</h3>
+    <div class="dhleg"><span><i class="sw rtg-r"></i>Réelle (terminés)</span><span><i class="sw rtg-p"></i>Prévue (en cours)</span><span><i class="sw rtg-d"></i>Devis en attente (probable)</span><span><i class="sw rtobj"></i>À faire par mois ${eur(cible)}</span></div></div>
+    <p class="sub">Chaque chantier compte dans le mois de sa pose. La marge prévue vient du chiffrage ; une fois le chantier terminé, elle est remplacée par la marge réelle (vrais achats, vraies heures). « +n? » : chantiers dont les achats manquent encore. Touchez un mois pour le détail.</p>
+    <div class="rtg"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Marge par mois de pose sur douze mois"><defs><pattern id="rtg-hat" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="rtg-dbg"/><line x1="0" y1="0" x2="0" y2="6" class="rtg-dl" stroke-width="2.6"/></pattern></defs>${g}<line class="rtg-c" x1="${Lm}" x2="${W}" y1="${y(cible)}" y2="${y(cible)}"/>${cols}</svg></div>
+    <p><b>${PL_MOIS[+sel.mois.slice(5,7)-1]} ${sel.mois.slice(0,4)}</b> : ${tot?eur(tot)+" de marge"+(sel.d?" (dont "+eur(sel.d)+" de devis probables)":""):"pas de marge connue"} pour ${eur(cible)} à faire${tot?" · "+(tot>=cible?"objectif atteint ✓":"il manque "+eur(cible-tot)):""}.</p>${det}</div>`}
 function rtCls(v,O){return v==null?"":v>=O.obj?"ok":v>=O.obj*.9?"o":"r"}
 function rtHtml(){
   if(!dirH.ok){if(!dirH.loading)dirHLoad();return`<p class="sub">Chargement…</p>`}
@@ -3508,6 +3563,7 @@ function rtHtml(){
     <div class="kpi ${tj&&tm/tj<O.obj?"r":""}"><b>${tj?eur(tm/tj):"–"}</b><span>Marge jour moyenne (${ok.length} chantier${ok.length>1?"s":""} complet${ok.length>1?"s":""})</span></div>
     <div class="kpi ${sous.length?"r":""}"><b>${sous.length}</b><span>Chantier${sous.length>1?"s":""} sous l'objectif</span></div>
     <div class="kpi ${L.some(o=>o.manque.length)?"o":""}"><b>${L.filter(o=>o.manque.length).length}</b><span>Chantier${L.filter(o=>o.manque.length).length>1?"s":""} incomplet${L.filter(o=>o.manque.length).length>1?"s":""}</span></div></div>
+   ${rtChart(O,L)}
    <div class="chart"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3>Marge jour par chantier</h3>
      <div class="dhleg"><span><i class="sw rtok"></i>Au-dessus de l'objectif</span><span><i class="sw rtr0"></i>En dessous</span><span><i class="sw prev"></i>Prévu au devis</span><span><i class="sw rtobj"></i>Objectif ${eur(O.obj)}</span></div></div>
      <p class="sub">Une heure de production vaut une heure, en pose comme à l'atelier. Marge jour = (vente HT − achats de matière) ÷ toutes les heures du chantier × ${h1(PL_EQ)} h (une journée d'équipe de 2) ; la main-d'œuvre d'atelier comprise dans le prix de Christophe (${eur(O.tauxAtl)}/h) n'est pas un achat. Objectif : ${eur(O.taux)} par heure. Chantier en cours : le plus grand du prévu et du réalisé.</p>
@@ -3546,8 +3602,10 @@ function renderDir(){
   const ls=dirMois?all.filter(l=>l.date.startsWith(dirMois)):all;
   const ecs=prixEcarts(all).filter(e=>!dirMois||e.date.startsWith(dirMois));
   const total=ls.reduce((s,l)=>s+(l.ht||0),0),stock=ls.filter(l=>l.aff==="stock").reduce((s,l)=>s+(l.ht||0),0),todo=ls.filter(toSort),sur=ecs.filter(e=>e.sur>0).reduce((s,e)=>s+e.sur,0);
-  const head=`<div class="dtop">${[["rentabilite","Rentabilité"],["affecter","À affecter ("+todo.length+")"],["debourses","Déboursés"],["prix","Prix d'achat ("+ecs.length+")"],["analyses","Analyses"],["heures","Heures"]].map(([k,t])=>`<button class="chip" data-dirtab="${k}" aria-pressed="${dirTab===k}">${t}</button>`).join("")}
-   <select id="dirMois" aria-label="Période"><option value="">Toute la période</option>${mois.map(m=>`<option value="${m}" ${m===dirMois?"selected":""}>${m.slice(5)}/${m.slice(0,4)}</option>`).join("")}</select></div>
+  const ACH=["affecter","debourses","prix","analyses"],enAch=ACH.includes(dirTab);
+  const head=`<div class="dtop">${[["rentabilite","Rentabilité"],[enAch?dirTab:(rt.ach||"affecter"),"Achats"+(todo.length?" ("+todo.length+" à affecter)":""),true],["heures","Heures"]].map(([k,t,a])=>`<button class="chip" data-dirtab="${k}" aria-pressed="${a?enAch:dirTab===k}">${t}</button>`).join("")}</div>
+   ${enAch?`<div class="dtop dsub">${[["affecter","À affecter ("+todo.length+")"],["debourses","Déboursés"],["prix","Prix d'achat ("+ecs.length+")"],["analyses","Analyses"]].map(([k,t])=>`<button class="chip" data-dirtab="${k}" aria-pressed="${dirTab===k}">${t}</button>`).join("")}
+   <select id="dirMois" aria-label="Période"><option value="">Toute la période</option>${mois.map(m=>`<option value="${m}" ${m===dirMois?"selected":""}>${m.slice(5)}/${m.slice(0,4)}</option>`).join("")}</select></div>`:""}
    <div class="kpis"><div class="kpi"><b>${eur(total)}</b><span>Achats HT</span></div><div class="kpi"><b>${eur(stock)}</b><span>Entrés en stock</span></div><div class="kpi ${todo.length?"o":""}"><b>${todo.length}</b><span>Lignes à affecter</span></div><div class="kpi ${sur>0?"r":""}"><b>${eur(sur)}</b><span>Surcoût des hausses de prix</span></div></div>`;
   let body="";
   if(dirTab==="heures")body=dirHeuresHtml();
@@ -3571,7 +3629,7 @@ function renderDir(){
   $("tab-direction").innerHTML=(dirTab==="heures"||dirTab==="rentabilite"?head.replace(/<div class="kpis">[\s\S]*$/,""):head)+body;
 }
 async function dirPut(id,d){try{await dirDb.put(id,d)}catch(_){toast("Enregistrement impossible, réessayez.")}}
-$("tab-direction").addEventListener("click",e=>{if(e.target.closest("#dirHtout")){dirH.tout=!dirH.tout;renderDir();return}if(e.target.closest("#rtTout")){rt.tout=!rt.tout;renderDir();return}const b=e.target.closest("[data-dirtab],#dirAll");if(!b)return;if(b.id==="dirAll")dirAll=!dirAll;else dirTab=b.dataset.dirtab;if(dirTab==="heures"||dirTab==="rentabilite")dirH.ok=false;renderDir()});
+$("tab-direction").addEventListener("click",e=>{if(e.target.closest("#dirHtout")){dirH.tout=!dirH.tout;renderDir();return}if(e.target.closest("#rtTout")){rt.tout=!rt.tout;renderDir();return}const rm=e.target.closest("[data-rtm]");if(rm){rt.sel=rm.dataset.rtm;renderDir();return}const b=e.target.closest("[data-dirtab],#dirAll");if(!b)return;if(b.id==="dirAll")dirAll=!dirAll;else{dirTab=b.dataset.dirtab;if(["affecter","debourses","prix","analyses"].includes(dirTab))rt.ach=dirTab}if(dirTab==="heures"||dirTab==="rentabilite")dirH.ok=false;renderDir()});
 $("tab-direction").addEventListener("change",e=>{const t=e.target;
   if(t.dataset.dirjp){const id=t.dataset.dirjp,j=jobs.get(id);if(!j||!canWrite)return;const v=t.value===""?"":Math.max(0,+String(t.value).replace(",","."))||"";jobs.set(id,{...j,jp:v});save(id,{jp:v});renderDir();return}
   if(t.id==="dirMois"){dirMois=t.value;renderDir();return}
