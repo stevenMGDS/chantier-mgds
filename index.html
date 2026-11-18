@@ -609,7 +609,7 @@ function facSync(fs){const so=fs.find(f=>f.solde&&f.fac&&f.fac.d);
 function nPosed(j){return phasesOf(j).filter(x=>x.pose&&x.pose.d).length}
 function partial(j){const n=nPosed(j);return n>0&&n<phasesOf(j).length}
 function arcCount(j,f){const a=arcsOf(j);return a.filter(f).length+"/"+a.length}
-const DOC_TYPES=["Devis","Plans d'exé","Préparation","Métré","Support","Commande","ARC","Réception","Photo","Facture","Autre"];
+const DOC_TYPES=["Devis","Chiffrage","Plans d'exé","Préparation","Métré","Support","Commande","ARC","Réception","Photo","Facture","Autre"];
 const TASKS_AV=["Vérifier l'accès (camion, stationnement, étage)","Prévoir échafaudage ou nacelle","Prévenir le client : meubles à dégager","Contrôler les consommables préparés (coloris)","Préparer le dossier de pose"];
 const TASKS_AP=["Contrôler les colis avec l'ARC","Vérifier coloris et vitrages","Photographier tout dommage","Ranger le matériel par repère"];
 const MOMENTS=[
@@ -959,6 +959,7 @@ function bindDrop(){
   $("file").addEventListener("change",e=>upload([...e.target.files]));
 }
 function guessType(n){n=n.toLowerCase();
+  if(/chiffr|marge|capture d.?[ée]cran|screenshot/.test(n))return"Chiffrage";
   if(/support/.test(n))return"Support";if(/devis/.test(n))return"Devis";if(/\bexe\b|ex[eé]cution|plans? d.ex/.test(n))return"Plans d'exé";if(/\barc\b|accus|confirmation/.test(n))return"ARC";if(/m[eé]tr/.test(n))return"Métré";if(/pr[eé]pa|d[eé]couverte/.test(n))return"Préparation";if(/autocontr/.test(n))return"Réception";
   if(/r[eé]cep|pv/.test(n))return"Réception";if(/fact/.test(n))return"Facture";if(/command|bdc/.test(n))return"Commande";if(/\.(jpe?g|png|heic|webp)$/.test(n))return"Photo";return"Autre"}
 function ctype(f){if(f.type&&!/;/.test(f.type)&&f.type!=="application/vnd.ms-excel")return f.type;const e=f.name.split(".").pop().toLowerCase();return{pdf:"application/pdf",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",csv:"text/csv",txt:"text/plain"}[e]||f.type}
@@ -3307,12 +3308,15 @@ function dirHeuresHtml(){
 // Objectifs fixés par Steven le 18/11/2026 : 100 000 € de charges en moins (1 204 000 € au bilan 2025-2026), un deuxième
 // opérateur à l'atelier et 2,2 M€ de chiffre d'affaires. RT_BILAN = la situation du bilan, affichée pour comparaison.
 // rtObj() sert aussi à la Charge (devis à venir) : les autres comptes ne lisent pas direction/objectif, ils ont RT_DEF.
-const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8};
+// Steven, 18/11/2026 : au moins 10 % du temps n'est payé par aucun chantier (glissements, trous de planning, SAV, gestes
+// commerciaux) et une marge de sécurité de 5 % : heures vendables = heures × (1 − nonTrav) ; objectif × (1 + secu).
+const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8,nonTrav:10,secu:5};
 const RT_BILAN={charges:1204000,atelierN:1};
-const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"]};
+const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"],nonTrav:["Temps non vendu","% (SAV, trous, glissements)"],secu:["Marge de sécurité","%"]};
 const rt={tout:false};
 function rtObj(){const o={...RT_DEF};const d=dirDocs.get("objectif")||{};for(const k in RT_DEF)if(d[k]!=null&&!isNaN(+d[k]))o[k]=+d[k];
-  o.hAn=o.mois*o.jours*(o.poseurs*o.hPose+o.atelierN*o.hAtl);o.taux=o.hAn?(o.charges+o.resultat)/o.hAn:0;o.obj=o.taux*PL_EQ;return o}
+  o.hBrut=o.mois*o.jours*(o.poseurs*o.hPose+o.atelierN*o.hAtl);o.hAn=o.hBrut*(1-o.nonTrav/100);
+  o.taux=o.hAn?(o.charges+o.resultat)/o.hAn*(1+o.secu/100):0;o.obj=o.taux*PL_EQ;return o}
 function rtData(){
   const O=rtObj(),staff=dirH.staff||new Set(),A=new Map();
   const get=id=>{if(!A.has(id))A.set(id,{id,j:jobs.get(id),poseH:0,posAtlH:0,atlH:0,atlP:0,jPrev:0,jSrc:""});return A.get(id)};
@@ -3370,14 +3374,14 @@ function rtHtml(){
        <td class="n"><b class="rtv ${rtCls(o.mjAct,O)}">${o.mjAct!=null?eur(o.mjAct):"–"}</b>${o.mjPrev!=null?`<br><small class="sub">prévu ${eur(o.mjPrev)}</small>`:""}</td>
        <td class="rtbc">${bar(o)}</td></tr>`).join("")}</tbody></table></div></div>
    <div class="chart"><h3>Journées d'équipe des poseurs par mois</h3>
-     <p class="sub">${h1(O.poseurs*O.jours/2)} journées d'équipe disponibles par mois. Pose et atelier comptent pareil, s'ils sont payés par un chantier ; les journées « autres » ne sont payées par aucun chantier : chacune coûte ${eur(O.obj)} de marge.</p>
+     <p class="sub">${h1(O.poseurs*O.jours/2)} journées d'équipe disponibles par mois. Pose et atelier comptent pareil, s'ils sont payés par un chantier. L'objectif prévoit ${O.nonTrav} % de journées « autres » (SAV, trous, glissements), soit ${h1(O.poseurs*O.jours/2*O.nonTrav/100)} par mois ; au-delà, chacune coûte ${eur(O.obj)} de marge.</p>
      ${M.length?`<div class="tbl"><table><thead><tr><th>Mois</th><th class="n">En pose</th><th class="n">À l'atelier</th><th class="n">Autres / non pointées</th><th class="n">Marge non couverte</th></tr></thead><tbody>
      ${M.map(x=>{const au=Math.max(0,x.dispo-x.pose-x.atl);return`<tr><td>${x.m.slice(5)}/${x.m.slice(0,4)}</td><td class="n">${h1(x.pose)}</td><td class="n">${h1(x.atl)}</td><td class="n">${h1(au)}</td><td class="n">${au?eur(au*O.obj):"–"}</td></tr>`}).join("")}</tbody></table></div>
      <p class="sub">Les heures sont pointées depuis le 12/11/2026 : les mois précédents sont incomplets.</p>`:`<p class="sub">Aucune heure pointée pour l'instant.</p>`}</div>
    <details class="atldet"><summary><b>Calcul de l'objectif</b> <span class="sub">· ${eur(O.obj)} par journée d'équipe · 100 000 € de charges en moins et 2<sup>e</sup> opérateur à l'atelier</span></summary>
      <div class="rtobjg">${Object.entries(RT_LAB).map(([k,[l,u]])=>`<label>${l} <small class="sub">${u}</small><input type="number" min="0" step="any" inputmode="decimal" data-rtobj="${k}" value="${O[k]}"></label>`).join("")}</div>
-     <p class="sub">(${eur(O.charges)} + ${eur(O.resultat)}) ÷ ${Math.round(O.hAn).toLocaleString("fr-FR")} heures productives (${O.mois} mois × ${O.jours} j × (${O.poseurs} poseurs × ${h1(O.hPose)} h + ${O.atelierN} à l'atelier × ${h1(O.hAtl)} h)) = <b>${eur(O.taux)} par heure</b>, soit <b>${eur(O.obj)}</b> par journée d'équipe de 2.</p>
-     <p class="sub">${(()=>{const b={...O,...RT_BILAN},h=b.mois*b.jours*(b.poseurs*b.hPose+b.atelierN*b.hAtl),t=(b.charges+b.resultat)/h;return`Situation du bilan 2025-2026 (charges ${eur(b.charges)}, ${b.atelierN} à l'atelier) : ${eur(t)} par heure, ${eur(t*PL_EQ)} par journée d'équipe.`})()}</p></details>`;
+     <p class="sub">(${eur(O.charges)} + ${eur(O.resultat)}) ÷ ${Math.round(O.hAn).toLocaleString("fr-FR")} heures vendables (${O.mois} mois × ${O.jours} j × (${O.poseurs} poseurs × ${h1(O.hPose)} h + ${O.atelierN} à l'atelier × ${h1(O.hAtl)} h), moins ${O.nonTrav} % non vendus) + ${O.secu} % de sécurité = <b>${eur(O.taux)} par heure</b>, soit <b>${eur(O.obj)}</b> par journée d'équipe de 2.</p>
+     <p class="sub">${(()=>{const b={...O,...RT_BILAN},h=b.mois*b.jours*(b.poseurs*b.hPose+b.atelierN*b.hAtl)*(1-b.nonTrav/100),t=(b.charges+b.resultat)/h*(1+b.secu/100);return`Situation du bilan 2025-2026 (charges ${eur(b.charges)}, ${b.atelierN} à l'atelier) : ${eur(t)} par heure, ${eur(t*PL_EQ)} par journée d'équipe.`})()}</p></details>`;
 }
 const eur=n=>Math.round(n||0).toLocaleString("fr-FR")+" €",eur2=n=>(n||0).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 const dirLines=()=>[...dirDocs].filter(([,d])=>d.kind==="facture").flatMap(([fid,f])=>(f.lignes||[]).map((l,i)=>({...l,fid,i,four:f.four||"?",num:f.num||"",date:f.date||""}))).sort((a,b)=>a.date.localeCompare(b.date)||a.fid.localeCompare(b.fid)||a.i-b.i);
@@ -4085,7 +4089,7 @@ button.plc{cursor:pointer}
 .pldvr input,.pldvr select{font:14px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
 .pldvr .acts{display:flex;gap:6px}
 .dvch{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}.dvch.warn{color:var(--s-orange,#E08A52);font-weight:600}
-.dvup{cursor:pointer;font-size:13px}.dvmj.ok{color:var(--s-vert,#2f7d4a)}.dvmj.o{color:var(--s-orange,#E08A52)}.dvmj.r{color:var(--s-rouge,#CC4141)}
+.dvup{cursor:pointer;font-size:13px}.dvups{display:flex;gap:6px;flex-wrap:wrap}.pldvr.dvover{outline:2px dashed var(--accent);outline-offset:2px;border-radius:6px}.dvmj.ok{color:var(--s-vert,#2f7d4a)}.dvmj.o{color:var(--s-orange,#E08A52)}.dvmj.r{color:var(--s-rouge,#CC4141)}
 .dvobj{display:grid;gap:4px;border-left:4px solid var(--accent);background:var(--surface-2,rgba(9,82,161,.06));padding:10px 12px;border-radius:0 8px 8px 0;margin:6px 0 10px;font-size:14px}.dvobj span{color:var(--muted);font-size:13px}
 @media (max-width:760px){.pldvr{grid-template-columns:1fr 1fr}.pldvr label:first-child,.pldvr .acts{grid-column:1/-1}}
 .plnote{font-size:13px;color:var(--muted)}
@@ -4346,8 +4350,8 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
 // (montant HT − achats) ÷ (jours de pose + heures d'atelier ÷ 17,5), face à l'objectif de la page Direction > Rentabilité.
 const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,j=(+d.jp||0)+(+d.ha||0)/PL_EQ;return m&&a&&j?(m-a)/j:null};
 function dvChif(d){const id=esc(d.id),O=rtObj(),mj=dvMj(d),c=d.chif;
-  const up=plW()?`<label class="btn ghost dvup">${c?"Remplacer la capture":"📷 Joindre la capture du chiffrage"}<input type="file" accept="image/*,application/pdf" data-dvchif="${id}" hidden></label>`:"";
-  if(!c&&mj==null)return`<div class="dvch warn"><span>📷 Capture du chiffrage manquante : sans elle, pas de marge jour prévue.</span>${up}</div>`;
+  const up=plW()?`<span class="dvups"><label class="btn ghost dvup">📷 ${c?"Nouvelle photo":"Photo"}<input type="file" accept="image/*" capture="environment" data-dvchif="${id}" hidden></label><label class="btn ghost dvup">${c?"Remplacer par un fichier":"Fichier ou capture"}<input type="file" accept="image/*,application/pdf" data-dvchif="${id}" hidden></label></span>`:"";
+  if(!c&&mj==null)return`<div class="dvch warn"><span>📷 Capture du chiffrage manquante : prenez-la en photo, choisissez le fichier ou glissez la capture d'écran sur cette ligne.</span>${up}</div>`;
   const cls=mj==null?"":mj>=O.obj?"ok":mj>=O.obj*.9?"o":"r";
   return`<div class="dvch"><span>${c?`📷 Capture reçue le ${fr(c.le)}`:"Chiffrage saisi"}${d.lu?"":c?" · lue par Claude au prochain passage (12 h 27 ou 18 h 27)":""}${d.achats?` · achats prévus ${plEur(+d.achats)}`:""}${d.mo?` · main-d'œuvre ${plEur(+d.mo)}`:""}${mj!=null?` · <b class="dvmj ${cls}">marge jour prévue ${plEur(mj)}</b> pour ${plEur(O.obj)} visés`:""}${d.alerte?` · <b class="dvmj r">${esc(d.alerte)}</b>`:""}</span>${up}</div>`}
 function dvHtml(DV){
@@ -4357,7 +4361,7 @@ function dvHtml(DV){
   return `<div class="plcard"><h3>Devis en attente</h3>
    <div class="dvobj"><p style="margin:0"><b>Objectif : ${plEur(O.obj)} de marge par journée d'équipe de 2</b>, soit ${plEur(O.taux)} par heure de production, en pose comme à l'atelier.</p>
     <span>Marge jour d'un devis = (prix de vente HT − achats) ÷ (jours de pose + heures d'atelier ÷ ${plNf(PL_EQ)}). À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
-   <p class="plnote">Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
+   <p class="plnote">Astuce : glissez la capture d'écran du chiffrage sur la ligne « Nouveau devis » : le devis est créé et Claude remplit client, montant, jours et heures. Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
    <div class="pldv">${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
 async function dvSave(id,patch){const sb=window.sbClient,d={...(PLN.devis.get(id)||{}),...patch};PLN.devis.set(id,d);
   const {error}=await sb.from("devis").upsert({id,data:d,maj_le:new Date().toISOString()});if(error){toast("Enregistrement impossible, réessayez dans un instant.");return false}return true}
@@ -4377,12 +4381,21 @@ document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.datase
   const g=k=>f.querySelector(`[data-k="${k}"]`).value.trim(),client=g("client");if(!client){toast("Indiquez le client ou l'affaire.");return}
   const num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0),id="DV"+Date.now().toString(36);
   dvSave(id,{client,montant:num("montant"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),etat:"attente",cree:today(),par:me||""}).then(ok=>{dvKeep(planRender);if(ok)toast("Devis ajouté. Joignez la capture du chiffrage (📷) sur sa ligne.")})});
-document.addEventListener("change",async e=>{const t=e.target;if(!t.dataset||!t.dataset.dvchif)return;const f=t.files&&t.files[0],id=t.dataset.dvchif;t.value="";if(!f)return;
+document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.dvchif)return;const f=t.files&&t.files[0],id=t.dataset.dvchif;t.value="";if(f)dvChifUp(id,f)});
+// une capture d'écran glissée sur la ligne d'un devis ; sur la ligne « Nouveau devis », elle crée le devis (Claude le remplit)
+document.addEventListener("dragover",e=>{const r=e.target.closest&&e.target.closest("#tab-planning .pldvr");if(!r||!plW())return;e.preventDefault();r.classList.add("dvover")});
+document.addEventListener("dragleave",e=>{const r=e.target.closest&&e.target.closest("#tab-planning .pldvr");if(r&&!r.contains(e.relatedTarget))r.classList.remove("dvover")});
+document.addEventListener("drop",e=>{const r=e.target.closest&&e.target.closest("#tab-planning .pldvr");if(!r||!plW())return;e.preventDefault();r.classList.remove("dvover");
+  const f=[...(e.dataTransfer&&e.dataTransfer.files||[])].find(x=>/^image\/|pdf$/.test(x.type)||/\.(png|jpe?g|heic|webp|pdf)$/i.test(x.name));if(!f){toast("Glissez une image ou un PDF.");return}
+  const ex=r.querySelector("[data-dv]");if(ex){dvChifUp(ex.dataset.dv,f);return}
+  const g=k=>(r.querySelector(`[data-k="${k}"]`)||{}).value||"",id="DV"+Date.now().toString(36),num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0);
+  dvSave(id,{client:g("client").trim()||"Devis à lire (capture)",montant:num("montant"),chance:g("chance")||"moyenne",jp:num("jp"),ha:num("ha"),periode:g("periode"),etat:"attente",cree:today(),par:me||""}).then(ok=>{if(ok)dvChifUp(id,f)})});
+async function dvChifUp(id,f){
   if(f.size>15e6){toast("Fichier trop lourd (15 Mo au plus).");return}
   const ext=(f.name.match(/\.([a-z0-9]{2,4})$/i)||[,f.type==="application/pdf"?"pdf":"jpg"])[1].toLowerCase(),path=`chiffrage/${id}/${Date.now().toString(36)}.${ext}`;
   toast("Envoi de la capture…");const{error}=await window.sbClient.storage.from("documents").upload(path,f,{contentType:f.type||"application/octet-stream",upsert:false});
   if(error){toast("Envoi impossible : la base doit d'abord autoriser les captures (outil/chiffrage.sql).");return}
-  const ok=await dvSave(id,{chif:{path,le:today(),par:me||""},lu:false});if(ok)toast("Capture enregistrée. Claude la lira au prochain passage.");dvKeep(planRender)});
+  const ok=await dvSave(id,{chif:{path,le:today(),par:me||""},lu:false});if(ok)toast("Capture enregistrée. Claude la lira au prochain passage.");dvKeep(planRender)}
 try{const v=localStorage.getItem("pln-view");if(["sem","atl","chg","jour"].includes(v))PLN.view=v}catch(_){}
 window.planRender=planRender;window.PLN_OK=()=>PLN.ok;window.plLoad=plLoad;window.plDecompte=plDecompte;
 // planning de Marine chargé dès la connexion : il donne les dates de pose sur lesquelles se cale la production de l'atelier
