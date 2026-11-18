@@ -3308,9 +3308,9 @@ function dirHeuresHtml(){
 // Objectifs fixés par Steven le 18/11/2026 : 100 000 € de charges en moins (1 204 000 € au bilan 2025-2026), un deuxième
 // opérateur à l'atelier et 2,2 M€ de chiffre d'affaires. RT_BILAN = la situation du bilan, affichée pour comparaison.
 // rtObj() sert aussi à la Charge (devis à venir) : les autres comptes ne lisent pas direction/objectif, ils ont RT_DEF.
-// Steven, 18/11/2026 : au moins 10 % du temps n'est payé par aucun chantier (glissements, trous de planning, SAV, gestes
+// Steven, 18/11/2026 : 7 % du temps (10 % proposés, ramenés à 7 % en attendant la mesure réelle) n'est payé par aucun chantier (glissements, trous de planning, SAV, gestes
 // commerciaux) et une marge de sécurité de 5 % : heures vendables = heures × (1 − nonTrav) ; objectif × (1 + secu).
-const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8,nonTrav:10,secu:5};
+const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8,nonTrav:7,secu:5};
 const RT_BILAN={charges:1204000,atelierN:1};
 const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"],nonTrav:["Temps non vendu","% (SAV, trous, glissements)"],secu:["Marge de sécurité","%"]};
 const rt={tout:false};
