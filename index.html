@@ -149,6 +149,7 @@ textarea{min-height:64px;resize:vertical}
 .new{font:600 11px var(--f-body);color:var(--s-orange);margin-left:6px;text-transform:uppercase}.new.ok{color:var(--s-vert)}
 .viewer .pg{position:relative;margin:0 auto;flex:none;container-type:inline-size}.viewer .pg canvas{display:block;width:100%;max-width:none}
 /* tracé au stylet : calque transparent au-dessus de la page, actif seulement en mode « Dessiner » */
+.viewer .pg canvas.hd{position:absolute;z-index:0;max-width:none;pointer-events:none;box-shadow:none}
 .viewer .pg canvas.ink{position:absolute;inset:0;width:100%;height:100%;z-index:3;background:transparent;box-shadow:none;pointer-events:none}
 .viewer.drawing .pg canvas.ink{pointer-events:auto;touch-action:none;cursor:crosshair}
 .viewer.drawing .pg{outline:2px dashed var(--s-orange);outline-offset:3px}
@@ -1174,19 +1175,56 @@ async function viewDoc(d){
 }
 
 // ---------- zoom, outils du visualiseur ----------
-let vZoom=1;const ZOOMS=[1,1.25,1.5,1.75,2,2.5,3];
+// Zoom jusqu'à 50 fois (Steven, 18/11/2026) : la page reste dessinée une fois en définition normale ; au-delà, la partie
+// visible est redessinée à la définition de l'écran (canvas « hd » posé dessus), si bien que le plan reste net à tout zoom.
+let vZoom=1;const ZOOMS=[1,1.25,1.5,1.75,2,2.5,3,4,5,6,8,10,12,16,20,25,32,40,50];
 function fitW(){return Math.max(280,Math.min($("vpages").clientWidth-32,1000))}
 function showZoom(){$("vzoom").textContent=Math.round(vZoom*100)+" %";$("vzout").disabled=vZoom<=ZOOMS[0];$("vzin").disabled=vZoom>=ZOOMS[ZOOMS.length-1]}
-function setZoom(z){
-  const pg=$("vpages"),ry=pg.scrollHeight?pg.scrollTop/pg.scrollHeight:0,rx=pg.scrollWidth?pg.scrollLeft/pg.scrollWidth:0;
+function setZoom(z,cx,cy){
+  const pg=$("vpages");if(cx==null){cx=pg.clientWidth/2;cy=pg.clientHeight/2}
+  const ry=pg.scrollHeight?(pg.scrollTop+cy)/pg.scrollHeight:0,rx=pg.scrollWidth?(pg.scrollLeft+cx)/pg.scrollWidth:0;
   vZoom=Math.max(ZOOMS[0],Math.min(ZOOMS[ZOOMS.length-1],z));const w=Math.round(fitW()*vZoom);
   vPages.forEach(P=>P.box.style.width=w+"px");showZoom();
-  pg.scrollTop=ry*pg.scrollHeight;pg.scrollLeft=rx*pg.scrollWidth;
+  pg.scrollTop=ry*pg.scrollHeight-cy;pg.scrollLeft=rx*pg.scrollWidth-cx;hdPlan();
   if(vForm)try{localStorage.setItem("mgds-zoom",String(vZoom))}catch(_){}
 }
+// ---- netteté au zoom : seule la partie visible de chaque page est redessinée, à la définition de l'écran ----
+let hdT=null;const hdTasks=new Set();
+function hdPlan(){clearTimeout(hdT);hdT=setTimeout(hdRender,140)}
+function hdClear(){hdTasks.forEach(t=>{try{t.cancel()}catch(_){}});hdTasks.clear();vPages.forEach(P=>{if(P.hd){P.hd.remove();P.hd=null}})}
+async function hdRender(){
+  if($("viewer").hidden||!vPages.length||!window.pdfjsLib)return;
+  hdTasks.forEach(t=>{try{t.cancel()}catch(_){}});hdTasks.clear();
+  const pg=$("vpages"),R=pg.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+  for(const P of vPages){
+    const b=P.box.getBoundingClientRect(),cw=b.width;
+    // la page dessinée de base suffit quand l'écran n'en demande pas plus
+    if(cw*dpr<=P.c.width*1.05){if(P.hd){P.hd.remove();P.hd=null}continue}
+    const x0=Math.max(R.left,b.left),x1=Math.min(R.right,b.right),y0=Math.max(R.top,b.top),y1=Math.min(R.bottom,b.bottom);
+    if(x1<=x0||y1<=y0){if(P.hd){P.hd.remove();P.hd=null}continue}
+    const L=x0-b.left,T=y0-b.top,W=x1-x0,H=y1-y0,sc=cw*dpr/P.w0,vp=P.page.getViewport({scale:sc});
+    const c=document.createElement("canvas");c.className="hd";c.width=Math.ceil(W*dpr);c.height=Math.ceil(H*dpr);
+    c.style.cssText=`left:${L}px;top:${T}px;width:${W}px;height:${H}px`;
+    const task=P.page.render({canvasContext:c.getContext("2d"),viewport:vp,transform:[1,0,0,1,-L*dpr,-T*dpr],
+      annotationMode:vForm?pdfjsLib.AnnotationMode.DISABLE:pdfjsLib.AnnotationMode.ENABLE});
+    hdTasks.add(task);
+    task.promise.then(()=>{hdTasks.delete(task);if(!P.box.isConnected)return;if(P.hd)P.hd.remove();P.hd=c;P.c.after(c)},()=>hdTasks.delete(task));
+  }
+}
+$("vpages").addEventListener("scroll",()=>{if(vZoom>1)hdPlan()},{passive:true});
+// pincer pour zoomer : deux doigts sur tablette ou téléphone, pincement du pavé tactile ou Ctrl + molette sur ordinateur
+(()=>{const pg=$("vpages");let d0=0,z0=1;
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const mid=t=>{const r=pg.getBoundingClientRect();return[(t[0].clientX+t[1].clientX)/2-r.left,(t[0].clientY+t[1].clientY)/2-r.top]};
+  pg.addEventListener("touchstart",e=>{if(e.touches.length===2&&!vDraw.on){d0=dist(e.touches);z0=vZoom}},{passive:true});
+  pg.addEventListener("touchmove",e=>{if(e.touches.length!==2||!d0||vDraw.on)return;e.preventDefault();const[cx,cy]=mid(e.touches);setZoom(z0*dist(e.touches)/d0,cx,cy)},{passive:false});
+  pg.addEventListener("touchend",e=>{if(e.touches.length<2)d0=0},{passive:true});
+  pg.addEventListener("wheel",e=>{if(!e.ctrlKey||!vPages.length)return;e.preventDefault();const r=pg.getBoundingClientRect();
+    setZoom(vZoom*Math.exp(-e.deltaY/250),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+})();
 function resetTools(){
   ["vedit","vsave","vnext","vdraw","vpens","vphoto","vzoomg","vconso","cpanel","npanel","vmiss"].forEach(x=>$(x).hidden=true);if(camStream)closeCam();
-  vDraw.on=false;$("viewer").classList.remove("drawing");$("vdraw").classList.remove("on");$("vdraw").textContent="✏️ Dessiner";
+  hdClear();vDraw.on=false;$("viewer").classList.remove("drawing");$("vdraw").classList.remove("on");$("vdraw").textContent="✏️ Dessiner";
 }
 // ---------- dessin au stylet ----------
 // traits gardés en coordonnées relatives à la page (0 à 1) ; écrits dans le PDF à l'enregistrement
