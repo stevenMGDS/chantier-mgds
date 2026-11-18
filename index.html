@@ -136,6 +136,9 @@ textarea{min-height:64px;resize:vertical}
 .docs li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;background:var(--sunk);border-radius:6px;padding:6px 10px;min-width:0}
 .doclink{border:0;background:none;padding:0;color:var(--accent);font-weight:600;text-align:left;cursor:pointer;text-decoration:underline;overflow-wrap:anywhere}
 .viewer{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column}
+.vscrim{position:fixed;inset:0;z-index:39;background:rgba(10,20,35,.45)}
+@media (min-width:900px){.viewer{inset:3vh 3vw;border-radius:14px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.35)}}
+@media (max-width:899px){.vscrim{display:none}}
 .viewer .vbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);background:var(--surface)}
 .viewer .vbar b{font:700 18px var(--f-display);min-width:0;overflow-wrap:anywhere}
 .viewer .pages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;-webkit-overflow-scrolling:touch}
@@ -346,6 +349,7 @@ textarea{min-height:64px;resize:vertical}
   </div>
 </div>
 <div class="scrim" id="scrim" hidden></div>
+<div class="vscrim" id="vscrim" hidden></div>
 <aside class="sheet" id="sheet" hidden aria-label="Fiche chantier"></aside>
 <div class="viewer" id="viewer" hidden><div class="vbar"><b id="vname"></b><span class="vtools"><span id="vfill" role="status"></span><button class="btn miss" id="vmiss" hidden>📋 Ce qui manque</button><span class="zoom" id="vzoomg" hidden><button class="btn ghost" id="vzout" aria-label="Rétrécir la page">−</button><span id="vzoom">100 %</span><button class="btn ghost" id="vzin" aria-label="Agrandir la page">+</button></span><button class="btn ghost" id="vnext" hidden>Case vide suivante</button><button class="btn ghost" id="vconso" hidden>🧰 Consommables</button><button class="btn ghost" id="vdraw" hidden>✏️ Dessiner</button><span class="pens" id="vpens" hidden><button class="pen on" data-pen="#D0021B" style="background:#D0021B" aria-label="Crayon rouge"></button><button class="pen" data-pen="#1F5FBF" style="background:#1F5FBF" aria-label="Crayon bleu"></button><button class="pen" data-pen="#111111" style="background:#111" aria-label="Crayon noir"></button><button class="btn ghost" id="vundo">↶ Effacer le dernier trait</button></span><button class="btn ghost" id="vphoto" hidden>📷 Photo</button><input type="file" accept="image/*" multiple hidden id="vphotoin"><button class="btn" id="vedit" hidden>Remplir la fiche</button><button class="btn" id="vsave" hidden>Enregistrer</button><button class="btn ghost" id="vdl" hidden>Télécharger</button><button class="btn" id="vclose">Fermer</button></span></div><div class="pages" id="vpages"></div><div class="cam" id="cam" hidden role="dialog" aria-label="Appareil photo"><video id="camv" playsinline muted autoplay></video><div class="camb"><button class="btn ghost" id="camx">Annuler</button><button class="shot" id="camshot" aria-label="Prendre la photo"></button><button class="btn ghost" id="camfile">Photo existante</button></div></div><div class="cpanel" id="npanel" hidden role="dialog" aria-label="Cases à remplir"><div class="cbar"><b>📋 À remplir pour valider</b><button class="btn" id="ndone">Fermer</button></div><p class="sub" style="margin:0;padding:8px 16px">Ces cases bloquent la validation de la fiche. Touchez une ligne pour y aller. Les remarques et les consommables ne bloquent pas.</p><div class="clist" id="nlist"></div></div><div class="cpanel" id="cpanel" hidden role="dialog" aria-label="Consommables"><div class="cbar"><b>🧰 Consommables</b><button class="btn" id="cdone">Terminé</button></div><p class="sub" style="margin:0;padding:8px 16px">Indiquez les quantités avec − et +. Tout est facultatif : ne remplissez que ce qui sert.</p><div class="clist" id="clist"></div></div></div>
 <div class="toast" id="toast" hidden></div>
@@ -902,7 +906,7 @@ async function renderSheet(){
   if(user&&ids.length){const ps=await user.profiles(ids);document.querySelectorAll("[data-by]").forEach(e=>{const p=ps[e.dataset.by];if(p&&p.name)e.textContent="par "+p.name})}
 }
 // ---- onglets (version en ligne seulement) ----
-function showTab(t){
+function showTab(t){if(window.navTab)navTab(t);
   // Christophe (atelier, reserve_stock) voit aussi le Planning : charge de l'atelier et de la pose, devis en attente (Steven, 11/11/2026)
   if(window.mgdsProfil&&mgdsProfil.role==="atelier"&&t!=="stock"&&!(t==="heures"&&!$("tabHeures").hidden)&&!(t==="planning"&&mgdsProfil.reserve_stock===true))t="atelier";
   if(!["chantiers","planning","stock","atelier","direction","heures","reglages"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="reglages"&&$("tabReg").hidden)||(t==="atelier"&&$("tabAtl").hidden)||(t==="heures"&&$("tabHeures").hidden))t="chantiers";
@@ -915,7 +919,7 @@ function showTab(t){
   if(t==="stock")loadStock();
   if(t==="direction")renderDir();
   if(t==="atelier"&&window.atlRender){atlRender();if(window.PLN_OK&&!PLN_OK()&&window.plLoad)plLoad().then(()=>atlRender())}
-  try{history.replaceState(null,"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
+  try{history.replaceState({...(history.state||{}),tab:t},"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
 }
 window.mgdsHash0=location.hash;
 if(window.sbClient){$("tabs").hidden=false;document.addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b&&(b.closest("#tabs")||b.closest("#tab-atelier")||b.closest("#tab-direction")))showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
@@ -3546,6 +3550,33 @@ $("tab-reglages").addEventListener("change",e=>{const t=e.target,v=t.value===""?
   if(t.dataset.regat){const[j,k]=t.dataset.regat.split("."),cur={...REG_DEF.atelier,...((window.REG||{}).atelier||{})};const jj={...REG_DEF.atelier[j],...(cur[j]||{}),[k]:k==="pause"?Math.max(0,+t.value||0):t.value};regSave("atelier",{[j]:jj})}});
 async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=>[x.id,x.data]));$("tabDir").hidden=false}catch(_){}}
 
+// ---------- retour arrière (Steven, 18/11/2026) ----------
+// Fermer une fiche, un document ou une commande : clic en dehors (fond grisé), bouton retour du téléphone, geste
+// « glisser depuis le bord gauche » (iPhone, Android, navigateur) ou Échap. Le retour arrière ramène aussi à l'onglet
+// précédent. Une fiche modifiée et non enregistrée n'est jamais fermée au premier retour : un message prévient.
+(()=>{
+  const ovs=()=>[["viewer",$("viewer")],["asheet",$("asheet")],["sheet",$("sheet")]].filter(([,el])=>el&&!el.hidden);
+  let entree=false,sauter=0,restaure=false,curTab=null;
+  function fermeHaut(){const o=ovs()[0];if(!o)return false;
+    if(o[0]==="viewer")$("vclose").click();else if(o[0]==="asheet"&&window.atlClose)atlClose();else closeSheet();return true}
+  function sync(){const ouvert=ovs().length>0,vs=$("vscrim");if(vs.hidden!==$("viewer").hidden)vs.hidden=$("viewer").hidden;
+    if(ouvert&&!entree){history.pushState({ov:1,tab:curTab},"");entree=true}
+    else if(!ouvert&&entree){entree=false;if(history.state&&history.state.ov){sauter++;history.back()}}}
+  new MutationObserver(sync).observe(document.body,{subtree:true,attributes:true,attributeFilter:["hidden"]});
+  curTab=(document.querySelector('#tabs [aria-selected="true"]')||{dataset:{}}).dataset.tab||"chantiers";
+  try{history.replaceState({...(history.state||{}),tab:curTab},"")}catch(_){}
+  window.navTab=t=>{if(restaure||t===curTab)return;curTab=t;if(!entree)history.pushState({tab:t},"")};
+  addEventListener("popstate",e=>{if(sauter){sauter--;return}
+    if(ovs().length){entree=false;fermeHaut();if(ovs().length){history.pushState({ov:1,tab:curTab},"");entree=true}return}
+    const t=e.state&&e.state.tab;if(t&&t!==curTab){restaure=true;curTab=t;try{showTab(t)}finally{restaure=false}}});
+  $("vscrim").addEventListener("click",()=>{if(!$("viewer").hidden)$("vclose").click()});
+  // appli installée sur l'écran d'accueil (iPhone surtout) : pas de geste de retour natif, on le recrée
+  const standalone=navigator.standalone===true||matchMedia("(display-mode: standalone)").matches;
+  if(standalone){let x0=null,y0=0;
+    addEventListener("touchstart",e=>{const t=e.touches[0];x0=e.touches.length===1&&t.clientX<28?t.clientX:null;y0=t.clientY},{passive:true});
+    addEventListener("touchend",e=>{if(x0===null)return;const t=e.changedTouches[0],dx=t.clientX-x0,dy=Math.abs(t.clientY-y0);x0=null;
+      if(dx>80&&dy<60&&(ovs().length||(history.state&&history.state.tab)))history.back()},{passive:true})}
+})();
 // ---------- démarrage ----------
 (async()=>{
   db=await claude.use("db");

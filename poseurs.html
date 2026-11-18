@@ -314,7 +314,10 @@ async function openSheet(id){
   await renderSheet();
 }
 function closeSheet(){if(!openId)return;openId=null;$("sheet").hidden=true;$("sheet").innerHTML="";document.body.style.overflow="";render()}
-window.addEventListener("popstate",()=>{if(!$("viewer").hidden){closeViewer();return}if(document.querySelector(".lightbox")){document.querySelector(".lightbox").remove();return}if(openId)closeSheet()});
+// retour arrière (Steven, 18/11/2026) : une fenêtre (modal) se ferme aussi au retour ; sur iPhone, l'appli installée
+// sur l'écran d'accueil n'a pas de geste de retour : glisser depuis le bord gauche le recrée.
+let sautePop=0;
+window.addEventListener("popstate",()=>{if(sautePop){sautePop--;return}const md=[...document.querySelectorAll(".modal")].pop();if(md){md.remove();return}if(!$("viewer").hidden){closeViewer();return}if(document.querySelector(".lightbox")){document.querySelector(".lightbox").remove();return}if(openId)closeSheet()});
 document.addEventListener("click",e=>{if(e.target.closest("[data-close]"))history.back()});
 
 async function renderSheet(){
@@ -412,6 +415,10 @@ async function withAddress(blob,j){
   }catch(_){return blob}
 }
 function showFill(n){const e=$("vfill");e.textContent=n?n+" case"+(n>1?"s":"")+" à remplir":"Fiche complète ✓";e.className=n?"":"ok";$("vnext").hidden=!n||!vForm}
+if(navigator.standalone===true||matchMedia("(display-mode: standalone)").matches){let x0=null,y0=0;
+  addEventListener("touchstart",e=>{const t=e.touches[0];x0=e.touches.length===1&&t.clientX<28?t.clientX:null;y0=t.clientY},{passive:true});
+  addEventListener("touchend",e=>{if(x0===null)return;const t=e.changedTouches[0],dx=t.clientX-x0,dy=Math.abs(t.clientY-y0);x0=null;
+    if(dx>80&&dy<60&&(document.querySelector(".modal")||!$("viewer").hidden||openId||document.querySelector(".lightbox")))history.back()},{passive:true})}
 function closeViewer(){$("viewer").hidden=true;$("vpages").innerHTML="";vForm=null;vPdf=null;vPages=[]}
 async function openFill(docId,edit=true,push=true){
   const j=chantiers.get(openId)||{},d=(j.docs||[]).find(x=>x.id===docId);if(!d)return;
@@ -735,7 +742,9 @@ function hmSel(name,v){const[h0,m0]=(v||"08:00").split(":").map(Number),m=Math.r
 function modal(html){
   const w=document.createElement("div");w.className="modal";w.innerHTML=`<div role="dialog" aria-modal="true">${html}</div>`;
   document.body.appendChild(w);const box=w.firstElementChild;
-  box.close=()=>w.remove();w.addEventListener("click",e=>{if(e.target===w)w.remove()});
+  history.pushState({modal:1},"");
+  const ferme=()=>{if(!w.isConnected)return;w.remove();if(history.state&&history.state.modal){sautePop++;history.back()}};
+  box.close=ferme;w.addEventListener("click",e=>{if(e.target===w)ferme()});
   return box;
 }
 
