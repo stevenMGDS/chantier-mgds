@@ -15,6 +15,7 @@ En deux étapes (une tâche planifiée ne peut pas avoir à la fois le Mac et l'
    puis : python3 -I atelier_sync.py export --racine "<dossier des commandes>" --liste liste.txt > atelier.json
    (aucun appel réseau) ;
 2) dans l'environnement « MGDS Supabase » : python3 -I atelier_sync.py import atelier.json [--essai]
+   ou sur l'iMac lui-même (agent_synchro.py, 18/11/2026) : … import atelier.json --compte ~/.mgds-atelier
    crée ou complète les commandes atelier et affiche un résumé. N'efface jamais rien.
 Accès : l'hôte Supabase est authentifié par le proxy de l'environnement « MGDS Supabase ».
 """
@@ -134,6 +135,18 @@ def depuis_ancien(j):
 
 
 # ---------- étape 2 : import (environnement MGDS Supabase) ----------
+def connexion(fichier):
+    """Sur l'iMac (agent_synchro.py) : connexion avec le compte de l'iMac, e-mail et mot de passe sur deux lignes dans
+    <fichier> (lisible par le seul utilisateur du Mac). Sans --compte : accès par le proxy de l'environnement Claude."""
+    email, mdp = [l.strip() for l in open(os.path.expanduser(fichier), encoding="utf-8").read().splitlines()[:2]]
+    cle = "sb_publishable_Is-KNNP223DIxMk8kzrYww_PynSCb23"  # clé publique de l'appli
+    r = urllib.request.Request(URL.replace("/rest/v1", "/auth/v1/token?grant_type=password"), method="POST",
+                               data=json.dumps({"email": email, "password": mdp}).encode(),
+                               headers={"apikey": cle, "Content-Type": "application/json"})
+    with urllib.request.urlopen(r) as x:
+        H.update({"apikey": cle, "Authorization": "Bearer " + json.loads(x.read())["access_token"]})
+
+
 def req(method, path, body=None, extra=None):
     r = urllib.request.Request(URL + path, method=method, data=json.dumps(body).encode() if body is not None else None,
                                headers={**H, **(extra or {})})
@@ -343,6 +356,7 @@ if __name__ == "__main__":
     if a and a[0] == "export":
         export(opt("--racine"), opt("--liste"))   # --suivi (ancien tableau Excel) est ignoré
     elif a and a[0] == "import" and len(a) > 1:
+        if opt("--compte"): connexion(opt("--compte"))
         importe(a[1], "--essai" in a)
     else:
         print(__doc__)

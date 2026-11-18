@@ -1,7 +1,9 @@
 #!/bin/bash
 # Installe la synchronisation automatique serveur <-> appli Chantiers sur ce Mac : toutes les 30 minutes, du lundi au
 # vendredi de 7 h à 20 h, sans passer par Claude. À ouvrir sur l'iMac du bureau : clic droit > Ouvrir.
-# Le fichier agent_synchro.py doit être dans le même dossier que celui-ci.
+# Les fichiers agent_synchro.py et atelier_sync.py doivent être dans le même dossier que celui-ci.
+# La veille atelier (dossiers ATELIER -> onglet Atelier) se fait aussi sur ce Mac, une fois par heure, si le mot de passe
+# du compte de l'iMac (claude@mgds.fr) est donné à l'étape 2.
 set -e
 ICI="$(cd "$(dirname "$0")" && pwd)"
 DEST="$HOME/Library/Application Support/MGDS"
@@ -28,6 +30,13 @@ mkdir -p "$HOME/mnt"
 if [ -d "$PRIVE" ] && [ ! -e "$HOME/mnt/Claude privé" ]; then ln -s "$PRIVE" "$HOME/mnt/Claude privé"; fi
 mkdir -p "$DEST" "$HOME/Library/LaunchAgents"
 cp "$ICI/agent_synchro.py" "$DEST/agent_synchro.py"
+[ -f "$ICI/atelier_sync.py" ] && cp "$ICI/atelier_sync.py" "$DEST/atelier_sync.py"
+echo
+echo "2) Veille de l'atelier sur ce Mac : tapez le mot de passe du compte claude@mgds.fr (celui que la synchronisation utilise déjà ;"
+echo "   rien ne s'affiche quand vous tapez), puis Entrée. Laissez vide et Entrée pour ne pas l'installer maintenant."
+read -r -s MDP; echo
+if [ -n "$MDP" ]; then umask 077; printf '%s\n%s\n' "claude@mgds.fr" "$MDP" > "$HOME/.mgds-atelier"; chmod 600 "$HOME/.mgds-atelier"; echo "   Compte enregistré pour la veille de l'atelier."; fi
+MDP=""
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -44,7 +53,7 @@ EOF
 launchctl unload "$PLIST" 2>/dev/null || true
 launchctl load "$PLIST"
 echo
-echo "2) Premier passage maintenant (une à trois minutes). Si macOS demande l'accès aux dossiers ou au serveur, cliquez « Autoriser »."
+echo "3) Premier passage maintenant (une à trois minutes). Si macOS demande l'accès aux dossiers ou au serveur, cliquez « Autoriser »."
 echo
 /usr/bin/python3 -I "$DEST/agent_synchro.py" "$MGDS" --maintenant || true
 echo
@@ -52,6 +61,7 @@ echo "----- Résultat du premier passage -----"
 tail -n 25 "$DEST/synchro.log" 2>/dev/null || echo "(pas de journal)"
 echo "---------------------------------------"
 echo
-echo "Si vous voyez « tout : code 0 », c'est en place : la synchronisation se refera toute seule toutes les 30 minutes."
+echo "Si vous voyez « tout : code 0 » (et « veille atelier : faite »), c'est en place : la synchronisation se refera toute seule"
+echo "toutes les 30 minutes, et la veille de l'atelier toutes les heures."
 echo "Sinon, faites une capture de cette fenêtre et envoyez-la à Claude."
 read -r -p "Entrée pour fermer"
