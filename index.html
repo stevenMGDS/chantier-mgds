@@ -3310,13 +3310,16 @@ function dirHeuresHtml(){
 // rtObj() sert aussi à la Charge (devis à venir) : les autres comptes ne lisent pas direction/objectif, ils ont RT_DEF.
 // Steven, 18/11/2026 : 7 % du temps (10 % proposés, ramenés à 7 % en attendant la mesure réelle), qui tient lieu de sécurité (secu 0) n'est payé par aucun chantier (glissements, trous de planning, SAV, gestes
 // commerciaux) et une marge de sécurité de 5 % : heures vendables = heures × (1 − nonTrav) ; objectif × (1 + secu).
-const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8,nonTrav:7,secu:0};
+const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8,nonTrav:7,secu:0,tauxAtl:60};
+// Steven, 18/11/2026 : pour un produit fabriqué chez nous, le prix de Christophe (l'« achat » du chiffrage) comprend la
+// main-d'œuvre d'atelier à tauxAtl ; elle est déjà payée par les charges, comme la pose : on la rajoute à la marge
+// (achats − heures d'atelier × tauxAtl = la matière seule) et ses heures comptent dans les journées.
 const RT_BILAN={charges:1204000,atelierN:1};
-const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"],nonTrav:["Temps non vendu","% (SAV, trous, glissements)"],secu:["Marge de sécurité","%"]};
+const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"],tauxAtl:["Main-d'œuvre d'atelier dans le prix de Christophe","€/h"],nonTrav:["Temps non vendu","% (SAV, trous, glissements)"],secu:["Marge de sécurité","%"]};
 const rt={tout:false};
 function rtObj(){const o={...RT_DEF};const d=dirDocs.get("objectif")||{};for(const k in RT_DEF)if(d[k]!=null&&!isNaN(+d[k]))o[k]=+d[k];
   o.hBrut=o.mois*o.jours*(o.poseurs*o.hPose+o.atelierN*o.hAtl);o.hAn=o.hBrut*(1-o.nonTrav/100);
-  o.taux=o.hAn?(o.charges+o.resultat)/o.hAn*(1+o.secu/100):0;o.obj=o.taux*PL_EQ;return o}
+  o.taux=o.hAn?(o.charges+o.resultat)/o.hAn*(1+o.secu/100):0;o.obj=o.taux*PL_EQ;o.taux0=o.tauxAtl;return o}
 function rtData(){
   const O=rtObj(),staff=dirH.staff||new Set(),A=new Map();
   const get=id=>{if(!A.has(id))A.set(id,{id,j:jobs.get(id),poseH:0,posAtlH:0,atlH:0,atlP:0,jPrev:0,jSrc:""});return A.get(id)};
@@ -3338,7 +3341,9 @@ function rtData(){
     o.jAct=Math.max(o.jPrev,o.jReel);o.atlAct=Math.max(o.atlP,o.atlH);o.achAct=Math.max(o.achP,o.achR);
     o.hPrev=o.jPrev*PL_EQ+o.atlP;o.hAct=o.jAct*PL_EQ+o.atlAct;
     const mj=(ach,hh)=>o.vente&&ach>0&&hh>0?(o.vente-ach)/hh*PL_EQ:null; // sans achats, la marge serait fausse : pas de chiffre
-    o.mjPrev=mj(o.achP,o.hPrev);o.mjAct=mj(o.achAct,o.hAct);
+    // achats prévus lus dans un chiffrage : le prix de Christophe y comprend l'atelier ; on n'en garde que la matière
+    const achPm=o.achPSrc==="prévu"?Math.max(0,o.achP-o.atlP*O.taux0):o.achP;
+    o.mjPrev=mj(achPm,o.hPrev);o.mjAct=mj(Math.max(achPm,o.achR),o.hAct);
     o.manque=[!o.vente&&"prix de vente",!o.achAct&&"achats",!o.hAct&&"temps de pose"].filter(Boolean);
     return o}).filter(o=>rt.tout||!o.fin);
 }
@@ -3363,7 +3368,7 @@ function rtHtml(){
     <div class="kpi ${L.some(o=>o.manque.length)?"o":""}"><b>${L.filter(o=>o.manque.length).length}</b><span>Chantier${L.filter(o=>o.manque.length).length>1?"s":""} incomplet${L.filter(o=>o.manque.length).length>1?"s":""}</span></div></div>
    <div class="chart"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3>Marge jour par chantier</h3>
      <div class="dhleg"><span><i class="sw rtok"></i>Au-dessus de l'objectif</span><span><i class="sw rtr0"></i>En dessous</span><span><i class="sw prev"></i>Prévu au devis</span><span><i class="sw rtobj"></i>Objectif ${eur(O.obj)}</span></div></div>
-     <p class="sub">Une heure de production vaut une heure, en pose comme à l'atelier. Marge jour = (vente HT − achats) ÷ toutes les heures du chantier × ${h1(PL_EQ)} h (une journée d'équipe de 2). Objectif : ${eur(O.taux)} par heure. Chantier en cours : le plus grand du prévu et du réalisé.</p>
+     <p class="sub">Une heure de production vaut une heure, en pose comme à l'atelier. Marge jour = (vente HT − achats de matière) ÷ toutes les heures du chantier × ${h1(PL_EQ)} h (une journée d'équipe de 2) ; la main-d'œuvre d'atelier comprise dans le prix de Christophe (${eur(O.tauxAtl)}/h) n'est pas un achat. Objectif : ${eur(O.taux)} par heure. Chantier en cours : le plus grand du prévu et du réalisé.</p>
      <div class="tools"><button class="chip" id="rtTout" aria-pressed="${rt.tout}">Afficher aussi les chantiers terminés</button></div>
      <div class="tbl"><table class="rttab"><thead><tr><th>Chantier</th><th class="n">Vente HT</th><th class="n">Achats</th><th class="n">Atelier</th><th class="n">Pose (journées d'équipe)</th><th class="n">Marge jour</th><th class="rtbc">Face à l'objectif</th></tr></thead><tbody>
      ${L.map(o=>`<tr><td><button class="lnk" data-open="${esc(o.id)}">${esc(o.j?o.j.client:o.id)}</button>${o.manque.length?`<br><small class="rtm">à compléter : ${o.manque.join(", ")}</small>`:""}</td>
@@ -4348,7 +4353,7 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
 // Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
 // (outil/chiffrage.py) qui remplit achats, main-d'œuvre, marge prévue et jours de pose. Marge jour prévue =
 // (montant HT − achats) ÷ (jours de pose + heures d'atelier ÷ 17,5), face à l'objectif de la page Direction > Rentabilité.
-const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,j=(+d.jp||0)+(+d.ha||0)/PL_EQ;return m&&a&&j?(m-a)/j:null};
+const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,h=+d.ha||0,j=(+d.jp||0)+h/PL_EQ;return m&&a&&j?(m-a+h*rtObj().tauxAtl)/j:null};
 function dvChif(d){const id=esc(d.id),O=rtObj(),mj=dvMj(d),c=d.chif;
   const up=plW()?`<span class="dvups"><label class="btn ghost dvup">📷 ${c?"Nouvelle photo":"Photo"}<input type="file" accept="image/*" capture="environment" data-dvchif="${id}" hidden></label><label class="btn ghost dvup">${c?"Remplacer par un fichier":"Fichier ou capture"}<input type="file" accept="image/*,application/pdf" data-dvchif="${id}" hidden></label></span>`:"";
   if(!c&&mj==null)return`<div class="dvch warn"><span>📷 Capture du chiffrage manquante : prenez-la en photo, choisissez le fichier ou glissez la capture d'écran sur cette ligne.</span>${up}</div>`;
@@ -4360,7 +4365,7 @@ function dvHtml(DV){
   const O=rtObj(),mjs=L.map(d=>[dvMj(d),+d.montant||0]).filter(x=>x[0]!=null),tm=mjs.reduce((s,x)=>s+x[1],0);
   return `<div class="plcard"><h3>Devis en attente</h3>
    <div class="dvobj"><p style="margin:0"><b>Objectif : ${plEur(O.obj)} de marge par journée d'équipe de 2</b>, soit ${plEur(O.taux)} par heure de production, en pose comme à l'atelier.</p>
-    <span>Marge jour d'un devis = (prix de vente HT − achats) ÷ (jours de pose + heures d'atelier ÷ ${plNf(PL_EQ)}). À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
+    <span>Marge jour d'un devis = (prix de vente HT − achats + heures d'atelier × ${plEur(O.tauxAtl)}) ÷ (jours de pose + heures d'atelier ÷ ${plNf(PL_EQ)}). La main-d'œuvre d'atelier comprise dans le prix de Christophe est rajoutée à la marge, comme la pose : elle est déjà payée par nos charges. Jours de pose = main-d'œuvre de pose ÷ 1 000 € environ par jour d'équipe. À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
    <p class="plnote">Astuce : glissez la capture d'écran du chiffrage sur la ligne « Nouveau devis » : le devis est créé et Claude remplit client, montant, jours et heures. Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
    <div class="pldv">${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
 async function dvSave(id,patch){const sb=window.sbClient,d={...(PLN.devis.get(id)||{}),...patch};PLN.devis.set(id,d);

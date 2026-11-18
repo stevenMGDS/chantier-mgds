@@ -8,7 +8,9 @@
                                               capture déposée dans les documents d'un chantier (type « Chiffrage ») :
                                               achats, mo, marge -> direction/prev_<chantier> ; jp -> chantier.jp s'il est vide
 Claude lit lui-même chaque image (tableau de marge du logiciel de devis) : prix de vente HT, total des achats, main-d'œuvre,
-marge prévue ; jours de pose = main-d'œuvre de pose ÷ 3 000 € (règle de chiffrage de Steven). Un montant HT de la capture
+marge prévue ; jours de pose = main-d'œuvre de pose ÷ environ 1 000 € par jour d'équipe (900 à 1 000 €, règle de
+Steven du 18/11/2026). « achats » = achat du tableau sans la ligne Pose (produits + divers) : pour un produit fabriqué
+chez nous, il comprend la main-d'œuvre d'atelier de Christophe, que l'appli rajoute à la marge (heures d'atelier × 60 €). Un montant HT de la capture
 différent de celui saisi sur la ligne est signalé dans « alerte », sans écraser la saisie.
 """
 import json, os, sys, urllib.parse, urllib.request
