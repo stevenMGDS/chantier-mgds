@@ -537,7 +537,9 @@ document.addEventListener("click",e=>{
 
 // ---------- heures ----------
 // horaires de Manu (Steven, 17/11/2026) : lundi-jeudi 7 h 30-12 h / 13 h-17 h (8 h 30), vendredi 7 h 30-12 h 30 (5 h)
-const ATL_HOR=wd=>wd===4?{debut:"07:30",fin:"12:30",pause:0}:{debut:"07:30",fin:"17:00",pause:60};
+// modifiables dans l'onglet Réglages de l'appli (table reglages, id « atelier » : {lj, ven}) ; ces valeurs en attendant
+let REG_AT=null;
+const ATL_HOR=wd=>{const d=wd===4?{debut:"07:30",fin:"12:30",pause:0}:{debut:"07:30",fin:"17:00",pause:60},r=REG_AT&&REG_AT[wd===4?"ven":"lj"];return r?{...d,...r,pause:+(r.pause??d.pause)}:d};
 // production à l'atelier (Steven, 12/11/2026) : chaque ligne = commande atelier + tâche (Débit, Usinage, Montage, Vitrage, Divers),
 // ou « Autre tâche » hors production (ex. décharger un camion). La journée doit être complète : lignes = arrivée - départ - pause.
 const T5=["Débit","Usinage","Montage","Vitrage","Divers"];
@@ -894,6 +896,7 @@ document.addEventListener("click",e=>{const c=e.target.closest("[data-gcat]");if
   await claude.use("user");sb=window.sbClient;
   const{data:{session}}=await sb.auth.getSession();me=session.user.id;
   profils=(await sb.from("profils").select("id,email,nom,role,reserve_stock")).data||[];
+  try{const{data:rg}=await sb.from("reglages").select("data").eq("id","atelier");if(rg&&rg[0])REG_AT=rg[0].data||null}catch(_){}
   role=(profils.find(p=>p.id===me)||{}).role||"lecteur";
   chr=role==="atelier"&&(profils.find(p=>p.id===me)||{}).reserve_stock===true;
   if(chr&&!document.documentElement.classList.contains("embed")){location.replace("index.html");return}

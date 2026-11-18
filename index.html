@@ -237,6 +237,11 @@ textarea{min-height:64px;resize:vertical}
 .tbl .n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}.tbl select{min-width:190px}.tbl input[type=number]{font:14px var(--f-mono);width:7.5em;text-align:right;border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:var(--surface);color:var(--ink)}
 .tbl .des{min-width:220px}.up{color:var(--s-rouge);font-weight:600}.dn{color:var(--s-vert);font-weight:600}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.chart{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}.chart h3{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+.regp{display:grid;gap:18px;max-width:900px}.regs{display:grid;gap:10px;border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface)}.regs h3{margin:0}
+.regg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.regg label,.regf label{display:grid;gap:3px;font-size:14px;font-weight:600}.regg label span{font-weight:400;font-size:12.5px;color:var(--muted)}
+.regg input,.regf input{font:15px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
+.regf{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:8px;min-width:0}.regf legend{font-weight:600;padding:0 4px}
+.regobj{font-size:16px}.regobj b{font:600 20px var(--f-mono);color:var(--accent)}.rega{border-left:4px solid var(--s-orange,#E08A52);padding:8px 12px;background:var(--surface)}.regm{margin:0;color:var(--s-vert,#2f7d4a);font-weight:600}
 .rttab td{vertical-align:middle}.rtbc{min-width:110px}.rtm{color:var(--s-orange,#E08A52);font-weight:600}
 .rtb .rtt{position:relative;display:block;height:14px;background:var(--line);border-radius:3px}.rtb i{position:absolute;top:0;bottom:0;left:0;border-radius:3px}
 .rtb i.rtp{background:var(--accent);opacity:.25}.rtb i.rtr{top:3px;bottom:3px}.rtb i.rtr.ok,.sw.rtok{background:var(--s-vert,#2f7d4a)}.rtb i.rtr.o{background:var(--s-orange,#E08A52)}.rtb i.rtr.r,.sw.rtr0{background:var(--s-rouge,#CC4141)}.rtb i.rtr:not(.ok):not(.o):not(.r){background:var(--muted)}
@@ -318,11 +323,12 @@ textarea{min-height:64px;resize:vertical}
     <h1>Chantiers MGDS<small id="sum">Chargement des chantiers…</small></h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="newBtn" hidden>Nouveau chantier</button></div>
   </header>
-  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button><button role="tab" data-tab="atelier" id="tabAtl" aria-selected="false" hidden>Atelier</button><button role="tab" data-tab="heures" id="tabHeures" aria-selected="false" hidden>Mes heures</button><button role="tab" data-tab="direction" id="tabDir" aria-selected="false" hidden>Direction</button></nav>
+  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button><button role="tab" data-tab="atelier" id="tabAtl" aria-selected="false" hidden>Atelier</button><button role="tab" data-tab="heures" id="tabHeures" aria-selected="false" hidden>Mes heures</button><button role="tab" data-tab="direction" id="tabDir" aria-selected="false" hidden>Direction</button><button role="tab" data-tab="reglages" id="tabReg" aria-selected="false" hidden>Réglages</button></nav>
   <div id="tab-planning" hidden></div>
   <div id="tab-stock" hidden></div>
   <section id="tab-atelier" hidden aria-label="Atelier"></section>
   <section id="tab-direction" hidden aria-label="Direction"></section>
+  <section id="tab-reglages" hidden aria-label="Réglages"></section>
   <section id="tab-heures" hidden aria-label="Mes heures"></section>
   <div id="tab-chantiers">
   <div class="stats" id="stats"></div>
@@ -646,8 +652,8 @@ function nDone(j){return stepsOf(j).filter(s=>sd(j,s.k)).length}
 function curStep(j){const ss=stepsOf(j);for(let n=0;n<ss.length;n++){const s=ss[n];if(s.opt)continue;if(s.k==="levees"&&!sd(j,"reserves"))continue;if(s.k==="facac"&&sd(j,"acompte"))continue;if((s.man||s.k==="prepa")&&ss.slice(n+1).some(x=>sd(j,x.k)))continue;if(!sd(j,s.k))return s.k}return null}
 function locked(j,k){return !!(j.plans&&NEED_PLANS.includes(k)&&!sd(j,"plansok"))}
 const LATE=[
- [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"facac")&&!sd(j,"acompte")&&days(sd(j,"signe"))>3,"facac",j=>"Facture d'acompte à envoyer (devis signé depuis "+days(sd(j,"signe"))+" j)"],
- [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"acompte")&&days(sd(j,"facac")||sd(j,"signe"))>14,"acompte",j=>"Acompte attendu depuis "+days(sd(j,"facac")||sd(j,"signe"))+" j"],
+ [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"facac")&&!sd(j,"acompte")&&days(sd(j,"signe"))>(+((window.REG||{}).delais||{}).facac||3),"facac",j=>"Facture d'acompte à envoyer (devis signé depuis "+days(sd(j,"signe"))+" j)"],
+ [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"acompte")&&days(sd(j,"facac")||sd(j,"signe"))>(+((window.REG||{}).delais||{}).acompte||14),"acompte",j=>"Acompte attendu depuis "+days(sd(j,"facac")||sd(j,"signe"))+" j"],
  [j=>j.type!=="neuf"&&sd(j,"rdv")&&sd(j,"rdv")<today()&&!sd(j,"metre"),"metre",j=>"Métré du "+fr(sd(j,"rdv"))+" non validé"],
  [j=>arcsOf(j).some(a=>a.prev&&a.prev<today()&&!(a.livre&&a.livre.d)),"livre",j=>{const a=arcsOf(j).find(a=>a.prev&&a.prev<today()&&!(a.livre&&a.livre.d));return"Livraison "+(a.four||"")+" prévue "+sem(a.prev)+" non reçue"}],
  [j=>!hasArcs(j)&&sd(j,"livprev")&&sd(j,"livprev")<today()&&!sd(j,"livre"),"livre",j=>"Livraison prévue "+sem(sd(j,"livprev"))+" non reçue"],
@@ -895,9 +901,10 @@ async function renderSheet(){
 function showTab(t){
   // Christophe (atelier, reserve_stock) voit aussi le Planning : charge de l'atelier et de la pose, devis en attente (Steven, 11/11/2026)
   if(window.mgdsProfil&&mgdsProfil.role==="atelier"&&t!=="stock"&&!(t==="heures"&&!$("tabHeures").hidden)&&!(t==="planning"&&mgdsProfil.reserve_stock===true))t="atelier";
-  if(!["chantiers","planning","stock","atelier","direction","heures"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="atelier"&&$("tabAtl").hidden)||(t==="heures"&&$("tabHeures").hidden))t="chantiers";
+  if(!["chantiers","planning","stock","atelier","direction","heures","reglages"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="reglages"&&$("tabReg").hidden)||(t==="atelier"&&$("tabAtl").hidden)||(t==="heures"&&$("tabHeures").hidden))t="chantiers";
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
-  for(const k of ["chantiers","planning","stock","atelier","direction","heures"])$("tab-"+k).hidden=k!==t;
+  for(const k of ["chantiers","planning","stock","atelier","direction","heures","reglages"])$("tab-"+k).hidden=k!==t;
+  if(t==="reglages")regRender();
   // Mes heures (Manu, 13/11/2026) : la page des heures dans l'appli, comme le planning
   if(t==="heures"&&!$("tab-heures").firstChild)$("tab-heures").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#heures" title="Mes heures"></iframe>`;
   if(t==="planning"){if(window.planRender)planRender();else if(!$("tab-planning").firstChild)$("tab-planning").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`}
@@ -907,7 +914,7 @@ function showTab(t){
   try{history.replaceState(null,"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
 }
 window.mgdsHash0=location.hash;
-if(window.sbClient){$("tabs").hidden=false;document.addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b&&(b.closest("#tabs")||b.closest("#tab-atelier")))showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
+if(window.sbClient){$("tabs").hidden=false;document.addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b&&(b.closest("#tabs")||b.closest("#tab-atelier")||b.closest("#tab-direction")))showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
 // ---- terrain : ce que les poseurs ont noté pour ce chantier ----
 const CAT={avant:"Avant chantier",fin:"Fin de chantier",conso_sortie:"Consommables sortis",conso_retour:"Consommables remis",autre:"Autres"};
 async function loadTerrain(id){
@@ -3310,14 +3317,14 @@ function dirHeuresHtml(){
 // rtObj() sert aussi à la Charge (devis à venir) : les autres comptes ne lisent pas direction/objectif, ils ont RT_DEF.
 // Steven, 18/11/2026 : 7 % du temps (10 % proposés, ramenés à 7 % en attendant la mesure réelle), qui tient lieu de sécurité (secu 0) n'est payé par aucun chantier (glissements, trous de planning, SAV, gestes
 // commerciaux) et une marge de sécurité de 5 % : heures vendables = heures × (1 − nonTrav) ; objectif × (1 + secu).
-const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8,nonTrav:7,secu:0,tauxAtl:60};
+const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8,nonTrav:7,secu:0,tauxAtl:60,moJour:1000};
 // Steven, 18/11/2026 : pour un produit fabriqué chez nous, le prix de Christophe (l'« achat » du chiffrage) comprend la
 // main-d'œuvre d'atelier à tauxAtl ; elle est déjà payée par les charges, comme la pose : on la rajoute à la marge
 // (achats − heures d'atelier × tauxAtl = la matière seule) et ses heures comptent dans les journées.
 const RT_BILAN={charges:1204000,atelierN:1};
 const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"],tauxAtl:["Main-d'œuvre d'atelier dans le prix de Christophe","€/h"],nonTrav:["Temps non vendu","% (SAV, trous, glissements)"],secu:["Marge de sécurité","%"]};
 const rt={tout:false};
-function rtObj(){const o={...RT_DEF};const d=dirDocs.get("objectif")||{};for(const k in RT_DEF)if(d[k]!=null&&!isNaN(+d[k]))o[k]=+d[k];
+function rtObj(){const o={...RT_DEF};const d=(window.REG||{}).objectif||{};for(const k in RT_DEF)if(d[k]!=null&&!isNaN(+d[k]))o[k]=+d[k];
   o.hBrut=o.mois*o.jours*(o.poseurs*o.hPose+o.atelierN*o.hAtl);o.hAn=o.hBrut*(1-o.nonTrav/100);
   o.taux=o.hAn?(o.charges+o.resultat)/o.hAn*(1+o.secu/100):0;o.obj=o.taux*PL_EQ;o.taux0=o.tauxAtl;return o}
 function rtData(){
@@ -3384,7 +3391,7 @@ function rtHtml(){
      ${M.map(x=>{const au=Math.max(0,x.dispo-x.pose-x.atl);return`<tr><td>${x.m.slice(5)}/${x.m.slice(0,4)}</td><td class="n">${h1(x.pose)}</td><td class="n">${h1(x.atl)}</td><td class="n">${h1(au)}</td><td class="n">${au?eur(au*O.obj):"–"}</td></tr>`}).join("")}</tbody></table></div>
      <p class="sub">Les heures sont pointées depuis le 12/11/2026 : les mois précédents sont incomplets.</p>`:`<p class="sub">Aucune heure pointée pour l'instant.</p>`}</div>
    <details class="atldet"><summary><b>Calcul de l'objectif</b> <span class="sub">· ${eur(O.obj)} par journée d'équipe · 100 000 € de charges en moins et 2<sup>e</sup> opérateur à l'atelier</span></summary>
-     <div class="rtobjg">${Object.entries(RT_LAB).map(([k,[l,u]])=>`<label>${l} <small class="sub">${u}</small><input type="number" min="0" step="any" inputmode="decimal" data-rtobj="${k}" value="${O[k]}"></label>`).join("")}</div>
+     <p class="sub">Ces chiffres se modifient dans l'onglet <button class="lnk" type="button" data-tab="reglages">Réglages</button>.</p>
      <p class="sub">(${eur(O.charges)} + ${eur(O.resultat)}) ÷ ${Math.round(O.hAn).toLocaleString("fr-FR")} heures vendables (${O.mois} mois × ${O.jours} j × (${O.poseurs} poseurs × ${h1(O.hPose)} h + ${O.atelierN} à l'atelier × ${h1(O.hAtl)} h), moins ${O.nonTrav} % non vendus) + ${O.secu} % de sécurité = <b>${eur(O.taux)} par heure</b>, soit <b>${eur(O.obj)}</b> par journée d'équipe de 2.</p>
      <p class="sub">${(()=>{const b={...O,...RT_BILAN},h=b.mois*b.jours*(b.poseurs*b.hPose+b.atelierN*b.hAtl)*(1-b.nonTrav/100),t=(b.charges+b.resultat)/h*(1+b.secu/100);return`Situation du bilan 2025-2026 (charges ${eur(b.charges)}, ${b.atelierN} à l'atelier) : ${eur(t)} par heure, ${eur(t*PL_EQ)} par journée d'équipe.`})()}</p></details>`;
 }
@@ -3445,6 +3452,39 @@ $("tab-direction").addEventListener("change",e=>{const t=e.target;
 });
 $("tab-direction").addEventListener("focusout",()=>{if(dirWait){dirWait=false;setTimeout(renderDir,50)}});
 
+// ---------- Réglages (Steven, 18/11/2026) : ce que Steven et Marine changent eux-mêmes, sans nouvelle version ----------
+// table reglages (outil/reglages.sql) : objectif {RT_DEF…, moJour}, atelier {lj:{debut,fin,pause}, ven:{…}}, delais {facac, acompte}
+window.REG={};let regOk=null,regMsg="";
+const REG_DEF={atelier:{lj:{debut:"07:30",fin:"17:00",pause:60},ven:{debut:"07:30",fin:"12:30",pause:0}},delais:{facac:3,acompte:14}};
+async function regLoad(){try{const{data,error}=await window.sbClient.from("reglages").select("id,data");if(error)throw error;
+    window.REG=Object.fromEntries((data||[]).map(r=>[r.id,r.data||{}]));regOk=true}catch(_){regOk=false}
+  render();renderDir();if(window.planRender&&!$("tab-planning").hidden)planRender();if(!$("tab-reglages").hidden)regRender()}
+async function regSave(id,patch){const d={...((window.REG||{})[id]||{}),...patch};window.REG={...window.REG,[id]:d};
+  const{error}=await window.sbClient.from("reglages").upsert({id,data:d,maj_le:new Date().toISOString()});
+  regMsg=error?"Enregistrement impossible : la base doit d'abord accueillir les réglages (outil/reglages.sql).":"Enregistré. Toute l'équipe a la nouvelle valeur à sa prochaine ouverture de l'appli.";
+  regRender();render();renderDir()}
+function regRender(){const el=$("tab-reglages");if(!el||el.hidden)return;
+  const O=rtObj(),R=window.REG||{},at={lj:{...REG_DEF.atelier.lj,...((R.atelier||{}).lj||{})},ven:{...REG_DEF.atelier.ven,...((R.atelier||{}).ven||{})}},dl={...REG_DEF.delais,...(R.delais||{})};
+  const num=(k,l,u,step)=>`<label>${l}<span>${u}</span><input type="number" min="0" step="${step||"any"}" inputmode="decimal" data-regobj="${k}" value="${O[k]}"></label>`;
+  const hor=(j,lab)=>`<fieldset class="regf"><legend>${lab}</legend><label>Arrivée<input type="time" data-regat="${j}.debut" value="${esc(at[j].debut)}"></label><label>Départ<input type="time" data-regat="${j}.fin" value="${esc(at[j].fin)}"></label><label>Pause (min)<input type="number" min="0" step="5" data-regat="${j}.pause" value="${at[j].pause}"></label></fieldset>`;
+  el.innerHTML=`<div class="regp">
+   <p class="sub">Ce que vous changez ici s'applique tout de suite à toute l'équipe, sans nouvelle version de l'appli. Seuls Steven et Marine peuvent modifier.</p>
+   ${regOk===false?`<div class="rega">La base n'accueille pas encore les réglages : il faut coller <span class="mono">outil/reglages.sql</span> dans Supabase (SQL Editor, New query, Run). En attendant, l'appli utilise les valeurs ci-dessous.</div>`:""}
+   ${regMsg?`<p class="regm" role="status">${esc(regMsg)}</p>`:""}
+   <section class="regs"><h3>Objectif de rentabilité</h3>
+    <div class="regobj"><b>${eur(O.obj)}</b> de marge par journée d'équipe de 2 · <b>${eur(O.taux)}</b> par heure de production</div>
+    <div class="regg">${num("charges","Charges annuelles visées","€")}${num("resultat","Résultat visé","€")}${num("poseurs","Poseurs","personnes",1)}${num("atelierN","Productifs à l'atelier","personnes",1)}${num("jours","Jours travaillés","par mois",1)}${num("mois","Mois travaillés","par an",1)}${num("hPose","Heures par jour, poseur","h",.25)}${num("hAtl","Heures par jour, atelier","h",.1)}${num("nonTrav","Temps non vendu","% (SAV, trous, intempéries)",1)}</div>
+    <p class="sub">(charges + résultat) ÷ heures vendables (mois × jours × (poseurs × h + atelier × h), moins le temps non vendu) = ${eur(O.taux)} par heure.</p></section>
+   <section class="regs"><h3>Règles de chiffrage</h3><div class="regg">${num("moJour","Main-d'œuvre d'une journée de pose","€ par jour d'équipe (jours de pose = main-d'œuvre ÷ ce montant)",50)}${num("tauxAtl","Main-d'œuvre d'atelier dans le prix de Christophe","€ par heure (rajoutée à la marge)",1)}</div>
+    <p class="sub">Une heure d'atelier se vend au moins ${eur(O.taux)}, comme une heure de pose.</p></section>
+   <section class="regs"><h3>Horaires de l'atelier</h3><p class="sub">Pré-remplis chaque jour dans « Mes heures » de Manu et du futur opérateur.</p><div class="regg">${hor("lj","Du lundi au jeudi")}${hor("ven","Le vendredi")}</div></section>
+   <section class="regs"><h3>Alertes des acomptes</h3><div class="regg">
+    <label>Facture d'acompte à envoyer<span>jours après la signature</span><input type="number" min="0" step="1" data-regdl="facac" value="${dl.facac}"></label>
+    <label>Acompte attendu<span>jours après la facture d'acompte</span><input type="number" min="0" step="1" data-regdl="acompte" value="${dl.acompte}"></label></div></section></div>`}
+$("tab-reglages").addEventListener("change",e=>{const t=e.target,v=t.value===""?null:+String(t.value).replace(",",".");
+  if(t.dataset.regobj){if(v==null||isNaN(v)||v<0)return;regSave("objectif",{[t.dataset.regobj]:v});return}
+  if(t.dataset.regdl){if(v==null||isNaN(v)||v<0)return;regSave("delais",{[t.dataset.regdl]:v});return}
+  if(t.dataset.regat){const[j,k]=t.dataset.regat.split("."),cur={...REG_DEF.atelier,...((window.REG||{}).atelier||{})};const jj={...REG_DEF.atelier[j],...(cur[j]||{}),[k]:k==="pause"?Math.max(0,+t.value||0):t.value};regSave("atelier",{[j]:jj})}});
 async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=>[x.id,x.data]));$("tabDir").hidden=false}catch(_){}}
 
 // ---------- démarrage ----------
@@ -3457,6 +3497,7 @@ async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=
   downloads=await claude.use("downloads");
   $("newBtn").hidden=!canWrite;
   if(window.dirDb&&dirDb.ok())await loadDir();
+  $("tabReg").hidden=!(canWrite&&window.mgdsProfil&&mgdsProfil.role==="editeur");regLoad();
   db.collection("chantiers").onSnapshot(snap=>{
     jobs=new Map(snap.docs.map(d=>[d.id,d.data()]));render();renderDir();if(window.atlRender)atlRender();
     if(openId&&openId!=="__new"){
@@ -4365,7 +4406,7 @@ function dvHtml(DV){
   const O=rtObj(),mjs=L.map(d=>[dvMj(d),+d.montant||0]).filter(x=>x[0]!=null),tm=mjs.reduce((s,x)=>s+x[1],0);
   return `<div class="plcard"><h3>Devis en attente</h3>
    <div class="dvobj"><p style="margin:0"><b>Objectif : ${plEur(O.obj)} de marge par journée d'équipe de 2</b>, soit ${plEur(O.taux)} par heure de production, en pose comme à l'atelier.</p>
-    <span>Marge jour d'un devis = (prix de vente HT − achats + heures d'atelier × ${plEur(O.tauxAtl)}) ÷ (jours de pose + heures d'atelier ÷ ${plNf(PL_EQ)}). La main-d'œuvre d'atelier comprise dans le prix de Christophe est rajoutée à la marge, comme la pose : elle est déjà payée par nos charges. Jours de pose = main-d'œuvre de pose ÷ 1 000 € environ par jour d'équipe. Une heure d'atelier se vend au moins ${plEur(O.taux)}, comme une heure de pose. À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
+    <span>Marge jour d'un devis = (prix de vente HT − achats + heures d'atelier × ${plEur(O.tauxAtl)}) ÷ (jours de pose + heures d'atelier ÷ ${plNf(PL_EQ)}). La main-d'œuvre d'atelier comprise dans le prix de Christophe est rajoutée à la marge, comme la pose : elle est déjà payée par nos charges. Jours de pose = main-d'œuvre de pose ÷ ${plEur(O.moJour)} environ par jour d'équipe. Une heure d'atelier se vend au moins ${plEur(O.taux)}, comme une heure de pose. À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
    <p class="plnote">Astuce : glissez la capture d'écran du chiffrage sur la ligne « Nouveau devis » : le devis est créé et Claude remplit client, montant, jours et heures. Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
    <div class="pldv">${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
 async function dvSave(id,patch){const sb=window.sbClient,d={...(PLN.devis.get(id)||{}),...patch};PLN.devis.set(id,d);
