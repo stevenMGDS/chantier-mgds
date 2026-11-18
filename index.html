@@ -273,6 +273,10 @@ textarea{min-height:64px;resize:vertical}
 .ctab{border-collapse:collapse;font-size:14px;width:100%}.ctab td,.ctab th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left}
 .stk{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));align-items:start}
 .stkcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}.stkcard h3{margin:0}
+.stkcard.qc{border-color:#F59E0B;border-left-width:4px;margin-bottom:12px}.qcbadge{display:inline-block;background:#FEF3C7;color:#92400E;border-radius:10px;padding:0 7px;font-size:12px;font-weight:600;vertical-align:middle}
+.qcq{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}.qcq img{width:72px;height:72px;object-fit:cover;border-radius:6px;display:block}
+.qcb{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}.qct{margin:0;font-weight:600}.qcr,.qcl{display:flex;flex-wrap:wrap;gap:6px}.qcl input{flex:1;min-width:160px}.qcq [hidden]{display:none!important}.qcok{margin:0;color:#15803D}
+@media (max-width:520px){.qcq img{width:56px;height:56px}}
 .stkcard .fld{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}.stkcard select,.stkcard input[type=text]{font:16px var(--f-body);padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
 .stkch{border-top:1px solid var(--line);padding-top:8px;display:grid;gap:6px}.stkch h4{margin:0}
 .thumbs a{position:relative}.thumbs .tag{position:absolute;left:4px;bottom:4px;font:600 11px var(--f-body);padding:1px 6px;border-radius:8px;color:#fff;background:#C2410C}.thumbs .tag.in{background:#15803D}
@@ -1704,6 +1708,7 @@ async function loadStock(){
   const nameOf=id=>{const j=jobs.get(id);return j?(j.client||id)+(j.ville?" · "+j.ville:""):id};
   stkLoad.live=live;stkLoad.nameOf=nameOf;
   el.innerHTML=`<div class="chips stkwhich" role="tablist">${Object.entries(STK_WHICH).map(([k,l])=>`<button class="chip" role="tab" data-which="${k}" aria-pressed="${stk.which===k}">${k==="pose"?"🧰 ":"🏭 "}${l}</button>`).join("")}<a class="chip" href="plan-stock.html" style="text-decoration:none">🗺️ Plan 3D du stock</a><a class="chip" href="fiche-stock.html" style="text-decoration:none">🖨️ Fiches à afficher</a><a class="chip" href="guide-stock.html" style="text-decoration:none">📘 Guide du stock</a></div>
+    <div class="stkcard qc" id="stk-qc" hidden></div>
     <div id="stk-top"><span class="sub">Chargement du stock…</span></div>
     <section class="stk"><div class="stkcard" id="stk-cmd"></div><div class="stkcard stkdir" id="stk-dir"></div><div class="stkcard stkpose"><h3>📷 Photographier des consommables</h3>
     <label class="fld">Chantier<select id="stk-ch"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
@@ -1719,7 +1724,61 @@ async function loadStock(){
   $("stk-ch").onchange=e=>{stockSel=e.target.value};
   $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>{loadStockList(nameOf);stkRefresh()},$("stk-note")));
   $("stk-acam").appendChild(consoCamera(()=>null,()=>stkAtlPhotos(nameOf),$("stk-anote"),ATL_PHOTO_BTN));
-  loadStockList(nameOf);stkRefresh();stkDirs();stkAtlPhotos(nameOf);
+  loadStockList(nameOf);stkRefresh();stkDirs();stkAtlPhotos(nameOf);qcRender(nameOf);
+}
+// ---------- Questions de Claude (Steven, 18/11/2026) ----------
+// Quand une photo de stock est ambiguë, Claude enregistre ce qui est sûr et pose une question (table questions_claude,
+// outil/questions-claude.sql) avec 2 ou 3 réponses. Christophe ou Manu répond ici (fonction repondre_question) ;
+// Claude lit la réponse au passage suivant (12 h 27 / 18 h 27) et fait les mouvements de stock (outil/releve_conso.py).
+// Sans réponse, rien ne bouge. La base ne montre à chacun que les questions qui le concernent.
+const QC_PASSAGE="au prochain passage de Claude (12 h 27 ou 18 h 27, lundi au vendredi)";
+async function qcLoad(){
+  const sb=window.sbClient;if(!sb)return null;
+  const{data,error}=await sb.from("questions_claude").select("id,cree_le,photo,chantier,question,detail,choix,libre,statut,reponse,reponse_txt,repondu_le,suite,applique_le").in("statut",["ouverte","repondue","appliquee"]).order("id",{ascending:false}).limit(60);
+  if(error)return null; // table pas encore créée : on n'affiche rien
+  return data||[];
+}
+async function qcCount(){
+  const Q=await qcLoad();const b=document.querySelector('#tabs [data-tab="stock"]');if(!b||!Q)return;
+  const n=Q.filter(q=>q.statut==="ouverte").length;
+  b.innerHTML="Stock"+(n?` <span class="qcbadge" title="${n} question${n>1?"s":""} de Claude">❓ ${n}</span>`:"");
+}
+async function qcRender(nameOf){
+  const box=$("stk-qc");if(!box)return;
+  const Q=await qcLoad();qcCount();
+  if(!Q){box.hidden=true;return}
+  const open=Q.filter(q=>q.statut!=="appliquee"),old=Q.filter(q=>q.statut==="appliquee").slice(0,5);
+  if(!open.length&&!old.length){box.hidden=true;return}
+  const sb=window.sbClient,ph=[...new Set(open.map(q=>q.photo).filter(Boolean))];
+  let urls={};
+  if(ph.length){const{data}=await sb.from("photos").select("id,chemin").in("id",ph);const P=data||[];
+    const s=P.length?((await sb.storage.from("photos").createSignedUrls(P.map(p=>p.chemin),3600)).data||[]):[];
+    const u=Object.fromEntries(s.map(x=>[x.path,x.signedUrl]));P.forEach(p=>urls[p.id]=u[p.chemin])}
+  const nO=open.filter(q=>q.statut==="ouverte").length;
+  const rep=q=>q.reponse===-1?"Autre : « "+(q.reponse_txt||"")+" »":((q.choix||[])[q.reponse]||{}).t||"";
+  box.hidden=false;
+  box.innerHTML=`<h3>❓ Questions de Claude${nO?` <span class="qcbadge">${nO} à répondre</span>`:""}</h3>
+    ${open.length?`<p class="sub" style="margin:0">Claude n'a enregistré que ce qui était sûr. Pour le reste, il attend votre réponse : sans réponse, rien ne bouge dans le stock. Vous pouvez changer d'avis tant qu'il ne l'a pas traitée.</p>`:""}
+    ${open.map(q=>`<div class="qcq" data-qc="${q.id}">
+      ${q.photo&&urls[q.photo]?`<a href="${esc(urls[q.photo])}" target="_blank" rel="noopener" title="Voir la photo"><img src="${esc(urls[q.photo])}" alt="Photo n° ${q.photo}" loading="lazy"></a>`:""}
+      <div class="qcb"><div class="sub">${q.photo?"Photo n° "+q.photo+" · ":""}${fr(String(q.cree_le).slice(0,10))}${q.chantier&&nameOf?" · "+esc(nameOf(q.chantier)):""}</div>
+        <p class="qct">${esc(q.question)}</p>${q.detail?`<p class="sub" style="margin:0">${esc(q.detail)}</p>`:""}
+        ${q.statut==="repondue"?`<p class="qcok">✓ Votre réponse : <b>${esc(rep(q))}</b>. Claude la traitera ${QC_PASSAGE}. <button class="btn ghost" data-qcchg>Changer</button></p>`:""}
+        <div class="qcr"${q.statut==="repondue"?" hidden":""}>${(q.choix||[]).map((c,i)=>`<button class="btn ghost" data-qci="${i}">${esc(c.t)}</button>`).join("")}${q.libre?`<button class="btn ghost" data-qcautre>Autre…</button>`:""}</div>
+        ${q.libre?`<div class="qcl" hidden><input type="text" maxlength="500" placeholder="Votre réponse (ex. c'est TPA2108)" aria-label="Votre réponse"><button class="btn" data-qcsend>Envoyer</button></div>`:""}
+      </div></div>`).join("")}
+    ${old.length?`<details><summary class="sub">Déjà traitées par Claude (${old.length})</summary>${old.map(q=>`<p class="sub" style="margin:6px 0">n° ${q.id} · ${esc(q.question)}<br>→ ${esc(rep(q))}${q.suite?" · "+esc(q.suite):""}</p>`).join("")}</details>`:""}`;
+  const send=async(id,i,t,btn)=>{if(btn)btn.disabled=true;
+    const{error}=await sb.rpc("repondre_question",{p_id:id,p_reponse:i,p_txt:t||null});
+    if(error){toast("Réponse non enregistrée : "+error.message);if(btn)btn.disabled=false;return}
+    toast("Réponse enregistrée : Claude la traitera "+QC_PASSAGE+".");qcRender(nameOf)};
+  box.querySelectorAll("[data-qc]").forEach(el=>{const id=+el.dataset.qc;
+    el.querySelectorAll("[data-qci]").forEach(b=>b.onclick=()=>send(id,+b.dataset.qci,null,b));
+    const l=el.querySelector(".qcl"),a=el.querySelector("[data-qcautre]");
+    if(a)a.onclick=()=>{l.hidden=false;l.querySelector("input").focus()};
+    if(l){const inp=l.querySelector("input"),go=()=>{const t=inp.value.trim();if(!t){toast("Écrivez votre réponse.");return}send(id,-1,t,l.querySelector("button"))};
+      l.querySelector("[data-qcsend]").onclick=go;inp.onkeydown=e=>{if(e.key==="Enter")go()}}
+    const c=el.querySelector("[data-qcchg]");if(c)c.onclick=()=>{el.querySelector(".qcr").hidden=false;c.closest(".qcok").hidden=true}});
 }
 // photos de l'atelier : entrée en stock (barres en trop, chutes) / sortie (chute reprise pour un chantier), relues par Claude (outil/releve_conso.py)
 const ATL_PHOTO_BTN={atl_entree:["📷 Entrée en stock","barres en trop, chutes"],atl_sortie:["📷 Sortie du stock","chute reprise pour ce chantier"]};
@@ -4050,6 +4109,7 @@ function atlSubmit(e){e.preventDefault();e.stopPropagation();
   await claude.use("db");
   const r=atlRole();
   if(r==="poseur")return;
+  qcCount(); // ❓ sur l'onglet Stock quand Claude attend une réponse
   $("tabAtl").hidden=false;
   if(r==="atelier"){
     // Christophe : seulement l'atelier

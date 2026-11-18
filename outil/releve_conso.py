@@ -4,6 +4,10 @@
   python3 -I outil/releve_conso.py liste <dossier>        télécharge les photos pas encore relues et affiche leur liste
   python3 -I outil/releve_conso.py ecrit <id> '<json>'    enregistre le relevé d'une photo et la marque comme relue
   python3 -I outil/releve_conso.py articles [atelier]     liste les articles du stock pose (ou atelier : réf., longueur, emplacement)
+  python3 -I outil/releve_conso.py question '<json>'      pose une question dans l'appli (bandeau « Questions de Claude » du Stock)
+  python3 -I outil/releve_conso.py questions              questions répondues à traiter (et nombre de questions encore ouvertes)
+  python3 -I outil/releve_conso.py applique <n°> ['<json>']  fait les mouvements du choix retenu (ou du JSON donné), puis clôt
+  python3 -I outil/releve_conso.py classe <n°> '<texte>'  clôt une question sans mouvement de stock (ex. réponse « Non »)
 
 Le relevé est un JSON : {"articles":[{"a":"Silicone","fiche":"Silicone","c":"blanc","q":4,"u":"cartouche"}],"txt":"remarque"}
 - a : article (nom courant) ; fiche : intitulé exact de la ligne dans la fiche de préparation, si on le connaît ;
@@ -20,6 +24,14 @@ hors déboursé des chantiers (les chutes viennent souvent de plusieurs chantier
   ou sa feuille récapitulative (plusieurs lignes) : l'emplacement de l'étiquette fait foi (même réf. + couleur + longueur
   rangée ailleurs = autre ligne de stock).
 Ne noter que ce qui se voit ou se compte sans doute possible ; sinon le dire dans « txt ».
+Questions (outil/questions-claude.sql, Steven 18/11/2026) : pour une ligne douteuse, enregistrer d'abord ce qui est sûr, puis
+  question '{"photo":28,"pour":"atelier","question":"…","detail":"…","choix":[{"t":"Oui","type":"entree","articles":[…]},{"t":"Non"}]}'
+  - pour : atelier (Christophe, Manu), pose (poseurs) ou bureau ; libre (défaut true) : réponse « Autre » en texte permise ;
+  - chaque choix : t = texte du bouton ; articles = lignes au format du relevé (stock / nouveau / q / l…) à passer si ce choix
+    est retenu ; type = entree ou sortie (défaut : celui de la photo). Un choix sans articles = rien à faire au stock.
+  Seul celui qui répond décide : une question sans réponse ne déclenche rien. Au passage suivant : « questions », puis
+  « applique <n°> » pour un choix avec articles, « applique <n°> '<json articles>' » pour une réponse libre comprise sans
+  doute possible, ou « classe <n°> '<texte>' » ; si la réponse libre reste floue, la laisser et le dire à Steven.
 L'appli reprend ces relevés : fenêtre Consommables de la fiche (bouton « Reporter dans la fiche ») et onglet Stock.
 Accès : l'hôte Supabase est authentifié par le proxy de l'environnement « MGDS Supabase ».
 """
@@ -63,17 +75,30 @@ def articles(stock="pose"):
         i += 1000
 
 
+NOTE_RELEVE = "Photo relue par Claude"
+
+
 def stock(pid, o):
-    """Reporte le relevé dans le stock pose (sortie ou retour), en remplaçant ce qui venait déjà de cette photo."""
+    """Reporte le relevé dans le stock pose (sortie ou retour), en remplaçant ce qui venait déjà de ce relevé
+    (les mouvements faits d'après une réponse à une question restent)."""
     try:
         p = req("GET", f"/rest/v1/photos?select=id,chantier,categorie,pris_le,poseur&id=eq.{int(pid)}")[0]
-        req("DELETE", f"/rest/v1/stock_mouvements?photo=eq.{int(pid)}", extra={"Prefer": "return=minimal"})
+        req("DELETE", f"/rest/v1/stock_mouvements?photo=eq.{int(pid)}&note=eq.{urllib.parse.quote(NOTE_RELEVE)}",
+            extra={"Prefer": "return=minimal"})
     except Exception as e:  # tables du stock pas encore installées
         print("stock non mis à jour :", e)
         return
+    n = mouvements(p, o["articles"])
+    print(f"{n} mouvement(s) de stock pour la photo {pid}")
+
+
+def mouvements(p, articles, sens=None, note=NOTE_RELEVE, le=None, par=None):
+    """Crée les mouvements de stock d'une liste d'articles (format du relevé). sens : "sortie" / "entree" pour forcer
+    le sens (sinon celui de la catégorie de la photo)."""
     atl = p["categorie"].startswith("atl_")
+    sortie = (sens == "sortie") if sens else p["categorie"] in ("conso_sortie", "atl_sortie")
     mv = []
-    for x in o["articles"]:
+    for x in articles:
         if atl and not x.get("stock") and x.get("nouveau"):  # chute ou barre pas encore au stock : on la crée
             n = x["nouveau"]
             ref = n.get("ref") or None
@@ -93,11 +118,11 @@ def stock(pid, o):
         if not atl and "qs" not in x and a.get("contenance") and (x.get("u") or "").lower().rstrip("s") != (a["unite"] or "").lower().rstrip("s"):
             q = q / float(a["contenance"])
         if q > 0:
-            mv.append({"article": a["id"], "type": "sortie" if p["categorie"] in ("conso_sortie", "atl_sortie") else "retour", "qte": round(q, 3),
-                       "chantier": p["chantier"], "photo": p["id"], "le": p["pris_le"], "par": p["poseur"], "note": "Photo relue par Claude"})
+            mv.append({"article": a["id"], "type": "sortie" if sortie else "retour", "qte": round(q, 3),
+                       "chantier": p["chantier"], "photo": p["id"], "le": le or p["pris_le"], "par": par or p["poseur"], "note": note})
     if mv:
         req("POST", "/rest/v1/stock_mouvements", mv, {"Prefer": "return=minimal"})
-    print(f"{len(mv)} mouvement(s) de stock pour la photo {pid}")
+    return len(mv)
 
 
 def ecrit(pid, releve):
@@ -109,6 +134,77 @@ def ecrit(pid, releve):
     print("relevé enregistré pour la photo", pid)
 
 
+QCHAMPS = "id,cree_le,pour,photo,chantier,question,detail,choix,libre,statut,reponse,reponse_txt,repondu_par,repondu_le,suite"
+
+
+def question(texte):
+    o = json.loads(texte)
+    assert o.get("question"), "il faut le texte de la question"
+    choix = o.get("choix") or []
+    assert isinstance(choix, list) and all(isinstance(c, dict) and c.get("t") for c in choix), "choix = liste de {\"t\": …}"
+    assert choix or o.get("libre", True), "il faut des choix ou une réponse libre"
+    for c in choix:
+        assert c.get("type", "entree") in ("entree", "sortie"), "type = entree ou sortie"
+        assert isinstance(c.get("articles", []), list), "articles = liste"
+    ch = o.get("chantier")
+    if o.get("photo") and not ch:
+        ph = req("GET", f"/rest/v1/photos?select=chantier&id=eq.{int(o['photo'])}")
+        ch = ph[0]["chantier"] if ph else None
+    q = req("POST", "/rest/v1/questions_claude", {
+        "pour": o.get("pour", "atelier"), "photo": o.get("photo"), "chantier": ch, "question": o["question"],
+        "detail": o.get("detail"), "choix": choix, "libre": o.get("libre", True)}, {"Prefer": "return=representation"})[0]
+    print("question n°", q["id"], "posée")
+
+
+def questions():
+    noms = {p["id"]: p.get("nom") or p["email"] for p in req("GET", "/rest/v1/profils?select=id,nom,email")}
+    R = req("GET", f"/rest/v1/questions_claude?select={QCHAMPS}&statut=eq.repondue&order=id")
+    for q in R:
+        c = q["choix"][q["reponse"]] if q["reponse"] is not None and 0 <= q["reponse"] < len(q["choix"]) else None
+        print(json.dumps({"id": q["id"], "photo": q["photo"], "question": q["question"], "detail": q["detail"],
+                          "reponse": c["t"] if c else "Autre", "texte": q["reponse_txt"],
+                          "a_des_articles": bool(c and c.get("articles")), "par": noms.get(q["repondu_par"], "?"),
+                          "le": q["repondu_le"]}, ensure_ascii=False))
+    ouv = req("GET", "/rest/v1/questions_claude?select=id&statut=eq.ouverte")
+    print(f"{len(R)} réponse(s) à traiter, {len(ouv)} question(s) sans réponse")
+
+
+def _clos(qid, suite):
+    import datetime
+    req("PATCH", f"/rest/v1/questions_claude?id=eq.{int(qid)}&statut=eq.repondue",
+        {"statut": "appliquee", "suite": suite, "applique_le": datetime.datetime.now(datetime.timezone.utc).isoformat()},
+        {"Prefer": "return=minimal"})
+
+
+def applique(qid, texte=None):
+    q = req("GET", f"/rest/v1/questions_claude?select={QCHAMPS}&id=eq.{int(qid)}")
+    assert q, "question introuvable"
+    q = q[0]
+    assert q["statut"] == "repondue", f"question {qid} : statut {q['statut']} (seule une question répondue s'applique)"
+    c = q["choix"][q["reponse"]] if q["reponse"] is not None and 0 <= q["reponse"] < len(q["choix"]) else {}
+    if texte:
+        o = json.loads(texte)
+        arts, sens = (o, None) if isinstance(o, list) else (o.get("articles", []), o.get("type"))
+    else:
+        assert c.get("articles"), "ce choix n'a pas d'articles : utiliser « classe », ou donner le JSON des articles"
+        arts, sens = c["articles"], c.get("type")
+    assert q["photo"], "question sans photo : mouvements à faire à la main"
+    p = req("GET", f"/rest/v1/photos?select=id,chantier,categorie,pris_le,poseur&id=eq.{int(q['photo'])}")[0]
+    noms = {x["id"]: x.get("nom") or x["email"] for x in req("GET", "/rest/v1/profils?select=id,nom,email")}
+    qui = noms.get(q["repondu_par"], "?")
+    n = mouvements(p, arts, "sortie" if sens == "sortie" else ("entree" if sens == "entree" else None),
+                   note=f"Réponse de {qui} à la question n° {q['id']}", le=q["repondu_le"], par=q["repondu_par"])
+    _clos(qid, f"{n} mouvement(s) de stock d'après la réponse « {c.get('t') or q['reponse_txt']} »")
+    print(f"question {qid} : {n} mouvement(s) de stock, close")
+
+
+def classe(qid, suite):
+    q = req("GET", f"/rest/v1/questions_claude?select=statut&id=eq.{int(qid)}")
+    assert q and q[0]["statut"] == "repondue", "seule une question répondue se clôt"
+    _clos(qid, suite)
+    print(f"question {qid} close sans mouvement")
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a[:1] == ["liste"]:
@@ -117,5 +213,13 @@ if __name__ == "__main__":
         articles(a[1] if len(a) > 1 else "pose")
     elif a[:1] == ["ecrit"] and len(a) == 3:
         ecrit(a[1], a[2])
+    elif a[:1] == ["question"] and len(a) == 2:
+        question(a[1])
+    elif a[:1] == ["questions"]:
+        questions()
+    elif a[:1] == ["applique"] and len(a) in (2, 3):
+        applique(a[1], a[2] if len(a) == 3 else None)
+    elif a[:1] == ["classe"] and len(a) == 3:
+        classe(a[1], a[2])
     else:
         print(__doc__)
