@@ -3304,8 +3304,11 @@ function dirHeuresHtml(){
 // (exprimée en journée d'équipe de 2, comme l'objectif).
 // Données : direction/objectif, direction/vente_<chantier> (total HT des devis lu par outil/rentabilite.py, ou saisi :
 // man), direction/achat_<chantier> (ARC), direction/prev_<chantier> (achats prévus), factures affectées (fac_*).
-const RT_DEF={charges:1204000,resultat:100000,poseurs:4,atelierN:1,jours:18,mois:11,hPose:8.75,hAtl:7.8};
-const RT_LAB={charges:["Charges annuelles","€ (bilan 2025-2026)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"]};
+// Objectifs fixés par Steven le 18/11/2026 : charges baissées de 200 000 € (1 204 000 € au bilan 2025-2026) et un deuxième
+// opérateur à l'atelier. RT_BILAN = la situation du bilan, affichée pour comparaison.
+const RT_DEF={charges:1004000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8};
+const RT_BILAN={charges:1204000,atelierN:1};
+const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"]};
 const rt={tout:false};
 function rtObj(){const o={...RT_DEF};const d=dirDocs.get("objectif")||{};for(const k in RT_DEF)if(d[k]!=null&&!isNaN(+d[k]))o[k]=+d[k];
   o.hAn=o.mois*o.jours*(o.poseurs*o.hPose+o.atelierN*o.hAtl);o.taux=o.hAn?(o.charges+o.resultat)/o.hAn:0;o.obj=o.taux*PL_EQ;return o}
@@ -3370,9 +3373,10 @@ function rtHtml(){
      ${M.length?`<div class="tbl"><table><thead><tr><th>Mois</th><th class="n">En pose</th><th class="n">À l'atelier</th><th class="n">Autres / non pointées</th><th class="n">Marge non couverte</th></tr></thead><tbody>
      ${M.map(x=>{const au=Math.max(0,x.dispo-x.pose-x.atl);return`<tr><td>${x.m.slice(5)}/${x.m.slice(0,4)}</td><td class="n">${h1(x.pose)}</td><td class="n">${h1(x.atl)}</td><td class="n">${h1(au)}</td><td class="n">${au?eur(au*O.obj):"–"}</td></tr>`}).join("")}</tbody></table></div>
      <p class="sub">Les heures sont pointées depuis le 12/11/2026 : les mois précédents sont incomplets.</p>`:`<p class="sub">Aucune heure pointée pour l'instant.</p>`}</div>
-   <details class="atldet"><summary><b>Calcul de l'objectif</b> <span class="sub">· ${eur(O.obj)} par journée d'équipe · d'après le bilan 2025-2026</span></summary>
+   <details class="atldet"><summary><b>Calcul de l'objectif</b> <span class="sub">· ${eur(O.obj)} par journée d'équipe · charges réduites et 2<sup>e</sup> opérateur à l'atelier</span></summary>
      <div class="rtobjg">${Object.entries(RT_LAB).map(([k,[l,u]])=>`<label>${l} <small class="sub">${u}</small><input type="number" min="0" step="any" inputmode="decimal" data-rtobj="${k}" value="${O[k]}"></label>`).join("")}</div>
-     <p class="sub">(${eur(O.charges)} + ${eur(O.resultat)}) ÷ ${Math.round(O.hAn).toLocaleString("fr-FR")} heures productives (${O.mois} mois × ${O.jours} j × (${O.poseurs} poseurs × ${h1(O.hPose)} h + ${O.atelierN} à l'atelier × ${h1(O.hAtl)} h)) = <b>${eur(O.taux)} par heure</b>, soit <b>${eur(O.obj)}</b> par journée d'équipe de 2.</p></details>`;
+     <p class="sub">(${eur(O.charges)} + ${eur(O.resultat)}) ÷ ${Math.round(O.hAn).toLocaleString("fr-FR")} heures productives (${O.mois} mois × ${O.jours} j × (${O.poseurs} poseurs × ${h1(O.hPose)} h + ${O.atelierN} à l'atelier × ${h1(O.hAtl)} h)) = <b>${eur(O.taux)} par heure</b>, soit <b>${eur(O.obj)}</b> par journée d'équipe de 2.</p>
+     <p class="sub">${(()=>{const b={...O,...RT_BILAN},h=b.mois*b.jours*(b.poseurs*b.hPose+b.atelierN*b.hAtl),t=(b.charges+b.resultat)/h;return`Situation du bilan 2025-2026 (charges ${eur(b.charges)}, ${b.atelierN} à l'atelier) : ${eur(t)} par heure, ${eur(t*PL_EQ)} par journée d'équipe.`})()}</p></details>`;
 }
 const eur=n=>Math.round(n||0).toLocaleString("fr-FR")+" €",eur2=n=>(n||0).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 const dirLines=()=>[...dirDocs].filter(([,d])=>d.kind==="facture").flatMap(([fid,f])=>(f.lignes||[]).map((l,i)=>({...l,fid,i,four:f.four||"?",num:f.num||"",date:f.date||""}))).sort((a,b)=>a.date.localeCompare(b.date)||a.fid.localeCompare(b.fid)||a.i-b.i);
