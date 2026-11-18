@@ -237,6 +237,16 @@ textarea{min-height:64px;resize:vertical}
 .tbl .n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}.tbl select{min-width:190px}.tbl input[type=number]{font:14px var(--f-mono);width:7.5em;text-align:right;border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:var(--surface);color:var(--ink)}
 .tbl .des{min-width:220px}.up{color:var(--s-rouge);font-weight:600}.dn{color:var(--s-vert);font-weight:600}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.chart{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}.chart h3{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+.regp{display:grid;gap:18px;max-width:900px}.regs{display:grid;gap:10px;border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface)}.regs h3{margin:0}
+.regg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.regg label,.regf label{display:grid;gap:3px;font-size:14px;font-weight:600}.regg label span{font-weight:400;font-size:12.5px;color:var(--muted)}
+.regg input,.regf input{font:15px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
+.regf{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:8px;min-width:0}.regf legend{font-weight:600;padding:0 4px}
+.regobj{font-size:16px}.regobj b{font:600 20px var(--f-mono);color:var(--accent)}.rega{border-left:4px solid var(--s-orange,#E08A52);padding:8px 12px;background:var(--surface)}.regm{margin:0;color:var(--s-vert,#2f7d4a);font-weight:600}
+.rttab td{vertical-align:middle}.rtbc{min-width:110px}.rtm{color:var(--s-orange,#E08A52);font-weight:600}
+.rtb .rtt{position:relative;display:block;height:14px;background:var(--line);border-radius:3px}.rtb i{position:absolute;top:0;bottom:0;left:0;border-radius:3px}
+.rtb i.rtp{background:var(--accent);opacity:.25}.rtb i.rtr{top:3px;bottom:3px}.rtb i.rtr.ok,.sw.rtok{background:var(--s-vert,#2f7d4a)}.rtb i.rtr.o{background:var(--s-orange,#E08A52)}.rtb i.rtr.r,.sw.rtr0{background:var(--s-rouge,#CC4141)}.rtb i.rtr:not(.ok):not(.o):not(.r){background:var(--muted)}
+.rtb i.rto,.sw.rtobj{width:2px;top:-3px;bottom:-3px;background:var(--ink,#1d2633);border-radius:0}.rtv.ok{color:var(--s-vert,#2f7d4a)}.rtv.o{color:var(--s-orange,#E08A52)}.rtv.r{color:var(--s-rouge,#CC4141)}
+.rtobjg{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:10px 0}.rtobjg label{display:grid;gap:4px;font-size:14px}
 .dhrow{display:grid;grid-template-columns:minmax(120px,220px) minmax(0,1fr);gap:4px 14px;padding:8px 0;border-top:1px solid var(--line);align-items:center}
 .dhn{display:grid;gap:2px;min-width:0}.dhn .lnk{text-align:left}.dhbars{display:grid;gap:5px;min-width:0}
 .dhb{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13px}.dhb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -313,11 +323,12 @@ textarea{min-height:64px;resize:vertical}
     <h1>Chantiers MGDS<small id="sum">Chargement des chantiers…</small></h1>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="newBtn" hidden>Nouveau chantier</button></div>
   </header>
-  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button><button role="tab" data-tab="atelier" id="tabAtl" aria-selected="false" hidden>Atelier</button><button role="tab" data-tab="heures" id="tabHeures" aria-selected="false" hidden>Mes heures</button><button role="tab" data-tab="direction" id="tabDir" aria-selected="false" hidden>Direction</button></nav>
+  <nav class="tabs" id="tabs" hidden role="tablist"><button role="tab" data-tab="chantiers" aria-selected="true">Chantiers</button><button role="tab" data-tab="planning" aria-selected="false">Planning</button><button role="tab" data-tab="stock" aria-selected="false">Stock</button><button role="tab" data-tab="atelier" id="tabAtl" aria-selected="false" hidden>Atelier</button><button role="tab" data-tab="heures" id="tabHeures" aria-selected="false" hidden>Mes heures</button><button role="tab" data-tab="direction" id="tabDir" aria-selected="false" hidden>Direction</button><button role="tab" data-tab="reglages" id="tabReg" aria-selected="false" hidden>Réglages</button></nav>
   <div id="tab-planning" hidden></div>
   <div id="tab-stock" hidden></div>
   <section id="tab-atelier" hidden aria-label="Atelier"></section>
   <section id="tab-direction" hidden aria-label="Direction"></section>
+  <section id="tab-reglages" hidden aria-label="Réglages"></section>
   <section id="tab-heures" hidden aria-label="Mes heures"></section>
   <div id="tab-chantiers">
   <div class="stats" id="stats"></div>
@@ -604,7 +615,7 @@ function facSync(fs){const so=fs.find(f=>f.solde&&f.fac&&f.fac.d);
 function nPosed(j){return phasesOf(j).filter(x=>x.pose&&x.pose.d).length}
 function partial(j){const n=nPosed(j);return n>0&&n<phasesOf(j).length}
 function arcCount(j,f){const a=arcsOf(j);return a.filter(f).length+"/"+a.length}
-const DOC_TYPES=["Devis","Plans d'exé","Préparation","Métré","Support","Commande","ARC","Réception","Photo","Facture","Autre"];
+const DOC_TYPES=["Devis","Chiffrage","Plans d'exé","Préparation","Métré","Support","Commande","ARC","Réception","Photo","Facture","Autre"];
 const TASKS_AV=["Vérifier l'accès (camion, stationnement, étage)","Prévoir échafaudage ou nacelle","Prévenir le client : meubles à dégager","Contrôler les consommables préparés (coloris)","Préparer le dossier de pose"];
 const TASKS_AP=["Contrôler les colis avec l'ARC","Vérifier coloris et vitrages","Photographier tout dommage","Ranger le matériel par repère"];
 const MOMENTS=[
@@ -641,8 +652,8 @@ function nDone(j){return stepsOf(j).filter(s=>sd(j,s.k)).length}
 function curStep(j){const ss=stepsOf(j);for(let n=0;n<ss.length;n++){const s=ss[n];if(s.opt)continue;if(s.k==="levees"&&!sd(j,"reserves"))continue;if(s.k==="facac"&&sd(j,"acompte"))continue;if((s.man||s.k==="prepa")&&ss.slice(n+1).some(x=>sd(j,x.k)))continue;if(!sd(j,s.k))return s.k}return null}
 function locked(j,k){return !!(j.plans&&NEED_PLANS.includes(k)&&!sd(j,"plansok"))}
 const LATE=[
- [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"facac")&&!sd(j,"acompte")&&days(sd(j,"signe"))>3,"facac",j=>"Facture d'acompte à envoyer (devis signé depuis "+days(sd(j,"signe"))+" j)"],
- [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"acompte")&&days(sd(j,"facac")||sd(j,"signe"))>14,"acompte",j=>"Acompte attendu depuis "+days(sd(j,"facac")||sd(j,"signe"))+" j"],
+ [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"facac")&&!sd(j,"acompte")&&days(sd(j,"signe"))>(+((window.REG||{}).delais||{}).facac||3),"facac",j=>"Facture d'acompte à envoyer (devis signé depuis "+days(sd(j,"signe"))+" j)"],
+ [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"acompte")&&days(sd(j,"facac")||sd(j,"signe"))>(+((window.REG||{}).delais||{}).acompte||14),"acompte",j=>"Acompte attendu depuis "+days(sd(j,"facac")||sd(j,"signe"))+" j"],
  [j=>j.type!=="neuf"&&sd(j,"rdv")&&sd(j,"rdv")<today()&&!sd(j,"metre"),"metre",j=>"Métré du "+fr(sd(j,"rdv"))+" non validé"],
  [j=>arcsOf(j).some(a=>a.prev&&a.prev<today()&&!(a.livre&&a.livre.d)),"livre",j=>{const a=arcsOf(j).find(a=>a.prev&&a.prev<today()&&!(a.livre&&a.livre.d));return"Livraison "+(a.four||"")+" prévue "+sem(a.prev)+" non reçue"}],
  [j=>!hasArcs(j)&&sd(j,"livprev")&&sd(j,"livprev")<today()&&!sd(j,"livre"),"livre",j=>"Livraison prévue "+sem(sd(j,"livprev"))+" non reçue"],
@@ -890,9 +901,10 @@ async function renderSheet(){
 function showTab(t){
   // Christophe (atelier, reserve_stock) voit aussi le Planning : charge de l'atelier et de la pose, devis en attente (Steven, 11/11/2026)
   if(window.mgdsProfil&&mgdsProfil.role==="atelier"&&t!=="stock"&&!(t==="heures"&&!$("tabHeures").hidden)&&!(t==="planning"&&mgdsProfil.reserve_stock===true))t="atelier";
-  if(!["chantiers","planning","stock","atelier","direction","heures"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="atelier"&&$("tabAtl").hidden)||(t==="heures"&&$("tabHeures").hidden))t="chantiers";
+  if(!["chantiers","planning","stock","atelier","direction","heures","reglages"].includes(t)||(t==="direction"&&$("tabDir").hidden)||(t==="reglages"&&$("tabReg").hidden)||(t==="atelier"&&$("tabAtl").hidden)||(t==="heures"&&$("tabHeures").hidden))t="chantiers";
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
-  for(const k of ["chantiers","planning","stock","atelier","direction","heures"])$("tab-"+k).hidden=k!==t;
+  for(const k of ["chantiers","planning","stock","atelier","direction","heures","reglages"])$("tab-"+k).hidden=k!==t;
+  if(t==="reglages")regRender();
   // Mes heures (Manu, 13/11/2026) : la page des heures dans l'appli, comme le planning
   if(t==="heures"&&!$("tab-heures").firstChild)$("tab-heures").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#heures" title="Mes heures"></iframe>`;
   if(t==="planning"){if(window.planRender)planRender();else if(!$("tab-planning").firstChild)$("tab-planning").innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`}
@@ -902,7 +914,7 @@ function showTab(t){
   try{history.replaceState(null,"",t==="chantiers"?location.pathname:"#"+t)}catch(e){}
 }
 window.mgdsHash0=location.hash;
-if(window.sbClient){$("tabs").hidden=false;document.addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b&&(b.closest("#tabs")||b.closest("#tab-atelier")))showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
+if(window.sbClient){$("tabs").hidden=false;document.addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b&&(b.closest("#tabs")||b.closest("#tab-atelier")||b.closest("#tab-direction")))showTab(b.dataset.tab)});showTab((location.hash||"").slice(1))}
 // ---- terrain : ce que les poseurs ont noté pour ce chantier ----
 const CAT={avant:"Avant chantier",fin:"Fin de chantier",conso_sortie:"Consommables sortis",conso_retour:"Consommables remis",autre:"Autres"};
 async function loadTerrain(id){
@@ -954,6 +966,7 @@ function bindDrop(){
   $("file").addEventListener("change",e=>upload([...e.target.files]));
 }
 function guessType(n){n=n.toLowerCase();
+  if(/chiffr|marge|capture d.?[ée]cran|screenshot/.test(n))return"Chiffrage";
   if(/support/.test(n))return"Support";if(/devis/.test(n))return"Devis";if(/\bexe\b|ex[eé]cution|plans? d.ex/.test(n))return"Plans d'exé";if(/\barc\b|accus|confirmation/.test(n))return"ARC";if(/m[eé]tr/.test(n))return"Métré";if(/pr[eé]pa|d[eé]couverte/.test(n))return"Préparation";if(/autocontr/.test(n))return"Réception";
   if(/r[eé]cep|pv/.test(n))return"Réception";if(/fact/.test(n))return"Facture";if(/command|bdc/.test(n))return"Commande";if(/\.(jpe?g|png|heic|webp)$/.test(n))return"Photo";return"Autre"}
 function ctype(f){if(f.type&&!/;/.test(f.type)&&f.type!=="application/vnd.ms-excel")return f.type;const e=f.name.split(".").pop().toLowerCase();return{pdf:"application/pdf",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",csv:"text/csv",txt:"text/plain"}[e]||f.type}
@@ -3246,14 +3259,15 @@ if(/iP(ad|hone|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&
 // ---------- direction (Steven seul : la table « direction » est fermée aux autres par la base) ----------
 // direction/fac_* : {kind:"facture",four,num,date,lignes:[{ref,des,fam,qte,pu,ht,aff,doute}]} ; aff = "stock" | "fg" | n° de chantier
 // direction/prev_<chantier> : {kind:"prevu",achat} ; direction/tarifs : {kind:"tarifs",items:{"four|ref":pu}}
-let dirDocs=new Map(),dirTab="affecter",dirMois="",dirAll=false,dirWait=false;
+let dirDocs=new Map(),dirTab="rentabilite",dirMois="",dirAll=false,dirWait=false;
 // ---- Direction : heures prévues et réalisées par affaire (Steven, 13/11/2026) ----
 // Pose : prévu = jours d'équipe de 2 saisis ici (chantier.jp) × 2 × 8,75 h, sinon jours-poseur du planning × 8,75 h ;
 // réalisé = heures des poseurs sur le chantier (hors atelier). Atelier : prévu = temps de production de Christophe,
 // réalisé = heures notées par commande atelier (Manu, poseurs à l'atelier).
 const dirH={ok:false,loading:false,hs:[],pl:[],tout:false};
 async function dirHLoad(){if(dirH.loading)return;dirH.loading=true;const sb=window.sbClient;
-  try{const[a,b]=await Promise.all([sb.from("heures").select("chantier,atelier,tache,heures").limit(20000),sb.from("planning").select("chantier,poseur,note").not("chantier","is",null).limit(20000)]);
+  try{const[a,b,c]=await Promise.all([sb.from("heures").select("poseur,jour,chantier,atelier,tache,heures").limit(20000),sb.from("planning").select("chantier,poseur,note").not("chantier","is",null).limit(20000),sb.from("profils").select("id,role")]);
+    dirH.staff=new Set((c.data||[]).filter(p=>p.role==="atelier").map(p=>p.id));
     dirH.hs=a.data||[];dirH.pl=(b.data||[]).filter(p=>!/atelier/i.test(p.note||""));dirH.ok=true}catch(_){dirH.ok=false}
   dirH.loading=false;renderDir()}
 function dirHeuresData(){
@@ -3290,6 +3304,97 @@ function dirHeuresHtml(){
     <div class="tbl"><table><thead><tr><th>Chantier</th><th class="n">Jours d'équipe prévus</th><th class="n">Réalisé (jours d'équipe)</th></tr></thead><tbody>
     ${L.filter(o=>o.j).map(o=>`<tr><td>${esc(o.nom)}</td><td class="n"><input type="number" min="0" step="0.5" inputmode="decimal" data-dirjp="${esc(o.k)}" value="${esc(o.j.jp||"")}" placeholder="${o.ppSrc==="planning"?h1(o.pp/PL_EQ):""}" aria-label="Jours d'équipe prévus pour ${esc(o.nom)}" style="max-width:90px;text-align:right" ${canWrite?"":"disabled"}></td><td class="n">${h1(o.pr/PL_EQ)}</td></tr>`).join("")}</tbody></table></div></details>`;
 }
+// ---- Direction : rentabilité par chantier en marge jour (Steven, 17/11/2026) ----
+// Steven, 18/11/2026 : une heure de production vaut une heure, en pose comme à l'atelier, poseurs comme Manu.
+// Objectif horaire = (charges annuelles + résultat visé) ÷ heures productives de l'année
+// (mois × jours × (poseurs × 8,75 h + personnes productives à l'atelier × 7,8 h)) ; Christophe ne produit pas.
+// Marge jour d'un chantier = (vente HT − achats) ÷ toutes ses heures (pose, poseurs à l'atelier, atelier) × 17,5 h
+// (exprimée en journée d'équipe de 2, comme l'objectif).
+// Données : direction/objectif, direction/vente_<chantier> (total HT des devis lu par outil/rentabilite.py, ou saisi :
+// man), direction/achat_<chantier> (ARC), direction/prev_<chantier> (achats prévus), factures affectées (fac_*).
+// Objectifs fixés par Steven le 18/11/2026 : 100 000 € de charges en moins (1 204 000 € au bilan 2025-2026), un deuxième
+// opérateur à l'atelier et 2,2 M€ de chiffre d'affaires. RT_BILAN = la situation du bilan, affichée pour comparaison.
+// rtObj() sert aussi à la Charge (devis à venir) : les autres comptes ne lisent pas direction/objectif, ils ont RT_DEF.
+// Steven, 18/11/2026 : 7 % du temps (10 % proposés, ramenés à 7 % en attendant la mesure réelle), qui tient lieu de sécurité (secu 0) n'est payé par aucun chantier (glissements, trous de planning, SAV, gestes
+// commerciaux) et une marge de sécurité de 5 % : heures vendables = heures × (1 − nonTrav) ; objectif × (1 + secu).
+const RT_DEF={charges:1104000,resultat:100000,poseurs:4,atelierN:2,jours:18,mois:11,hPose:8.75,hAtl:7.8,nonTrav:7,secu:0,tauxAtl:60,moJour:1000};
+// Steven, 18/11/2026 : pour un produit fabriqué chez nous, le prix de Christophe (l'« achat » du chiffrage) comprend la
+// main-d'œuvre d'atelier à tauxAtl ; elle est déjà payée par les charges, comme la pose : on la rajoute à la marge
+// (achats − heures d'atelier × tauxAtl = la matière seule) et ses heures comptent dans les journées.
+const RT_BILAN={charges:1204000,atelierN:1};
+const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"],tauxAtl:["Main-d'œuvre d'atelier dans le prix de Christophe","€/h"],nonTrav:["Temps non vendu","% (SAV, trous, glissements)"],secu:["Marge de sécurité","%"]};
+const rt={tout:false};
+function rtObj(){const o={...RT_DEF};const d=(window.REG||{}).objectif||{};for(const k in RT_DEF)if(d[k]!=null&&!isNaN(+d[k]))o[k]=+d[k];
+  o.hBrut=o.mois*o.jours*(o.poseurs*o.hPose+o.atelierN*o.hAtl);o.hAn=o.hBrut*(1-o.nonTrav/100);
+  o.taux=o.hAn?(o.charges+o.resultat)/o.hAn*(1+o.secu/100):0;o.obj=o.taux*PL_EQ;o.taux0=o.tauxAtl;return o}
+function rtData(){
+  const O=rtObj(),staff=dirH.staff||new Set(),A=new Map();
+  const get=id=>{if(!A.has(id))A.set(id,{id,j:jobs.get(id),poseH:0,posAtlH:0,atlH:0,atlP:0,jPrev:0,jSrc:""});return A.get(id)};
+  for(const[id,j]of jobs){const o=get(id);if(+j.jp>0){o.jPrev=+j.jp;o.jSrc="jp"}}
+  const cmd=new Map();for(const[aid,a]of atl.rows)if(a.chantier&&jobs.has(a.chantier)){cmd.set(aid,a.chantier);get(a.chantier).atlP+=atlHeures(a)||0}
+  for(const h of dirH.hs){const n=+h.heures||0;
+    if(h.atelier){const c=cmd.get(h.atelier);if(!c)continue;if(staff.has(h.poseur))get(c).atlH+=n;else get(c).posAtlH+=n}
+    else if(h.chantier&&!h.tache&&jobs.has(h.chantier)&&!staff.has(h.poseur))get(h.chantier).poseH+=n}
+  const pj=new Map();(dirH.pl||[]).forEach(p=>pj.set(p.chantier,(pj.get(p.chantier)||0)+1));
+  for(const[id,n]of pj){const o=A.get(id);if(o&&!o.jPrev){o.jPrev=n/2;o.jSrc="planning"}}
+  const fac={};dirLines().forEach(l=>{if(jobs.has(l.aff))fac[l.aff]=(fac[l.aff]||0)+(l.ht||0)});
+  return[...A.values()].map(o=>{
+    const v=dirDocs.get("vente_"+o.id)||{},arcs=(dirDocs.get("achat_"+o.id)||{}).arcs||[],pv=(dirDocs.get("prev_"+o.id)||{}).achat;
+    const arc=arcs.reduce((s,a)=>s+(+a.ht||0),0),f=fac[o.id]||0;
+    o.vente=+v.ht||0;o.venteMan=!!v.man;o.venteDoc=(v.devis||[]).map(d=>d.doc).join(", ");o.illis=(v.illisibles||[]).length;
+    o.achP=pv!=null?+pv:arc;o.achPSrc=pv!=null?"prévu":arc?"ARC":"";o.achR=f||arc;o.achRSrc=f?"factures":arc?"ARC":"";
+    o.jReel=(o.poseH+o.posAtlH)/PL_EQ;o.fin=o.j?done(o.j):false;
+    // actualisé : on garde le plus grand du prévu et du réalisé (un chantier en cours n'a pas encore tout consommé)
+    o.jAct=Math.max(o.jPrev,o.jReel);o.atlAct=Math.max(o.atlP,o.atlH);o.achAct=Math.max(o.achP,o.achR);
+    o.hPrev=o.jPrev*PL_EQ+o.atlP;o.hAct=o.jAct*PL_EQ+o.atlAct;
+    const mj=(ach,hh)=>o.vente&&ach>0&&hh>0?(o.vente-ach)/hh*PL_EQ:null; // sans achats, la marge serait fausse : pas de chiffre
+    // achats prévus lus dans un chiffrage : le prix de Christophe y comprend l'atelier ; on n'en garde que la matière
+    const achPm=o.achPSrc==="prévu"?Math.max(0,o.achP-o.atlP*O.taux0):o.achP;
+    o.mjPrev=mj(achPm,o.hPrev);o.mjAct=mj(Math.max(achPm,o.achR),o.hAct);
+    o.manque=[!o.vente&&"prix de vente",!o.achAct&&"achats",!o.hAct&&"temps de pose"].filter(Boolean);
+    return o}).filter(o=>rt.tout||!o.fin);
+}
+function rtMois(O){const M=new Map(),staff=dirH.staff||new Set();
+  for(const h of dirH.hs){if(staff.has(h.poseur)||!h.jour)continue;const m=h.jour.slice(0,7);if(!M.has(m))M.set(m,{pose:0,atl:0,autre:0});const x=M.get(m),n=+h.heures||0;
+    if(h.atelier)x.atl+=n;else if(h.chantier&&!h.tache)x.pose+=n;else x.autre+=n}
+  return[...M].sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4).map(([m,x])=>({m,dispo:O.poseurs*O.jours/2,pose:x.pose/PL_EQ,atl:x.atl/PL_EQ,autre:x.autre/PL_EQ}))}
+function rtCls(v,O){return v==null?"":v>=O.obj?"ok":v>=O.obj*.9?"o":"r"}
+function rtHtml(){
+  if(!dirH.ok){if(!dirH.loading)dirHLoad();return`<p class="sub">Chargement…</p>`}
+  const O=rtObj(),L=rtData(),M=rtMois(O);
+  const ok=L.filter(o=>o.mjAct!=null&&!o.manque.length),sous=ok.filter(o=>o.mjAct<O.obj);
+  const tv=ok.reduce((s,o)=>s+o.vente,0),tm=ok.reduce((s,o)=>s+o.mjAct*o.jAct,0),tj=ok.reduce((s,o)=>s+o.jAct,0);
+  const fmtJ=n=>h1(n)+" j";
+  L.sort((a,b)=>(a.mjAct??1e9)-(b.mjAct??1e9));
+  const max=Math.max(O.obj*1.6,...L.map(o=>Math.max(o.mjAct||0,o.mjPrev||0)));
+  const bar=o=>{const w=v=>Math.max(0,Math.min(v,max))/max*100,c=rtCls(o.mjAct,O);
+    return`<div class="rtb"><span class="rtt">${o.mjPrev!=null?`<i class="rtp" style="width:${w(o.mjPrev)}%" title="Prévu ${eur(o.mjPrev)}"></i>`:""}${o.mjAct!=null?`<i class="rtr ${c}" style="width:${w(o.mjAct)}%"></i>`:""}<i class="rto" style="left:${w(O.obj)}%"></i></span></div>`};
+  return`<div class="kpis"><div class="kpi"><b>${eur(O.obj)}</b><span>Objectif par journée d'équipe</span></div>
+    <div class="kpi ${tj&&tm/tj<O.obj?"r":""}"><b>${tj?eur(tm/tj):"–"}</b><span>Marge jour moyenne (${ok.length} chantier${ok.length>1?"s":""} complet${ok.length>1?"s":""})</span></div>
+    <div class="kpi ${sous.length?"r":""}"><b>${sous.length}</b><span>Chantier${sous.length>1?"s":""} sous l'objectif</span></div>
+    <div class="kpi ${L.some(o=>o.manque.length)?"o":""}"><b>${L.filter(o=>o.manque.length).length}</b><span>Chantier${L.filter(o=>o.manque.length).length>1?"s":""} incomplet${L.filter(o=>o.manque.length).length>1?"s":""}</span></div></div>
+   <div class="chart"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3>Marge jour par chantier</h3>
+     <div class="dhleg"><span><i class="sw rtok"></i>Au-dessus de l'objectif</span><span><i class="sw rtr0"></i>En dessous</span><span><i class="sw prev"></i>Prévu au devis</span><span><i class="sw rtobj"></i>Objectif ${eur(O.obj)}</span></div></div>
+     <p class="sub">Une heure de production vaut une heure, en pose comme à l'atelier. Marge jour = (vente HT − achats de matière) ÷ toutes les heures du chantier × ${h1(PL_EQ)} h (une journée d'équipe de 2) ; la main-d'œuvre d'atelier comprise dans le prix de Christophe (${eur(O.tauxAtl)}/h) n'est pas un achat. Objectif : ${eur(O.taux)} par heure. Chantier en cours : le plus grand du prévu et du réalisé.</p>
+     <div class="tools"><button class="chip" id="rtTout" aria-pressed="${rt.tout}">Afficher aussi les chantiers terminés</button></div>
+     <div class="tbl"><table class="rttab"><thead><tr><th>Chantier</th><th class="n">Vente HT</th><th class="n">Achats</th><th class="n">Atelier</th><th class="n">Pose (journées d'équipe)</th><th class="n">Marge jour</th><th class="rtbc">Face à l'objectif</th></tr></thead><tbody>
+     ${L.map(o=>`<tr><td><button class="lnk" data-open="${esc(o.id)}">${esc(o.j?o.j.client:o.id)}</button>${o.manque.length?`<br><small class="rtm">à compléter : ${o.manque.join(", ")}</small>`:""}</td>
+       <td class="n"><input type="number" min="0" step="1" inputmode="decimal" data-rtv="${esc(o.id)}" value="${o.vente?Math.round(o.vente):""}" placeholder="à saisir" aria-label="Vente HT de ${esc(o.j?o.j.client:o.id)}" title="${esc(o.venteMan?"Saisi à la main (vider la case pour revenir au devis)":o.venteDoc?"Lu dans : "+o.venteDoc:o.illis?"Devis scanné, illisible : à saisir":"Aucun devis lu")}" style="max-width:110px;text-align:right">${o.venteMan?`<br><small class="sub">saisi</small>`:""}</td>
+       <td class="n"><input type="number" min="0" step="1" inputmode="decimal" data-prev="${esc(o.id)}" value="${o.achPSrc==="prévu"?Math.round(o.achP):""}" placeholder="${o.achAct?Math.round(o.achAct):"à saisir"}" aria-label="Achats prévus HT de ${esc(o.j?o.j.client:o.id)}" title="Achats prévus HT (déboursé matière du devis). Sans saisie : ARC lus, puis factures affectées." style="max-width:110px;text-align:right">${o.achRSrc||o.achPSrc?`<br><small class="sub">${esc(o.achRSrc==="factures"?"factures "+eur(o.achR):o.achPSrc==="prévu"?(o.achRSrc==="ARC"?"saisi · ARC "+eur(o.achR):"saisi"):"ARC")}</small>`:""}</td>
+       <td class="n">${o.atlAct?h1(o.atlAct)+" h":"–"}${o.atlP||o.atlH?`<br><small class="sub">${h1(o.atlH)} / ${h1(o.atlP)} h</small>`:""}</td>
+       <td class="n">${o.jAct?fmtJ(o.jAct):"–"}<br><small class="sub">${h1(o.jReel)} faits${o.posAtlH?" dont "+h1(o.posAtlH/PL_EQ)+" atelier":""} / ${o.jPrev?h1(o.jPrev)+(o.jSrc==="planning"?" au planning":" prévus"):"prévu à saisir"}</small></td>
+       <td class="n"><b class="rtv ${rtCls(o.mjAct,O)}">${o.mjAct!=null?eur(o.mjAct):"–"}</b>${o.mjPrev!=null?`<br><small class="sub">prévu ${eur(o.mjPrev)}</small>`:""}</td>
+       <td class="rtbc">${bar(o)}</td></tr>`).join("")}</tbody></table></div></div>
+   <div class="chart"><h3>Journées d'équipe des poseurs par mois</h3>
+     <p class="sub">${h1(O.poseurs*O.jours/2)} journées d'équipe disponibles par mois. Pose et atelier comptent pareil, s'ils sont payés par un chantier. L'objectif prévoit ${O.nonTrav} % de journées « autres » (SAV, trous, glissements), soit ${h1(O.poseurs*O.jours/2*O.nonTrav/100)} par mois ; au-delà, chacune coûte ${eur(O.obj)} de marge.</p>
+     ${M.length?`<div class="tbl"><table><thead><tr><th>Mois</th><th class="n">En pose</th><th class="n">À l'atelier</th><th class="n">Autres / non pointées</th><th class="n">Marge non couverte</th></tr></thead><tbody>
+     ${M.map(x=>{const au=Math.max(0,x.dispo-x.pose-x.atl);return`<tr><td>${x.m.slice(5)}/${x.m.slice(0,4)}</td><td class="n">${h1(x.pose)}</td><td class="n">${h1(x.atl)}</td><td class="n">${h1(au)}</td><td class="n">${au?eur(au*O.obj):"–"}</td></tr>`}).join("")}</tbody></table></div>
+     <p class="sub">Les heures sont pointées depuis le 12/11/2026 : les mois précédents sont incomplets.</p>`:`<p class="sub">Aucune heure pointée pour l'instant.</p>`}</div>
+   <details class="atldet"><summary><b>Calcul de l'objectif</b> <span class="sub">· ${eur(O.obj)} par journée d'équipe · 100 000 € de charges en moins et 2<sup>e</sup> opérateur à l'atelier</span></summary>
+     <p class="sub">Ces chiffres se modifient dans l'onglet <button class="lnk" type="button" data-tab="reglages">Réglages</button>.</p>
+     <p class="sub">(${eur(O.charges)} + ${eur(O.resultat)}) ÷ ${Math.round(O.hAn).toLocaleString("fr-FR")} heures vendables (${O.mois} mois × ${O.jours} j × (${O.poseurs} poseurs × ${h1(O.hPose)} h + ${O.atelierN} à l'atelier × ${h1(O.hAtl)} h), moins ${O.nonTrav} % non vendus) + ${O.secu} % de sécurité = <b>${eur(O.taux)} par heure</b>, soit <b>${eur(O.obj)}</b> par journée d'équipe de 2.</p>
+     <p class="sub">${(()=>{const b={...O,...RT_BILAN},h=b.mois*b.jours*(b.poseurs*b.hPose+b.atelierN*b.hAtl)*(1-b.nonTrav/100),t=(b.charges+b.resultat)/h*(1+b.secu/100);return`Situation du bilan 2025-2026 (charges ${eur(b.charges)}, ${b.atelierN} à l'atelier) : ${eur(t)} par heure, ${eur(t*PL_EQ)} par journée d'équipe.`})()}</p></details>`;
+}
 const eur=n=>Math.round(n||0).toLocaleString("fr-FR")+" €",eur2=n=>(n||0).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 const dirLines=()=>[...dirDocs].filter(([,d])=>d.kind==="facture").flatMap(([fid,f])=>(f.lignes||[]).map((l,i)=>({...l,fid,i,four:f.four||"?",num:f.num||"",date:f.date||""}))).sort((a,b)=>a.date.localeCompare(b.date)||a.fid.localeCompare(b.fid)||a.i-b.i);
 const affLab=a=>a==="stock"?"Stock":a==="fg"?"Frais généraux":jobs.has(a)?jobs.get(a).client:a;
@@ -3306,11 +3411,12 @@ function renderDir(){
   const ls=dirMois?all.filter(l=>l.date.startsWith(dirMois)):all;
   const ecs=prixEcarts(all).filter(e=>!dirMois||e.date.startsWith(dirMois));
   const total=ls.reduce((s,l)=>s+(l.ht||0),0),stock=ls.filter(l=>l.aff==="stock").reduce((s,l)=>s+(l.ht||0),0),todo=ls.filter(toSort),sur=ecs.filter(e=>e.sur>0).reduce((s,e)=>s+e.sur,0);
-  const head=`<div class="dtop">${[["affecter","À affecter ("+todo.length+")"],["debourses","Déboursés"],["prix","Prix d'achat ("+ecs.length+")"],["analyses","Analyses"],["heures","Heures"]].map(([k,t])=>`<button class="chip" data-dirtab="${k}" aria-pressed="${dirTab===k}">${t}</button>`).join("")}
+  const head=`<div class="dtop">${[["rentabilite","Rentabilité"],["affecter","À affecter ("+todo.length+")"],["debourses","Déboursés"],["prix","Prix d'achat ("+ecs.length+")"],["analyses","Analyses"],["heures","Heures"]].map(([k,t])=>`<button class="chip" data-dirtab="${k}" aria-pressed="${dirTab===k}">${t}</button>`).join("")}
    <select id="dirMois" aria-label="Période"><option value="">Toute la période</option>${mois.map(m=>`<option value="${m}" ${m===dirMois?"selected":""}>${m.slice(5)}/${m.slice(0,4)}</option>`).join("")}</select></div>
    <div class="kpis"><div class="kpi"><b>${eur(total)}</b><span>Achats HT</span></div><div class="kpi"><b>${eur(stock)}</b><span>Entrés en stock</span></div><div class="kpi ${todo.length?"o":""}"><b>${todo.length}</b><span>Lignes à affecter</span></div><div class="kpi ${sur>0?"r":""}"><b>${eur(sur)}</b><span>Surcoût des hausses de prix</span></div></div>`;
   let body="";
   if(dirTab==="heures")body=dirHeuresHtml();
+  else if(dirTab==="rentabilite")body=rtHtml();
   else if(!all.length)body=`<div class="empty">Aucune facture pour l'instant. Envoie l'export Cense à Claude : il chargera et affectera les lignes ici.</div>`;
   else if(dirTab==="affecter"){
     const rows=dirAll?ls:todo;
@@ -3327,13 +3433,17 @@ function renderDir(){
     const desc=r=>r.sort((x,y)=>y[1]-x[1]);
     body=`<div class="charts"><div class="chart"><h3>Par fournisseur</h3>${bars(desc(sumBy(ls,l=>l.four)).slice(0,10))}</div><div class="chart"><h3>Par famille</h3>${bars(desc(sumBy(ls,l=>l.fam||"Non classé")).slice(0,10))}</div><div class="chart"><h3>Par destination</h3>${bars(desc(sumBy(ls,l=>l.aff==="stock"||l.aff==="fg"?affLab(l.aff):l.aff?"Chantiers":"À affecter")))}</div><div class="chart"><h3>Par mois</h3>${bars(sumBy(all,l=>l.date.slice(0,7)||"?").sort((x,y)=>x[0].localeCompare(y[0])).slice(-12).map(([m,v])=>[m.slice(5)+"/"+m.slice(0,4),v]))}</div></div>`;
   }
-  $("tab-direction").innerHTML=(dirTab==="heures"?head.replace(/<div class="kpis">[\s\S]*$/,""):head)+body;
+  $("tab-direction").innerHTML=(dirTab==="heures"||dirTab==="rentabilite"?head.replace(/<div class="kpis">[\s\S]*$/,""):head)+body;
 }
 async function dirPut(id,d){try{await dirDb.put(id,d)}catch(_){toast("Enregistrement impossible, réessayez.")}}
-$("tab-direction").addEventListener("click",e=>{if(e.target.closest("#dirHtout")){dirH.tout=!dirH.tout;renderDir();return}const b=e.target.closest("[data-dirtab],#dirAll");if(!b)return;if(b.id==="dirAll")dirAll=!dirAll;else dirTab=b.dataset.dirtab;if(dirTab==="heures")dirH.ok=false;renderDir()});
+$("tab-direction").addEventListener("click",e=>{if(e.target.closest("#dirHtout")){dirH.tout=!dirH.tout;renderDir();return}if(e.target.closest("#rtTout")){rt.tout=!rt.tout;renderDir();return}const b=e.target.closest("[data-dirtab],#dirAll");if(!b)return;if(b.id==="dirAll")dirAll=!dirAll;else dirTab=b.dataset.dirtab;if(dirTab==="heures"||dirTab==="rentabilite")dirH.ok=false;renderDir()});
 $("tab-direction").addEventListener("change",e=>{const t=e.target;
   if(t.dataset.dirjp){const id=t.dataset.dirjp,j=jobs.get(id);if(!j||!canWrite)return;const v=t.value===""?"":Math.max(0,+String(t.value).replace(",","."))||"";jobs.set(id,{...j,jp:v});save(id,{jp:v});renderDir();return}
   if(t.id==="dirMois"){dirMois=t.value;renderDir();return}
+  if(t.dataset.rtobj){const o={...rtObj(),kind:"objectif"};const v=+String(t.value).replace(",",".");if(t.value!==""&&v>=0)o[t.dataset.rtobj]=v;else delete o[t.dataset.rtobj];
+    const d=Object.fromEntries(Object.entries(o).filter(([k])=>k==="kind"||RT_DEF[k]!==undefined));dirDocs.set("objectif",d);dirPut("objectif",d);t.blur();renderDir();return}
+  if(t.dataset.rtv){const id="vente_"+t.dataset.rtv,old=dirDocs.get(id)||{},v=t.value===""?null:Math.max(0,+String(t.value).replace(",","."));
+    const d=v===null?{...old,man:false,ht:old.lu??old.ht}:{...old,kind:"vente",lu:old.man?old.lu:old.ht,ht:v,man:true};dirDocs.set(id,d);dirPut(id,d);t.blur();renderDir();return}
   if(t.dataset.aff!==undefined){const fid=t.dataset.aff,f=dirDocs.get(fid);if(!f)return;const lignes=f.lignes.map(x=>({...x})),l=lignes[+t.dataset.i];l.aff=t.value;delete l.doute;
     dirDocs.set(fid,{...f,lignes});renderDir();dirPut(fid,{...f,lignes});return}
   if(t.dataset.prev!==undefined){const id=t.dataset.prev,did="prev_"+id,v=t.value===""?null:Math.max(0,+t.value);
@@ -3342,6 +3452,39 @@ $("tab-direction").addEventListener("change",e=>{const t=e.target;
 });
 $("tab-direction").addEventListener("focusout",()=>{if(dirWait){dirWait=false;setTimeout(renderDir,50)}});
 
+// ---------- Réglages (Steven, 18/11/2026) : ce que Steven et Marine changent eux-mêmes, sans nouvelle version ----------
+// table reglages (outil/reglages.sql) : objectif {RT_DEF…, moJour}, atelier {lj:{debut,fin,pause}, ven:{…}}, delais {facac, acompte}
+window.REG={};let regOk=null,regMsg="";
+const REG_DEF={atelier:{lj:{debut:"07:30",fin:"17:00",pause:60},ven:{debut:"07:30",fin:"12:30",pause:0}},delais:{facac:3,acompte:14}};
+async function regLoad(){try{const{data,error}=await window.sbClient.from("reglages").select("id,data");if(error)throw error;
+    window.REG=Object.fromEntries((data||[]).map(r=>[r.id,r.data||{}]));regOk=true}catch(_){regOk=false}
+  render();renderDir();if(window.planRender&&!$("tab-planning").hidden)planRender();if(!$("tab-reglages").hidden)regRender()}
+async function regSave(id,patch){const d={...((window.REG||{})[id]||{}),...patch};window.REG={...window.REG,[id]:d};
+  const{error}=await window.sbClient.from("reglages").upsert({id,data:d,maj_le:new Date().toISOString()});
+  regMsg=error?"Enregistrement impossible : la base doit d'abord accueillir les réglages (outil/reglages.sql).":"Enregistré. Toute l'équipe a la nouvelle valeur à sa prochaine ouverture de l'appli.";
+  regRender();render();renderDir()}
+function regRender(){const el=$("tab-reglages");if(!el||el.hidden)return;
+  const O=rtObj(),R=window.REG||{},at={lj:{...REG_DEF.atelier.lj,...((R.atelier||{}).lj||{})},ven:{...REG_DEF.atelier.ven,...((R.atelier||{}).ven||{})}},dl={...REG_DEF.delais,...(R.delais||{})};
+  const num=(k,l,u,step)=>`<label>${l}<span>${u}</span><input type="number" min="0" step="${step||"any"}" inputmode="decimal" data-regobj="${k}" value="${O[k]}"></label>`;
+  const hor=(j,lab)=>`<fieldset class="regf"><legend>${lab}</legend><label>Arrivée<input type="time" data-regat="${j}.debut" value="${esc(at[j].debut)}"></label><label>Départ<input type="time" data-regat="${j}.fin" value="${esc(at[j].fin)}"></label><label>Pause (min)<input type="number" min="0" step="5" data-regat="${j}.pause" value="${at[j].pause}"></label></fieldset>`;
+  el.innerHTML=`<div class="regp">
+   <p class="sub">Ce que vous changez ici s'applique tout de suite à toute l'équipe, sans nouvelle version de l'appli. Seuls Steven et Marine peuvent modifier.</p>
+   ${regOk===false?`<div class="rega">La base n'accueille pas encore les réglages : il faut coller <span class="mono">outil/reglages.sql</span> dans Supabase (SQL Editor, New query, Run). En attendant, l'appli utilise les valeurs ci-dessous.</div>`:""}
+   ${regMsg?`<p class="regm" role="status">${esc(regMsg)}</p>`:""}
+   <section class="regs"><h3>Objectif de rentabilité</h3>
+    <div class="regobj"><b>${eur(O.obj)}</b> de marge par journée d'équipe de 2 · <b>${eur(O.taux)}</b> par heure de production</div>
+    <div class="regg">${num("charges","Charges annuelles visées","€")}${num("resultat","Résultat visé","€")}${num("poseurs","Poseurs","personnes",1)}${num("atelierN","Productifs à l'atelier","personnes",1)}${num("jours","Jours travaillés","par mois",1)}${num("mois","Mois travaillés","par an",1)}${num("hPose","Heures par jour, poseur","h",.25)}${num("hAtl","Heures par jour, atelier","h",.1)}${num("nonTrav","Temps non vendu","% (SAV, trous, intempéries)",1)}</div>
+    <p class="sub">(charges + résultat) ÷ heures vendables (mois × jours × (poseurs × h + atelier × h), moins le temps non vendu) = ${eur(O.taux)} par heure.</p></section>
+   <section class="regs"><h3>Règles de chiffrage</h3><div class="regg">${num("moJour","Main-d'œuvre d'une journée de pose","€ par jour d'équipe (jours de pose = main-d'œuvre ÷ ce montant)",50)}${num("tauxAtl","Main-d'œuvre d'atelier dans le prix de Christophe","€ par heure (rajoutée à la marge)",1)}</div>
+    <p class="sub">Une heure d'atelier se vend au moins ${eur(O.taux)}, comme une heure de pose.</p></section>
+   <section class="regs"><h3>Horaires de l'atelier</h3><p class="sub">Pré-remplis chaque jour dans « Mes heures » de Manu et du futur opérateur.</p><div class="regg">${hor("lj","Du lundi au jeudi")}${hor("ven","Le vendredi")}</div></section>
+   <section class="regs"><h3>Alertes des acomptes</h3><div class="regg">
+    <label>Facture d'acompte à envoyer<span>jours après la signature</span><input type="number" min="0" step="1" data-regdl="facac" value="${dl.facac}"></label>
+    <label>Acompte attendu<span>jours après la facture d'acompte</span><input type="number" min="0" step="1" data-regdl="acompte" value="${dl.acompte}"></label></div></section></div>`}
+$("tab-reglages").addEventListener("change",e=>{const t=e.target,v=t.value===""?null:+String(t.value).replace(",",".");
+  if(t.dataset.regobj){if(v==null||isNaN(v)||v<0)return;regSave("objectif",{[t.dataset.regobj]:v});return}
+  if(t.dataset.regdl){if(v==null||isNaN(v)||v<0)return;regSave("delais",{[t.dataset.regdl]:v});return}
+  if(t.dataset.regat){const[j,k]=t.dataset.regat.split("."),cur={...REG_DEF.atelier,...((window.REG||{}).atelier||{})};const jj={...REG_DEF.atelier[j],...(cur[j]||{}),[k]:k==="pause"?Math.max(0,+t.value||0):t.value};regSave("atelier",{[j]:jj})}});
 async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=>[x.id,x.data]));$("tabDir").hidden=false}catch(_){}}
 
 // ---------- démarrage ----------
@@ -3354,6 +3497,7 @@ async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=
   downloads=await claude.use("downloads");
   $("newBtn").hidden=!canWrite;
   if(window.dirDb&&dirDb.ok())await loadDir();
+  $("tabReg").hidden=!(canWrite&&window.mgdsProfil&&mgdsProfil.role==="editeur");regLoad();
   db.collection("chantiers").onSnapshot(snap=>{
     jobs=new Map(snap.docs.map(d=>[d.id,d.data()]));render();renderDir();if(window.atlRender)atlRender();
     if(openId&&openId!=="__new"){
@@ -3990,6 +4134,9 @@ button.plc{cursor:pointer}
 .pldvr label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);min-width:0}
 .pldvr input,.pldvr select{font:14px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
 .pldvr .acts{display:flex;gap:6px}
+.dvch{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}.dvch.warn{color:var(--s-orange,#E08A52);font-weight:600}
+.dvup{cursor:pointer;font-size:13px}.dvups{display:flex;gap:6px;flex-wrap:wrap}.pldvr.dvover{outline:2px dashed var(--accent);outline-offset:2px;border-radius:6px}.dvmj.ok{color:var(--s-vert,#2f7d4a)}.dvmj.o{color:var(--s-orange,#E08A52)}.dvmj.r{color:var(--s-rouge,#CC4141)}
+.dvobj{display:grid;gap:4px;border-left:4px solid var(--accent);background:var(--surface-2,rgba(9,82,161,.06));padding:10px 12px;border-radius:0 8px 8px 0;margin:6px 0 10px;font-size:14px}.dvobj span{color:var(--muted);font-size:13px}
 @media (max-width:760px){.pldvr{grid-template-columns:1fr 1fr}.pldvr label:first-child,.pldvr .acts{grid-column:1/-1}}
 .plnote{font-size:13px;color:var(--muted)}
 </style>
@@ -4243,11 +4390,24 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
    <label>Pose (jours)<input type="number" min="0" step="0.5" inputmode="decimal" id="dv-jp-${id}" ${a} data-k="jp" value="${v("jp")}" ${ro}></label>
    <label>Atelier (h)<input type="number" min="0" step="1" inputmode="numeric" id="dv-ha-${id}" ${a} data-k="ha" value="${v("ha")}" ${ro}></label>
    <label>Pose souhaitée<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d?d.periode||"":"")}</select></label>
-   <div class="acts">${!plW()?"":d?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:`<button class="btn">Ajouter</button>`}</div></${d?"div":"form"}>`}
+   <div class="acts">${!plW()?"":d?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:`<button class="btn">Ajouter</button>`}</div>${d?dvChif(d):""}</${d?"div":"form"}>`}
+// Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
+// (outil/chiffrage.py) qui remplit achats, main-d'œuvre, marge prévue et jours de pose. Marge jour prévue =
+// (montant HT − achats) ÷ (jours de pose + heures d'atelier ÷ 17,5), face à l'objectif de la page Direction > Rentabilité.
+const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,h=+d.ha||0,j=(+d.jp||0)+h/PL_EQ;return m&&a&&j?(m-a+h*rtObj().tauxAtl)/j:null};
+function dvChif(d){const id=esc(d.id),O=rtObj(),mj=dvMj(d),c=d.chif;
+  const up=plW()?`<span class="dvups"><label class="btn ghost dvup">📷 ${c?"Nouvelle photo":"Photo"}<input type="file" accept="image/*" capture="environment" data-dvchif="${id}" hidden></label><label class="btn ghost dvup">${c?"Remplacer par un fichier":"Fichier ou capture"}<input type="file" accept="image/*,application/pdf" data-dvchif="${id}" hidden></label></span>`:"";
+  if(!c&&mj==null)return`<div class="dvch warn"><span>📷 Capture du chiffrage manquante : prenez-la en photo, choisissez le fichier ou glissez la capture d'écran sur cette ligne.</span>${up}</div>`;
+  const cls=mj==null?"":mj>=O.obj?"ok":mj>=O.obj*.9?"o":"r";
+  return`<div class="dvch"><span>${c?`📷 Capture reçue le ${fr(c.le)}`:"Chiffrage saisi"}${d.lu?"":c?" · lue par Claude au prochain passage (12 h 27 ou 18 h 27)":""}${d.achats?` · achats prévus ${plEur(+d.achats)}`:""}${d.mo?` · main-d'œuvre ${plEur(+d.mo)}`:""}${mj!=null?` · <b class="dvmj ${cls}">marge jour prévue ${plEur(mj)}</b> pour ${plEur(O.obj)} visés`:""}${d.alerte?` · <b class="dvmj r">${esc(d.alerte)}</b>`:""}</span>${up}</div>`}
 function dvHtml(DV){
   if(PLN.devisOk===false)return `<div class="plcard"><h3>Devis en attente</h3><p class="sub">La liste des devis n'est pas encore activée dans la base : il faut coller <span class="mono">outil/devis.sql</span> dans Supabase (SQL Editor, New query, Run). Les graphiques fonctionnent déjà sans elle.</p></div>`;
   const L=DV.sort((a,b)=>(a.periode||"9999").localeCompare(b.periode||"9999")||String(a.client||"").localeCompare(String(b.client||"")));
-  return `<div class="plcard"><h3>Devis en attente</h3><p class="plnote">Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
+  const O=rtObj(),mjs=L.map(d=>[dvMj(d),+d.montant||0]).filter(x=>x[0]!=null),tm=mjs.reduce((s,x)=>s+x[1],0);
+  return `<div class="plcard"><h3>Devis en attente</h3>
+   <div class="dvobj"><p style="margin:0"><b>Objectif : ${plEur(O.obj)} de marge par journée d'équipe de 2</b>, soit ${plEur(O.taux)} par heure de production, en pose comme à l'atelier.</p>
+    <span>Marge jour d'un devis = (prix de vente HT − achats + heures d'atelier × ${plEur(O.tauxAtl)}) ÷ (jours de pose + heures d'atelier ÷ ${plNf(PL_EQ)}). La main-d'œuvre d'atelier comprise dans le prix de Christophe est rajoutée à la marge, comme la pose : elle est déjà payée par nos charges. Jours de pose = main-d'œuvre de pose ÷ ${plEur(O.moJour)} environ par jour d'équipe. Une heure d'atelier se vend au moins ${plEur(O.taux)}, comme une heure de pose. À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
+   <p class="plnote">Astuce : glissez la capture d'écran du chiffrage sur la ligne « Nouveau devis » : le devis est créé et Claude remplit client, montant, jours et heures. Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
    <div class="pldv">${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
 async function dvSave(id,patch){const sb=window.sbClient,d={...(PLN.devis.get(id)||{}),...patch};PLN.devis.set(id,d);
   const {error}=await sb.from("devis").upsert({id,data:d,maj_le:new Date().toISOString()});if(error){toast("Enregistrement impossible, réessayez dans un instant.");return false}return true}
@@ -4266,7 +4426,22 @@ document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.datase
 document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.dataset.dvadd)return;e.preventDefault();
   const g=k=>f.querySelector(`[data-k="${k}"]`).value.trim(),client=g("client");if(!client){toast("Indiquez le client ou l'affaire.");return}
   const num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0),id="DV"+Date.now().toString(36);
-  dvSave(id,{client,montant:num("montant"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),etat:"attente",cree:today(),par:me||""}).then(()=>dvKeep(planRender))});
+  dvSave(id,{client,montant:num("montant"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),etat:"attente",cree:today(),par:me||""}).then(ok=>{dvKeep(planRender);if(ok)toast("Devis ajouté. Joignez la capture du chiffrage (📷) sur sa ligne.")})});
+document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.dvchif)return;const f=t.files&&t.files[0],id=t.dataset.dvchif;t.value="";if(f)dvChifUp(id,f)});
+// une capture d'écran glissée sur la ligne d'un devis ; sur la ligne « Nouveau devis », elle crée le devis (Claude le remplit)
+document.addEventListener("dragover",e=>{const r=e.target.closest&&e.target.closest("#tab-planning .pldvr");if(!r||!plW())return;e.preventDefault();r.classList.add("dvover")});
+document.addEventListener("dragleave",e=>{const r=e.target.closest&&e.target.closest("#tab-planning .pldvr");if(r&&!r.contains(e.relatedTarget))r.classList.remove("dvover")});
+document.addEventListener("drop",e=>{const r=e.target.closest&&e.target.closest("#tab-planning .pldvr");if(!r||!plW())return;e.preventDefault();r.classList.remove("dvover");
+  const f=[...(e.dataTransfer&&e.dataTransfer.files||[])].find(x=>/^image\/|pdf$/.test(x.type)||/\.(png|jpe?g|heic|webp|pdf)$/i.test(x.name));if(!f){toast("Glissez une image ou un PDF.");return}
+  const ex=r.querySelector("[data-dv]");if(ex){dvChifUp(ex.dataset.dv,f);return}
+  const g=k=>(r.querySelector(`[data-k="${k}"]`)||{}).value||"",id="DV"+Date.now().toString(36),num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0);
+  dvSave(id,{client:g("client").trim()||"Devis à lire (capture)",montant:num("montant"),chance:g("chance")||"moyenne",jp:num("jp"),ha:num("ha"),periode:g("periode"),etat:"attente",cree:today(),par:me||""}).then(ok=>{if(ok)dvChifUp(id,f)})});
+async function dvChifUp(id,f){
+  if(f.size>15e6){toast("Fichier trop lourd (15 Mo au plus).");return}
+  const ext=(f.name.match(/\.([a-z0-9]{2,4})$/i)||[,f.type==="application/pdf"?"pdf":"jpg"])[1].toLowerCase(),path=`chiffrage/${id}/${Date.now().toString(36)}.${ext}`;
+  toast("Envoi de la capture…");const{error}=await window.sbClient.storage.from("documents").upload(path,f,{contentType:f.type||"application/octet-stream",upsert:false});
+  if(error){toast("Envoi impossible : la base doit d'abord autoriser les captures (outil/chiffrage.sql).");return}
+  const ok=await dvSave(id,{chif:{path,le:today(),par:me||""},lu:false});if(ok)toast("Capture enregistrée. Claude la lira au prochain passage.");dvKeep(planRender)}
 try{const v=localStorage.getItem("pln-view");if(["sem","atl","chg","jour"].includes(v))PLN.view=v}catch(_){}
 window.planRender=planRender;window.PLN_OK=()=>PLN.ok;window.plLoad=plLoad;window.plDecompte=plDecompte;
 // planning de Marine chargé dès la connexion : il donne les dates de pose sur lesquelles se cale la production de l'atelier
