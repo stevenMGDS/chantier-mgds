@@ -10,7 +10,8 @@ Usage : python3 -I sync_planning.py "<chemin du .xlsx ou .csv>" [--depuis AAAA-M
 - Case d'équipe sur fond orange dans l'Excel = journée à l'atelier : note « À l'atelier », chantier inchangé
   (comme un texte « ATELIER - … », reconnu même précédé d'un n° de devis).
 - Remplace, à partir de --depuis (aujourd'hui par défaut), toutes les lignes source='excel' (les ajouts faits à la main
-  dans l'appli sont conservés). L'Excel fait foi (consigne de Steven du 03/11/2026).
+  dans l'appli sont conservés). L'Excel fait foi (consigne de Steven du 03/11/2026), sauf les déplacements faits dans
+  l'appli (Planning > Jour par jour, ⇄) : gardés tant que l'Excel montre encore l'ancienne place (19/11/2026).
 Accès : l'hôte Supabase est authentifié par le proxy de l'environnement « MGDS Supabase ».
 
 En deux étapes (une tâche planifiée ne peut pas avoir à la fois le Mac et l'environnement « MGDS Supabase ») :
@@ -246,8 +247,30 @@ def main():
         print("N° de devis inconnus de l'appli :", ", ".join(sorted(inconnus)))
     if ambigus:
         print("N° de devis présents dans plusieurs chantiers (rattachement par le nom) :", ", ".join(sorted(ambigus)))
+    # déplacements faits dans l'appli (19/11/2026) : tant que l'Excel montre encore l'ancienne place, on garde le
+    # déplacement et on n'importe pas l'ancienne place ; dès que l'Excel montre la nouvelle, l'Excel reprend la main.
+    try:
+        moves = req("GET", f"/planning?select=id,jour,chantier,libelle,equipe,deplace_de&source=eq.appli&deplace_de=not.is.null&jour=gte.{depuis.isoformat()}") or []
+    except Exception:
+        moves = []
+    cle = lambda r: r["chantier"] or "~" + (r["libelle"] or "")
+    xl = {(r["jour"], r["equipe"], cle(r)) for r in uniq}
+    retires, repris = set(), []
+    for m in moves:
+        if (m["jour"], m["equipe"], cle(m)) in xl:
+            repris.append(m["id"])            # Marine l'a reporté : la ligne de l'Excel suffit
+        else:
+            j0, _, e0 = (m["deplace_de"] or "").partition("|")
+            retires.add((j0, e0, cle(m)))     # l'ancienne place n'est pas réimportée
+    if retires:
+        avant = len(uniq)
+        uniq = [r for r in uniq if (r["jour"], r["equipe"], cle(r)) not in retires]
+        print(f"Déplacements de l'appli gardés : {len(retires)} (lignes de l'Excel non reprises : {avant - len(uniq)}) ; à reporter dans l'Excel")
     if essai:
         return
+    if repris:
+        req("DELETE", "/planning?id=in.(" + ",".join(str(i) for i in repris) + ")", extra={"Prefer": "return=minimal"})
+        print(f"Déplacements reportés dans l'Excel : {len(repris)}")
     req("DELETE", f"/planning?source=eq.excel&jour=gte.{depuis.isoformat()}", extra={"Prefer": "return=minimal"})
     if uniq:
         req("POST", "/planning", uniq, {"Prefer": "return=minimal"})

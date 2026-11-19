@@ -120,6 +120,7 @@ table.plan td.name{font-weight:700;white-space:nowrap;background:var(--sunk)}
 .pchip span{flex:1;min-width:0}
 .pchip.pret{background:var(--t-rouge,#F8DADA);border-left:6px solid var(--s-rouge,#CC4141)}.atlrow td{background:var(--sunk)}
 .pchip.atel,.pchip.atel[style]{background:var(--t-orange)!important;border-left:6px solid var(--s-orange)}
+.pchip.dragok{cursor:grab}.pchip.drag{opacity:.45}td.dropok{outline:2px dashed var(--accent);outline-offset:-3px;background:var(--t-bleu)}
 .pchip button{border:0;background:none;cursor:pointer;font-size:16px;padding:0 4px;color:var(--muted)}
 .add{border:1px dashed var(--line);background:none;border-radius:6px;width:100%;padding:4px;cursor:pointer;color:var(--muted)}
 table.h{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
@@ -772,7 +773,8 @@ async function vGPlanning(v){
   const showSun=pl.some(p=>p.jour===days[6]);const cols=showSun?days:days.slice(0,6);
   v._pl=pl;
   const head=`<thead><tr><th>${gVue==="equipe"?"Équipe":"Personne"}</th>${cols.map(d=>`<th class="${d===t?"today":""}">${esc(dayLabel(d))}</th>`).join("")}</tr></thead>`;
-  const chip0=(label,sub,ids,c,at)=>`<div class="pchip${at?" atel":""}"${c?"":` style="background:var(--sunk)"`}><span>${c?`<button style="all:unset;cursor:pointer" data-open="${esc(c)}">${esc(label)}</button>`:`<b style="font-weight:600">${esc(label)}</b>`}${sub?`<br><span class="sub">${esc(sub)}</span>`:""}</span>${ed?`<button data-pdel="${ids.join(",")}" aria-label="Retirer">×</button>`:""}</div>`;
+  const mv=ids=>{const r=pl.find(x=>ids.includes(x.id));return r&&r.deplace_de?"↪ déplacé dans l'appli":""};
+  const chip0=(label,sub,ids,c,at)=>`<div class="pchip${at?" atel":""}${ed?" dragok":""}"${ed?` draggable="true" data-pdrag="${ids.join(",")}"`:""}${c?"":` style="background:var(--sunk)"`}><span>${c?`<button style="all:unset;cursor:pointer" data-open="${esc(c)}">${esc(label)}</button>`:`<b style="font-weight:600">${esc(label)}</b>`}${[sub,mv(ids)].filter(Boolean).length?`<br><span class="sub">${esc([sub,mv(ids)].filter(Boolean).join(" · "))}</span>`:""}</span>${ed?`<button data-pmove="${ids.join(",")}" aria-label="Déplacer" title="Déplacer (autre jour, autre équipe)">⇄</button><button data-pdel="${ids.join(",")}" aria-label="Retirer">×</button>`:""}</div>`;
   // pose prévue avant la fin de fabrication à l'atelier : chip en rouge
   let jourCell="";const chip=(label,sub,ids,c,at)=>{const w=!at&&c&&jourCell>=t&&atlPasPret(A,c,jourCell);   // jours passés : pas d'alerte
     const h=chip0(label,w?[sub,"⚠ atelier prêt le "+w.fin.slice(8,10)+"/"+w.fin.slice(5,7)].filter(Boolean).join(" · "):sub,ids,c,at);return w?h.replace('class="pchip"','class="pchip pret"'):h};
@@ -794,10 +796,10 @@ async function vGPlanning(v){
             const rows=day.filter(x=>kOf(x)===c&&mem.includes(x.poseur)),who=rows.length<mem.length?rows.map(x=>shortName(x.poseur)).join(", "):"",note=rows.find(x=>x.note)?.note||"";
             cells+=chip(labOf(rows[0]),[who,note].filter(Boolean).join(" · "),rows.map(x=>x.id),rows[0].chantier,rows.some(x=>isAtel(x.note)))}
         }
-        return`<td>${cells}${ed?`<button class="add" data-padd="eq${eq.k}|${d}" aria-label="Placer l'équipe">+</button>`:""}</td>`}).join("")}</tr>`}).join("");
+        return`<td data-pdrop="eq${eq.k}|${d}">${cells}${ed?`<button class="add" data-padd="eq${eq.k}|${d}" aria-label="Placer l'équipe">+</button>`:""}</td>`}).join("")}</tr>`}).join("");
   }else{
     const people=[...ps,...EQUIPES[2].chefs.map(e=>profils.find(p=>p.email===e)).filter(Boolean)];
-    body=people.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td>${(jourCell=d,pl.filter(x=>x.poseur===p.id&&x.jour===d)).map(x=>chip(labOf(x),x.note,[x.id],x.chantier,isAtel(x.note))).join("")}
+    body=people.map(p=>`<tr><td class="name">${esc(nameOf(p.id))}</td>${cols.map(d=>`<td data-pdrop="${p.id}|${d}">${(jourCell=d,pl.filter(x=>x.poseur===p.id&&x.jour===d)).map(x=>chip(labOf(x),x.note,[x.id],x.chantier,isAtel(x.note))).join("")}
      ${ed?`<button class="add" data-padd="${p.id}|${d}" aria-label="Ajouter un chantier">+</button>`:""}</td>`).join("")}</tr>`).join("");
   }
   v.innerHTML=weekNav()+`<div class="chips"><button class="chip" data-gvue="equipe" aria-pressed="${gVue==="equipe"}">Par équipe</button><button class="chip" data-gvue="personne" aria-pressed="${gVue==="personne"}">Par personne</button></div>`
@@ -832,6 +834,61 @@ document.addEventListener("click",async e=>{
     m.close();toast("Planning enregistré ✓");render();
   };
 });
+
+// ---------- déplacer un chantier dans le planning (Steven, 19/11/2026) ----------
+// ⇄ sur un chantier (ou glisser-déposer sur ordinateur) : autre jour, autre équipe, en direct ; les poseurs le voient
+// aussitôt. Les lignes déplacées passent en source « appli » avec deplace_de = « jour d'origine|équipe d'origine » :
+// la recopie de l'Excel du vendredi (outil/sync_planning.py) garde le déplacement tant que Marine ne l'a pas reporté.
+const eqOfRows=rows=>{const e=rows.find(x=>x.equipe)?.equipe;if(e)return e;const ids=rows.map(x=>x.poseur);
+  return(EQUIPES.find(q=>q.m.map(idOf).filter(Boolean).every(id=>ids.includes(id)))||{}).k||""};
+const ouvre=d=>{const x=parse(d).getDay();return x>0&&x<6};
+function decaleOuvre(d,n){let x=parse(d),k=Math.abs(n),s=n<0?-1:1;while(k>0){x=addDays(x,s);if(ouvre(iso(x)))k--}return iso(x)}
+function ecartOuvre(a,b){if(a===b)return 0;let n=0,x=parse(a),s=b>a?1:-1;while(iso(x)!==b){x=addDays(x,s);if(ouvre(iso(x)))n+=s;if(Math.abs(n)>400)break}return n}
+async function planDeplace(ids,cible,jourN,chef,suite){
+  const pl=$("view")._pl||[],rows=pl.filter(x=>ids.includes(x.id));if(!rows.length)return;
+  const j0=rows[0].jour,eq0=eqOfRows(rows),k=kOf(rows[0]);
+  // avec « les jours suivants » : tous les jours à venir du même chantier pour la même équipe, décalés d'autant
+  let groupe=[rows];
+  if(suite){const fut=(await loadPlanning(j0,decaleOuvre(j0,60))).filter(x=>kOf(x)===k&&x.jour>j0&&eqOfRows([x])===eq0);
+    const parJ=new Map();fut.forEach(x=>{if(!parJ.has(x.jour))parJ.set(x.jour,[]);parJ.get(x.jour).push(x)});groupe=groupe.concat([...parJ.values()])}
+  const dn=ecartOuvre(j0,jourN),eqN=cible.startsWith("eq")?cible.slice(2):null,E=eqN?EQUIPES.find(q=>q.k===eqN):null;
+  const neufs=[],vieux=[];
+  for(const g of groupe){const jg=g[0].jour,jn=g===rows?jourN:decaleOuvre(jg,dn);
+    const pids=E?[...E.m.map(idOf).filter(Boolean),...(E.chefs?[chef||g.map(x=>x.poseur).find(id=>E.chefs.map(idOf).includes(id))||idOf(E.chefs[1])]:[])]:eqN===null?[cible]:g.map(x=>x.poseur);
+    const base=g[0],de=base.deplace_de||(jg+"|"+eqOfRows(g));
+    for(const pid of [...new Set(pids)])neufs.push({jour:jn,chantier:base.chantier||null,libelle:base.chantier?null:base.libelle,note:base.note||null,poseur:pid,equipe:eqN||eqOfRows(g)||null,source:"appli",deplace_de:de});
+    vieux.push(...g.map(x=>x.id))}
+  let{error}=await sb.from("planning").delete().in("id",vieux);
+  if(error){toast("Déplacement impossible (droits).");return false}
+  let r=await sb.from("planning").insert(neufs);
+  if(r.error&&/deplace_de/.test(r.error.message||"")){r=await sb.from("planning").insert(neufs.map(({deplace_de,...x})=>x));if(!r.error)toast("Déplacé ✓ (pour que la mise à jour du vendredi le garde, il faut d'abord coller outil/planning-deplacements.sql dans Supabase)")}
+  if(r.error){await sb.from("planning").insert(rows.map(({id,...x})=>x));toast("Déplacement impossible : rien n'a changé.");render();return false}
+  if(!/coller/.test($("toast")?.textContent||""))toast(groupe.length>1?`Déplacé ✓ (${groupe.length} jours) · à reporter dans l'Excel`:"Déplacé ✓ · à reporter dans l'Excel");
+  render();return true}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-pmove]");if(!b)return;
+  const ids=b.dataset.pmove.split(",").map(Number),pl=$("view")._pl||[],rows=pl.filter(x=>ids.includes(x.id));if(!rows.length)return;
+  const eq0=eqOfRows(rows),perso=gVue!=="equipe";
+  const m=modal(`<h2>Déplacer ${esc(labOf(rows[0]))}</h2><div class="sub">Aujourd'hui : ${esc(dayLabel(rows[0].jour))}${eq0?" · Équipe "+esc(eq0):""}</div>
+   <label class="fld">Nouveau jour<input type="date" name="j" value="${rows[0].jour}"></label>
+   ${perso?`<label class="fld">Personne<select name="w">${[...poseurs(),...EQUIPES[2].chefs.map(x=>profils.find(p=>p.email===x)).filter(Boolean)].map(p=>`<option value="${p.id}" ${p.id===rows[0].poseur?"selected":""}>${esc(nameOf(p.id))}</option>`).join("")}</select></label>`
+     :`<label class="fld">Équipe<select name="w">${EQUIPES.map(q=>`<option value="eq${q.k}" ${q.k===eq0?"selected":""}>${esc(q.l)}${q.sub?" ("+esc(q.sub)+")":""}</option>`).join("")}</select></label>
+     <label class="fld" data-chef hidden>Avec<select name="chef">${EQUIPES[2].chefs.map(idOf).filter(Boolean).map(id=>`<option value="${id}">${esc(shortName(id))}</option>`).join("")}</select></label>`}
+   <label class="fld" style="display:flex;gap:10px;align-items:center;font-weight:500"><input type="checkbox" name="suite" style="width:22px;height:22px;min-height:0"> Décaler aussi les jours suivants de ce chantier (même équipe)</label>
+   <p class="sub">Les poseurs voient le changement tout de suite. Pensez à le reporter dans l'Excel du planning : en attendant, la mise à jour du vendredi le garde.</p>
+   <div class="acts"><button class="btn ghost" data-x>Annuler</button><button class="btn" data-ok>Déplacer</button></div>`);
+  const w=m.querySelector("[name=w]"),ch=m.querySelector("[data-chef]");const majChef=()=>{if(ch)ch.hidden=w.value!=="eq3"};if(w)w.onchange=majChef;majChef();
+  m.querySelector("[data-x]").onclick=()=>m.close();
+  m.querySelector("[data-ok]").onclick=async()=>{const j=m.querySelector("[name=j]").value;if(!j){toast("Choisissez le jour.");return}
+    const ok=await planDeplace(ids,w.value,j,m.querySelector("[name=chef]")?.value,m.querySelector("[name=suite]").checked);if(ok)m.close()}});
+// glisser-déposer (ordinateur, iPad avec souris) : on dépose le chantier sur une autre case
+document.addEventListener("dragstart",e=>{const c=e.target.closest&&e.target.closest("[data-pdrag]");if(!c)return;e.dataTransfer.setData("text/plain","pl:"+c.dataset.pdrag);e.dataTransfer.effectAllowed="move";c.classList.add("drag")});
+document.addEventListener("dragend",e=>{document.querySelectorAll(".pchip.drag,td.dropok").forEach(x=>x.classList.remove("drag","dropok"))});
+document.addEventListener("dragover",e=>{const td=e.target.closest&&e.target.closest("[data-pdrop]");if(!td)return;e.preventDefault();document.querySelectorAll("td.dropok").forEach(x=>x!==td&&x.classList.remove("dropok"));td.classList.add("dropok")});
+document.addEventListener("drop",async e=>{const td=e.target.closest&&e.target.closest("[data-pdrop]");if(!td)return;const t=e.dataTransfer.getData("text/plain");if(!t.startsWith("pl:"))return;e.preventDefault();td.classList.remove("dropok");
+  const ids=t.slice(3).split(",").map(Number),[cible,jour]=td.dataset.pdrop.split("|");
+  const rows=($("view")._pl||[]).filter(x=>ids.includes(x.id));if(!rows.length||(rows[0].jour===jour&&("eq"+eqOfRows(rows)===cible||rows[0].poseur===cible)))return;
+  if(cible==="eq3"){toast("Équipe 3 : utilisez ⇄ pour choisir avec qui.");return}
+  await planDeplace(ids,cible,jour,null,false)});
 
 // ---------- gestion : heures (Marine) ----------
 let gMode="semaine";
