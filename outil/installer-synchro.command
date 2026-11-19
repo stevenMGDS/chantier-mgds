@@ -22,6 +22,11 @@ if [ ! -d "$MGDS/COMMUN" ]; then
   MGDS="$(printf '%s' "$MGDS" | sed -e 's/[[:space:]]*$//' -e "s/^'//" -e "s/'$//" -e 's/\\\(.\)/\1/g')"
 fi
 PROG="$MGDS/COMMUN/_PROCESS CLAUDE/outil/sync_serveur.py"
+# le programme du serveur a besoin du module Python « requests » (absent du Python de macOS) : installé pour cet utilisateur
+if ! /usr/bin/python3 -c "import requests" 2>/dev/null; then
+  echo "Installation du module « requests » (une fois, quelques secondes)…"
+  /usr/bin/python3 -m pip install --user --quiet requests || { echo "Le module n'a pas pu être installé : envoyez une capture de cette fenêtre à Claude."; read -r -p "Entrée pour fermer"; exit 1; }
+fi
 if [ ! -f "$PROG" ]; then echo "Programme de synchronisation introuvable : $PROG"; read -r -p "Entrée pour fermer"; exit 1; fi
 PRIVE="$HOME/Documents/Claude privé"
 # le programme du serveur a été écrit pour les chemins ~/mnt/MGDS et ~/mnt/Claude privé : on les crée en raccourcis
@@ -32,9 +37,13 @@ mkdir -p "$DEST" "$HOME/Library/LaunchAgents"
 cp "$ICI/agent_synchro.py" "$DEST/agent_synchro.py"
 [ -f "$ICI/atelier_sync.py" ] && cp "$ICI/atelier_sync.py" "$DEST/atelier_sync.py"
 echo
+if [ -s "$HOME/.mgds-atelier" ]; then
+  echo "2) Veille de l'atelier : le compte est déjà enregistré sur ce Mac."; MDP=""
+else
 echo "2) Veille de l'atelier sur ce Mac : tapez le mot de passe du compte claude@mgds.fr (celui que la synchronisation utilise déjà ;"
 echo "   rien ne s'affiche quand vous tapez), puis Entrée. Laissez vide et Entrée pour ne pas l'installer maintenant."
 read -r -s MDP; echo
+fi
 if [ -n "$MDP" ]; then umask 077; printf '%s\n%s\n' "claude@mgds.fr" "$MDP" > "$HOME/.mgds-atelier"; chmod 600 "$HOME/.mgds-atelier"; echo "   Compte enregistré pour la veille de l'atelier."; fi
 MDP=""
 cat > "$PLIST" <<EOF

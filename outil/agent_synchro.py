@@ -27,7 +27,8 @@ def journal(lignes):
 def lancer(prog, arg, essais=2):
     for n in range(essais):
         try:
-            r = subprocess.run(["/usr/bin/python3", "-I", prog, arg], cwd=os.path.expanduser("~"), capture_output=True, text=True, timeout=170)
+            # sans -I : le programme du serveur a besoin du module « requests », installé pour l'utilisateur (pip --user)
+            r = subprocess.run(["/usr/bin/python3", prog, arg], cwd=os.path.expanduser("~"), capture_output=True, text=True, timeout=170)
             return r.returncode, (r.stdout + r.stderr).strip()
         except subprocess.TimeoutExpired:
             if n == essais - 1: return 124, "délai dépassé deux fois (le programme reprend où il s'est arrêté au passage suivant)"
