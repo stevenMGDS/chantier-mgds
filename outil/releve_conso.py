@@ -23,6 +23,10 @@ hors déboursé des chantiers (les chutes viennent souvent de plusieurs chantier
   Manu colle sur chaque barre / chute une étiquette « réf. · couleur · longueur · emplacement » et photographie l'étiquette
   ou sa feuille récapitulative (plusieurs lignes) : l'emplacement de l'étiquette fait foi (même réf. + couleur + longueur
   rangée ailleurs = autre ligne de stock).
+Entrée en stock (photos « conso_entree », 20/11/2026) : livraison reçue au dépôt (colis, bon de livraison), chantier facultatif ;
+  même JSON, mouvement « livraison » ; pour un article absent du stock pose : nouveau {"nom","famille","coloris","unite","fournisseur"}.
+Commande passée (photos « commande ») : bon de commande, panier ou devis fournisseur ; aucun mouvement de stock, le relevé
+  (articles + txt : fournisseur, n° de commande, date de livraison annoncée) reste lisible dans l'appli.
 Ne noter que ce qui se voit ou se compte sans doute possible ; sinon le dire dans « txt ».
 Questions (outil/questions-claude.sql, Steven 18/11/2026) : pour une ligne douteuse, enregistrer d'abord ce qui est sûr, puis
   question '{"photo":28,"pour":"atelier","question":"…","detail":"…","choix":[{"t":"Oui","type":"entree","articles":[…]},{"t":"Non"}]}'
@@ -52,7 +56,7 @@ def req(method, path, body=None, extra=None, raw=False):
 def liste(dossier):
     os.makedirs(dossier, exist_ok=True)
     rows = req("GET", "/rest/v1/photos?select=id,chantier,categorie,chemin,note,pris_le,poseur"
-                      "&categorie=in.(conso_sortie,conso_retour,atl_entree,atl_sortie)&traite=eq.false&order=pris_le")
+                      "&categorie=in.(conso_sortie,conso_retour,conso_entree,commande,atl_entree,atl_sortie)&traite=eq.false&order=pris_le")
     noms = {p["id"]: p.get("nom") or p["email"] for p in req("GET", "/rest/v1/profils?select=id,nom,email")}
     for p in rows:
         f = os.path.join(dossier, f"{p['id']}.jpg")
@@ -96,6 +100,9 @@ def mouvements(p, articles, sens=None, note=NOTE_RELEVE, le=None, par=None):
     """Crée les mouvements de stock d'une liste d'articles (format du relevé). sens : "sortie" / "entree" pour forcer
     le sens (sinon celui de la catégorie de la photo)."""
     atl = p["categorie"].startswith("atl_")
+    if p["categorie"] == "commande" and not sens:  # une commande passée ne touche pas le stock
+        return 0
+    entree = p["categorie"] == "conso_entree"
     sortie = (sens == "sortie") if sens else p["categorie"] in ("conso_sortie", "atl_sortie")
     mv = []
     for x in articles:
@@ -111,6 +118,13 @@ def mouvements(p, articles, sens=None, note=NOTE_RELEVE, le=None, par=None):
                 "longueur": n.get("longueur") or x.get("l"), "emplacement": n.get("emplacement"),
                 "fournisseur": "Technal" if (ref or "").startswith("T") else None}, {"Prefer": "return=representation"})[0]
             x["stock"] = a["id"]
+        if entree and not x.get("stock") and x.get("nouveau"):  # consommable livré, pas encore au stock pose : on le crée
+            n = x["nouveau"]
+            a = req("POST", "/rest/v1/stock_articles", {
+                "stock": "pose", "famille": n.get("famille") or "Divers", "unite": n.get("unite") or x.get("u") or "unité",
+                "nom": n.get("nom") or x.get("a") or "Article", "coloris": n.get("coloris") or x.get("c"),
+                "fournisseur": n.get("fournisseur")}, {"Prefer": "return=representation"})[0]
+            x["stock"] = a["id"]
         a = req("GET", f"/rest/v1/stock_articles?select=id,unite,detail,contenance&id=eq.{int(x['stock'])}")[0] if x.get("stock") else None
         if not a:
             continue
@@ -118,7 +132,7 @@ def mouvements(p, articles, sens=None, note=NOTE_RELEVE, le=None, par=None):
         if not atl and "qs" not in x and a.get("contenance") and (x.get("u") or "").lower().rstrip("s") != (a["unite"] or "").lower().rstrip("s"):
             q = q / float(a["contenance"])
         if q > 0:
-            mv.append({"article": a["id"], "type": "sortie" if sortie else "retour", "qte": round(q, 3),
+            mv.append({"article": a["id"], "type": "sortie" if sortie else ("livraison" if entree else "retour"), "qte": round(q, 3),
                        "chantier": p["chantier"], "photo": p["id"], "le": le or p["pris_le"], "par": par or p["poseur"], "note": note})
     if mv:
         req("POST", "/rest/v1/stock_mouvements", mv, {"Prefer": "return=minimal"})

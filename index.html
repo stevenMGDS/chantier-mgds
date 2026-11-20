@@ -331,6 +331,12 @@ textarea{min-height:64px;resize:vertical}
 #asheet input[type=number]{font:15px var(--f-body);border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--surface);color:var(--ink);min-width:0}#asheet .sem input{width:4.2em}#asheet .sem input[data-wk="y"]{width:5.6em}
 .invrow{display:grid;grid-template-columns:1fr 84px 72px;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding:4px 0}.invrow .cin{min-width:0;text-align:center}
 @media (prefers-reduced-motion:no-preference){.row,.stat,.box{transition:border-color .15s,background .15s}}
+.acam{position:fixed;inset:0;z-index:90;background:#000;display:grid;grid-template-rows:auto 1fr auto auto;color:#fff}
+.acam video{width:100%;height:100%;object-fit:contain;min-height:0;background:#000}.acam.flash video{opacity:.4}
+.acamh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top))}.acamh b{font-size:17px}
+.acamt{display:flex;gap:6px;overflow-x:auto;padding:6px 12px;min-height:8px}.acamt img{height:58px;border-radius:6px;border:2px solid #fff}
+.acamb{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;padding-bottom:max(14px,env(safe-area-inset-bottom))}
+.acamb .btn{min-width:110px}.acamb .shot{width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:#e8e8e8;cursor:pointer}
 </style>
 <link rel="stylesheet" href="theme-mac.css">
 
@@ -1582,21 +1588,28 @@ async function sendConsoPhotos(chantier,cat,files,note){
 // deux gros boutons « appareil photo » (sortie / retour) ; onSent après l'envoi
 // cats : {catégorie: [libellé, précision]} ; par défaut sortie / retour du stock pose
 const CONSO_BTN={conso_sortie:["📷 Sortie du stock","ce que j'emporte"],conso_retour:["📷 Retour au stock","ce que je rapporte"]};
+// bureau et terrain (Yannick, Stéphanie) : aussi ce qui arrive au dépôt, ce qu'on vient de commander, et le chantier lui-même
+const CONSO_BTN_BUREAU={...CONSO_BTN,conso_entree:["📷 Entrée en stock","livraison reçue au dépôt"],commande:["📷 Commande passée","bon de commande, panier, devis fournisseur"],autre:["📷 Photo du chantier","sur place, avant ou pendant"]};
+const CONSO_LIBRE=["conso_entree","commande"]; // chantier facultatif
 function consoCamera(getChantier,onSent,noteEl,cats=CONSO_BTN){
   const box=document.createElement("div");box.className="ccam";const first=Object.keys(cats)[0];
   // atelier : pas de chantier (les chutes viennent de plusieurs chantiers, hors déboursé)
-  const need=!Object.keys(cats).some(c=>/^atl_/.test(c));
+  const need0=!Object.keys(cats).some(c=>/^atl_/.test(c)),needOf=cat=>need0&&!CONSO_LIBRE.includes(cat);
   Object.entries(cats).forEach(([cat,[lab,sm]])=>{
     const l=document.createElement("label");l.className="btn ccambtn";l.innerHTML=lab+"<small>"+sm+"</small>";
     const i=document.createElement("input");i.type="file";i.accept="image/*";i.setAttribute("capture","environment");i.hidden=true;l.appendChild(i);
-    i.onchange=async()=>{const files=[...i.files];i.value="";const c=getChantier();if(!files.length)return;if(!c&&need){toast("Choisissez d'abord le chantier.");return}
+    const envoi=async files=>{const c=getChantier();if(!files.length)return;if(!c&&needOf(cat)){toast("Choisissez d'abord le chantier.");return}
       const note=noteEl?noteEl.value.trim():"";const n=await sendConsoPhotos(c,cat,files,note);if(n&&noteEl)noteEl.value="";if(n&&onSent)onSent()};
+    i.onchange=async()=>{const files=[...i.files];i.value="";envoi(files)};
+    // appareil photo dans l'appli (plusieurs photos d'affilée) ; le sélecteur de fichiers seulement si la caméra est indisponible
+    l.addEventListener("click",e=>{if(e.target===i)return;e.preventDefault();if(!getChantier()&&needOf(cat)){toast("Choisissez d'abord le chantier.");return}
+      appCam(fs=>envoi(fs),{titre:lab.replace(/^📷 /,""),repli:()=>i.click()})});
     box.appendChild(l)});
   const tip=document.createElement("p");tip.className="sub ccamtip";tip.textContent="Pour que Claude lise bien : une étagère, un bac ou un sachet par photo, étiquettes face à l'appareil, sans reflet, assez près pour que les références soient lisibles ; attendez que l'image soit nette.";box.appendChild(tip);
   const g=document.createElement("label");g.className="sub ccamgal";g.innerHTML="ou <u>choisir dans la galerie</u> comme :";
   const gi=document.createElement("input");gi.type="file";gi.accept="image/*";gi.multiple=true;gi.hidden=true;g.appendChild(gi);
-  gi.onchange=async()=>{const files=[...gi.files];gi.value="";const c=getChantier();if(!files.length)return;if(!c&&need){toast("Choisissez d'abord le chantier.");return}
-    const cat=confirmCat();if(!cat)return;const n=await sendConsoPhotos(c,cat,files,noteEl?noteEl.value.trim():"");if(n&&onSent)onSent()};
+  gi.onchange=async()=>{const files=[...gi.files];gi.value="";const c=getChantier();if(!files.length)return;
+    const cat=confirmCat();if(!cat)return;if(!c&&needOf(cat)){toast("Choisissez d'abord le chantier.");return}const n=await sendConsoPhotos(c,cat,files,noteEl?noteEl.value.trim():"");if(n&&onSent)onSent()};
   const confirmCat=()=>box.dataset.cat||first;
   const seg=document.createElement("div");seg.className="chips ccamseg";
   Object.entries(cats).forEach(([cat,[lab]])=>{const b=document.createElement("button");b.type="button";b.className="chip"+(cat===first?" on":"");b.textContent=lab.replace(/^📷 /,"");
@@ -1793,7 +1806,7 @@ async function loadStock(){
     <div class="stkcard qc" id="stk-qc" hidden></div>
     <div id="stk-top"><span class="sub">Chargement du stock…</span></div>
     <section class="stk"><div class="stkcard" id="stk-cmd"></div><div class="stkcard stkdir" id="stk-dir"></div><div class="stkcard stkpose"><h3>📷 Photographier des consommables</h3>
-    <label class="fld">Chantier<select id="stk-ch"><option value="">Choisir le chantier…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
+    <label class="fld">Chantier<select id="stk-ch"><option value="">Choisir le chantier (facultatif pour une entrée ou une commande)…</option>${live.map(j=>`<option value="${esc(j.id)}" ${j.id===stockSel?"selected":""}>${esc(nameOf(j.id))}</option>`).join("")}</select></label>
     <div id="stk-cam"></div><label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label></div>
     <div class="stkcard stkpose" id="stk-list"><span class="sub">Chargement…</span></div>
     <div class="stkcard stkatl"><h3>📷 Barres en trop et chutes</h3>
@@ -1804,7 +1817,7 @@ async function loadStock(){
   const which=()=>{el.querySelectorAll(".stkpose").forEach(x=>x.hidden=stk.which!=="pose");el.querySelectorAll(".stkatl").forEach(x=>x.hidden=stk.which!=="atelier");el.querySelectorAll("[data-which]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.which===stk.which))};which();
   el.querySelectorAll("[data-which]").forEach(b=>b.onclick=()=>{stk.which=b.dataset.which;try{localStorage.setItem("stk-which",stk.which)}catch(e){}stk.fam="";stk.et="";which();stk.arts=stk.all.filter(a=>(a.stock||"pose")===stk.which);if(stk.ok)stkDraw();stkDirs()});
   $("stk-ch").onchange=e=>{stockSel=e.target.value};
-  $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>{loadStockList(nameOf);stkRefresh()},$("stk-note")));
+  $("stk-cam").appendChild(consoCamera(()=>$("stk-ch").value,()=>{loadStockList(nameOf);stkRefresh()},$("stk-note"),canWrite||stkTer()?CONSO_BTN_BUREAU:CONSO_BTN));
   $("stk-acam").appendChild(consoCamera(()=>null,()=>stkAtlPhotos(nameOf),$("stk-anote"),ATL_PHOTO_BTN));
   loadStockList(nameOf);stkRefresh();stkDirs();stkAtlPhotos(nameOf);qcRender(nameOf);
 }
@@ -1891,7 +1904,7 @@ function stkDraw(){
       ${["r","o","v","b"].map(e=>`<button class="stat ${e}" data-se="${e}" aria-pressed="${stk.et===e&&!stk.fam}"><b>${cnt[e]}</b><span>${STK_ICO[e]} ${STK_ETAT[e].toLowerCase()}</span></button>`).join("")}
       <button class="stat" data-sf="" data-se="" aria-pressed="${!stk.fam&&!stk.et}"><b>${A.length}</b><span>articles${lastInv?" · inventaire du "+fr(lastInv.slice(0,10)):""}</span></button></div>
     <div class="tools"><input type="search" id="stk-q" placeholder="Chercher un article, une réf., un coloris, un emplacement…" value="${esc(stk.q)}" aria-label="Chercher un article">
-      ${canWrite?`<button class="btn" id="stk-inv">📋 Faire l'inventaire</button><button class="btn ghost" id="stk-add">＋ Nouvel article</button>`:""}<button class="btn ghost" id="stk-xls" title="Inventaire valorisé au format de l'Excel du serveur, quantités du jour">📥 Exporter l'Excel</button></div>
+      ${canWrite?`<button class="btn" id="stk-inv">📋 Faire l'inventaire</button>`:""}${canWrite||stkTer()?`<button class="btn ghost" id="stk-add">＋ Nouvel article</button>`:""}<button class="btn ghost" id="stk-xls" title="Inventaire valorisé au format de l'Excel du serveur, quantités du jour">📥 Exporter l'Excel</button></div>
     <div class="tools stkfam"><button class="chip" data-sf="" aria-pressed="${!stk.fam}">Tout</button>${fams.map(f=>`<button class="chip" data-sf="${esc(f)}" aria-pressed="${stk.fam===f}">${esc(f)}</button>`).join("")}</div>
     ${cnt.g===A.length&&A.length?`<p class="sub">Aucun seuil d'alerte n'est encore fixé : touchez un article pour lui donner un seuil, ou fixez-les tous d'un coup dans « Faire l'inventaire ».</p>`:""}</div>`;
   const headH=h;h="";
@@ -2036,10 +2049,11 @@ function stkPanel(title){
   p.hidden=false;$("sp-x").onclick=()=>{p.hidden=true};return $("sp-l");
 }
 // mouvements (entrées / sorties) : éditeurs, et Christophe (rôle atelier) sans inventaire ni réglages
-const stkMv=()=>canWrite||!!(window.mgdsProfil&&mgdsProfil.role==="atelier");
+const stkTer=()=>!!(window.mgdsProfil&&mgdsProfil.role==="terrain");
+const stkMv=()=>canWrite||stkTer()||!!(window.mgdsProfil&&mgdsProfil.role==="atelier");
 async function stkSheet(id){
   const a=id==null?{stock:stk.which,nom:"",famille:stk.fam&&stk.fam!=="!"?stk.fam:(stk.which==="atelier"?"Barres":"Divers"),unite:stk.which==="atelier"?"barre":"unité",actif:true}:stk.all.find(x=>x.id===id);if(!a)return;
-  const L=stkPanel(id==null?"＋ Nouvel article":esc(a.nom)),n=stkLvl(a),ro=canWrite?"":"disabled";
+  const L=stkPanel(id==null?"＋ Nouvel article":esc(a.nom)),n=stkLvl(a),ro=canWrite||(id==null&&stkTer())?"":"disabled";
   const fams=[...new Set(stk.arts.map(x=>x.famille).concat(stk.which==="atelier"?["Barres","Accessoires","Consommables atelier"]:["Divers"]))].sort();
   let h="";
   if(id!=null){const e=stkEtat(a);
@@ -2069,7 +2083,7 @@ async function stkSheet(id){
     <label class="clab">Combien par ${esc(a.unite||"unité")} ?<input class="cin" id="sp-cont" inputmode="decimal" value="${a.contenance!=null?nb(a.contenance):""}" placeholder="ex. 12 cartouches par carton" ${ro}></label>
     ${canWrite?`<label class="clab">Prix unitaire HT (€)<input class="cin" id="sp-pu" inputmode="decimal" value="${a.pu!=null?nb(a.pu):""}"></label>`:""}
     ${canWrite&&id!=null?`<label class="cline"><input type="checkbox" id="sp-off" ${a.actif===false?"checked":""}> Article plus utilisé (masqué)</label>`:""}
-    ${canWrite?`<button class="btn" id="sp-save">${id==null?"Créer l'article":"Enregistrer les réglages"}</button>`:""}</div></details>`;
+    ${canWrite||(id==null&&stkTer())?`<button class="btn" id="sp-save">${id==null?"Créer l'article":"Enregistrer les réglages"}</button>`:""}${id==null&&stkTer()?`<p class="sub" style="margin:0">Après la création, enregistrez la quantité reçue avec « ＋ Livraison ».</p>`:""}</div></details>`;
   // double bac (atelier) : le premier bac est vide → l'article passe « à commander » jusqu'à la prochaine livraison
   // accessoires et joints de l'atelier = reliquats de chantiers, replacés sur les nouvelles commandes (Christophe, 10/11/2026) : pas de réassort, donc pas de double bac
   if(id!=null&&stkMv()&&(a.stock||"pose")==="atelier"&&(/consommable/i.test(a.famille||"")||a.a_commander))h+=`<div class="crow ccard"><b>Double bac</b>${a.a_commander?`<div class="cinfo"><span class="dot r"></span> Bac signalé vide le ${fr(a.a_commander.slice(0,10))} : à commander. Repart tout seul à la prochaine « Livraison ».</div>${canWrite?`<button class="btn ghost" id="sp-vide0">Annuler le signalement</button>`:""}`:`<div class="cinfo">Le premier bac est vide ? On entame le second et l'article passe dans « À commander ».</div><button class="btn" id="sp-vide">🫙 Bac vide : à commander</button>`}</div>`;
@@ -2100,10 +2114,10 @@ async function stkSheet(id){
   L.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=async()=>{const{error}=await sb.from("stock_reservations").delete().eq("id",+b.dataset.rdel);
     if(error){toast("Impossible pour le moment.");return}toast("Réservation retirée.");await stkResLoad();stkDraw();stkSheet(a.id)});
   if($("sp-vide0"))$("sp-vide0").onclick=()=>vide(false);
-  if(canWrite)$("sp-save").onclick=async()=>{
+  if(canWrite||(id==null&&stkTer()))$("sp-save").onclick=async()=>{
     const nom=$("sp-nom").value.trim();if(!nom){toast("Donnez un nom à l'article.");return}
     const row={stock:$("sp-stock").value,ref:$("sp-ref").value.trim()||null,emplacement:$("sp-pl").value.trim().toUpperCase()||null,longueur:stkNum($("sp-lg").value),nom,famille:$("sp-fam").value.trim()||"Divers",coloris:$("sp-col").value.trim()||null,fournisseur:$("sp-four").value.trim()||null,unite:$("sp-u").value.trim()||"unité",
-      seuil:stkNum($("sp-seuil").value),reassort:stkNum($("sp-re").value),detail:$("sp-det").value.trim()||null,contenance:stkNum($("sp-cont").value),pu:stkNum($("sp-pu").value)};
+      seuil:stkNum($("sp-seuil").value),reassort:stkNum($("sp-re").value),detail:$("sp-det").value.trim()||null,contenance:stkNum($("sp-cont").value),pu:$("sp-pu")?stkNum($("sp-pu").value):null};
     if($("sp-off"))row.actif=!$("sp-off").checked;
     $("sp-save").disabled=true;
     const r=id==null?await sb.from("stock_articles").insert(row).select("id").single():await sb.from("stock_articles").update(row).eq("id",id).select("id").single();
@@ -2209,7 +2223,7 @@ async function stkDirUpload(files,which){
 async function loadStockList(nameOf){
   const box=$("stk-list");let P;
   try{P=await consoPhotos()}catch(e){box.innerHTML=`<span class="sub">Impossible de charger les photos pour le moment.</span>`;return}
-  if(!P.length){box.innerHTML=`<h3>Entrées et sorties par chantier</h3><span class="sub">Aucune photo de consommables pour l'instant.</span>`;return}
+  if(!P.length){box.innerHTML=`<h3>Entrées et sorties par chantier</h3><span class="sub">Aucune photo de consommables pour l'instant.</span>`+await depotHtml();return}
   const urls=Object.fromEntries((((await window.sbClient.storage.from("photos").createSignedUrls(P.map(p=>p.chemin),3600)).data)||[]).map(x=>[x.path,x.signedUrl]));
   const wait=P.filter(p=>!p.traite),by=new Map();P.forEach(p=>{if(!by.has(p.chantier))by.set(p.chantier,[]);by.get(p.chantier).push(p)});
   const th=p=>`<a href="${esc(urls[p.chemin]||"#")}" target="_blank" rel="noopener" title="${esc(CONSO_CAT[p.categorie]+" · "+fr(p.pris_le.slice(0,10))+(p.note?" · "+p.note:""))}"><img loading="lazy" src="${esc(urls[p.chemin]||"")}" alt="${esc(CONSO_CAT[p.categorie])}"><span class="tag ${p.categorie==="conso_sortie"?"out":"in"}">${p.categorie==="conso_sortie"?"Sortie":"Retour"}</span></a>`;
@@ -2218,8 +2232,18 @@ async function loadStockList(nameOf){
   for(const [c,L] of by){const B=consoBilan(L);
     h+=`<div class="stkch"><h4>${esc(nameOf(c))}</h4>${B.length?`<table class="ctab"><tr><th>Article</th><th>Sorti</th><th>Remis</th><th>Utilisé</th></tr>${B.map(x=>`<tr><td>${esc([x.a,x.c].filter(Boolean).join(" "))}</td><td>${nb(x.sorti)}</td><td>${nb(x.remis)}</td><td><b>${nb(x.sorti-x.remis)}</b> ${esc(x.u)}</td></tr>`).join("")}</table>`:`<span class="sub">Pas encore relu par Claude.</span>`}
       <div class="thumbs">${L.map(th).join("")}</div></div>`}
-  box.innerHTML=h;
+  box.innerHTML=h+await depotHtml();
 }
+// entrées au dépôt et commandes photographiées (Yannick, Stéphanie, bureau ; 20/11/2026), avec ce que Claude y a lu
+async function depotHtml(){const sb=window.sbClient;
+  try{const{data}=await sb.from("photos").select("id,chantier,categorie,chemin,note,pris_le,traite,releve").in("categorie",["conso_entree","commande"]).order("pris_le",{ascending:false}).limit(60);
+    if(!data||!data.length)return"";const u=Object.fromEntries((((await sb.storage.from("photos").createSignedUrls(data.map(p=>p.chemin),3600)).data)||[]).map(x=>[x.path,x.signedUrl]));
+    const lib={conso_entree:"Entrée en stock",commande:"Commande passée"};
+    return`<h3 style="margin-top:18px">Entrées au dépôt et commandes</h3>`+data.map(p=>{const R=parseReleve(p.releve);
+      return`<div class="crow"><a href="${esc(u[p.chemin]||"#")}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(u[p.chemin]||"")}" alt="${esc(lib[p.categorie])}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;float:left;margin-right:10px"></a>
+        <b>${lib[p.categorie]}</b> · ${fr(p.pris_le.slice(0,10))}${p.chantier?" · "+esc((jobs.get(p.chantier)||{}).client||p.chantier):""}${p.note?`<br><small>${esc(p.note)}</small>`:""}
+        <br><small class="sub">${!p.traite?"en attente de lecture par Claude":R?esc([R.articles.map(x=>[x.q,x.u,x.a,x.c].filter(Boolean).join(" ")).join(" · "),R.txt].filter(Boolean).join(" — ")):""}</small></div>`}).join("")}
+  catch(_){return""}}
 // « + » : une ligne libre de plus en bas du tableau des consommables (la fiche est enregistrée puis rouverte)
 let consAdding=false;
 // métré : lignes de consommables ajoutées sur une page « CONSOMMABLES (suite) » en fin de fiche (mêmes colonnes,
@@ -3378,6 +3402,22 @@ $("viewer").addEventListener("click",e=>{
   else if(t.dataset.pen){vDraw.color=t.dataset.pen;document.querySelectorAll("#vpens .pen").forEach(b=>b.classList.toggle("on",b===t))}
 });
 addEventListener("resize",()=>{if(!$("viewer").hidden&&vPages.length)setZoom(vZoom)});
+// appareil photo de l'appli, réutilisable : plusieurs photos d'affilée, puis « Envoyer » (Steven, 20/11/2026 : sur la tablette
+// de Yannick, le bouton ouvrait le dossier au lieu de l'appareil photo). Sans caméra ou sans autorisation : repli (sélecteur).
+window.appCam=async(onFiles,{titre="Photo",repli}={})=>{
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){repli&&repli();return}
+  let st;try{st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:2560},height:{ideal:1920}},audio:false})}
+  catch(e){toast(e&&e.name==="NotAllowedError"?"Autorisez l'appareil photo pour l'appli (réglages du navigateur), ou choisissez une photo.":"Appareil photo indisponible : choisissez une photo.");repli&&repli();return}
+  const ov=document.createElement("div");ov.className="acam";ov.setAttribute("role","dialog");ov.setAttribute("aria-label","Appareil photo");
+  ov.innerHTML=`<div class="acamh"><b></b><span class="acamn">0 photo</span></div><video playsinline muted autoplay></video><div class="acamt"></div><div class="acamb"><button type="button" class="btn ghost" data-a="x">Annuler</button><button type="button" class="shot" data-a="s" aria-label="Prendre la photo"></button><button type="button" class="btn" data-a="ok" disabled>Envoyer</button></div>`;
+  ov.querySelector("b").textContent=titre;document.body.appendChild(ov);const v=ov.querySelector("video");v.srcObject=st;v.play().catch(()=>{});
+  const pris=[],fin=()=>{st.getTracks().forEach(t=>t.stop());ov.remove()},maj=()=>{ov.querySelector(".acamn").textContent=pris.length+" photo"+(pris.length>1?"s":"");const b=ov.querySelector('[data-a="ok"]');b.disabled=!pris.length;b.textContent=pris.length?"Envoyer ("+pris.length+")":"Envoyer"};
+  ov.addEventListener("click",async e=>{const a=e.target.closest("[data-a]");if(!a)return;
+    if(a.dataset.a==="x"){if(!pris.length||confirm("Abandonner les "+pris.length+" photo(s) prise(s) ?"))fin()}
+    else if(a.dataset.a==="ok"){fin();onFiles(pris)}
+    else if(a.dataset.a==="s"&&v.videoWidth){const c=document.createElement("canvas");c.width=v.videoWidth;c.height=v.videoHeight;c.getContext("2d").drawImage(v,0,0);
+      const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.9));c.width=0;if(!b)return;pris.push(new File([b],"photo-"+(pris.length+1)+".jpg",{type:"image/jpeg"}));
+      const im=new Image();im.src=URL.createObjectURL(b);im.alt="Photo "+pris.length;ov.querySelector(".acamt").appendChild(im);ov.classList.add("flash");setTimeout(()=>ov.classList.remove("flash"),120);maj()}})};
 // appareil photo ouvert dans l'appli (caméra arrière) ; sinon choix d'une photo
 let camStream=null;
 async function openCam(){
