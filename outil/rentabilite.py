@@ -45,7 +45,13 @@ def total_devis(t):
 def total_arc(t):
     v = re.findall(r"TOTAL NET HT\s*(?:\(?EUR\)?|€)?\s*:?\s*\n?\s*" + NUM, t, re.I) or \
         re.findall(r"(?:Total|Montant) H\.?T\.?(?: net)?\s*(?:\(?EUR\)?|€)?\s*:?\s*\n?\s*" + NUM, t, re.I)
-    return nombre(v[-1]) if v else None
+    if v: return nombre(v[-1])
+    # mise en page en colonnes (ARC Bel'M / CETIH) : « Mt H.T. Net », puis plus bas la liste des montants
+    m = re.search(r"(?:Mt|Montant)\s*H\.?\s*T\.?\s*Net", t, re.I)
+    if m:
+        v = re.findall(NUM, t[m.end():m.end() + 400])
+        if v: return nombre(v[0])
+    return None
 
 
 def num_devis(nom):
