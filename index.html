@@ -806,11 +806,13 @@ async function renderSheet(){
   const tl=k=>(j[k]||[]).map((t,i)=>`<div class="task ${t.f?"done":""}"><input type="checkbox" data-task="${k}" data-i="${i}" ${t.f?"checked":""} ${canWrite||canFill?"":"disabled"} aria-label="${esc(t.t)}"><span>${esc(t.t)}${t.f?` <span class="mono">${fr(t.f)}</span>`:""}</span>${canWrite?`<button class="x" data-deltask="${k}" data-i="${i}" aria-label="Supprimer">×</button>`:""}</div>`).join("");
   // les fiches à remplir (préparation, métré / réception de support, réception de fin de chantier, toujours en dernier) à part
   // des documents repris du serveur ou déposés (devis, plans, factures…) — Steven, 09/11/2026
-  const FICHE_ORD={"Préparation":0,"Métré":1,"Support":2,"Réception":3},docLi=([d,i])=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.name)}</button>${d.traite?"":`<span class="new">nouveau</span>`}${d.rempli?d.rempli.reste?`<span class="new">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:`<span class="new ok">fiche complète</span>`:""}<br><span class="mono">${fr(d.at)} · ${Math.max(1,Math.round((d.size||0)/1024))} ko</span></span>
+  const FICHE_ORD={"Préparation":0,"Métré":1,"Support":2,"Réception":3},docLi=([d,i])=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.name)}</button>${d.traite?"":`<span class="new">nouveau</span>`}${d.rempli?d.rempli.reste?`<span class="new">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:`<span class="new ok">fiche complète</span>`:""}<br><span class="mono">${fr(d.at)} · ${d.mt?"sur tablette":Math.max(1,Math.round((d.size||0)/1024))+" ko"}</span></span>
     ${canWrite?`<select data-doctype="${i}" aria-label="Type de document">${DOC_TYPES.map(t=>`<option ${t===d.type?"selected":""}>${t}</option>`).join("")}</select>`:""}</li>`;
   const allDocs=(j.docs||[]).map((d,i)=>[d,i]),isFiche=([d])=>d.type in FICHE_ORD;
   const fiches=allDocs.filter(isFiche).sort(([a],[b])=>FICHE_ORD[a.type]-FICHE_ORD[b.type]).map(docLi).join("");
   const docs=allDocs.filter(x=>!isFiche(x)).map(docLi).join("");
+  // métré sur tablette (essai, 20/11/2026) : fiche HTML rangée dans docs[].mt, voir metre.js
+  const mtBtn=(canWrite||canFill)&&window.mtNew&&!(j.docs||[]).some(d=>d.mt)?`<button class="btn ghost" data-mtnew="1" style="margin:6px 0 4px">📐 Faire le métré sur tablette (essai)</button>`:"";
   const mails=moments(j).map(m=>{const dueStep=sd(j,m[0]);const sent=(j.mails||{})[m[0]];
     const st=sent?`<span class="pill vert">envoyé le ${fr(sent)}</span>`:dueStep?`<span class="pill orange">à envoyer</span>`:`<span class="pill">plus tard</span>`;
     const subj=fillMail(m[2],j),body=fillMail(m[3],j);
@@ -900,7 +902,7 @@ async function renderSheet(){
    <h3>Factures<span class="sub" style="text-transform:none;letter-spacing:0">partielles puis solde</span></h3>
    <ul class="arcs">${facs||`<li class="sub">Facture unique : cochez « Facturé » et « Payé » dans les étapes. Pour facturer en plusieurs fois, ajoutez une ligne par facture.</li>`}</ul>
    ${canWrite?`<form class="add arcadd" data-add="fac"><input type="text" id="add-fac" placeholder="Libellé (ex. situation 1 : phase 1 posée)" aria-label="Libellé de la facture"><select id="add-fac-solde" aria-label="Type"><option value="">Partielle</option><option value="1">Solde</option></select><button class="btn">+</button></form>`:""}
-   ${fiches?`<h3>Fiches à remplir</h3><ul class="docs">${fiches}</ul>`:""}
+   ${fiches||mtBtn?`<h3>Fiches à remplir</h3><ul class="docs">${fiches}</ul>${mtBtn}`:""}
    <h3>Documents du dossier</h3>
    ${(canWrite||canFill)&&assets?`<div class="drop" id="drop">Glissez ici devis, ARC, métré, photos… ou <label for="file">choisissez des fichiers</label><input type="file" id="file" multiple hidden accept=".pdf,image/*,.csv,.txt"><div class="sub" style="margin-top:4px">PDF et photos. Pour un Word ou un Excel, enregistrez-le d'abord en PDF.</div></div>`:`<p class="sub">Vous ne pouvez pas déposer de fichier sur cette page. Demandez à Steven de vous donner l'accès « Modifier ».</p>`}
    <ul class="docs">${docs||`<li style="grid-template-columns:1fr"><span class="sub">Aucun document pour l'instant.</span></li>`}</ul>
@@ -1013,7 +1015,7 @@ function setFacs(arr){const j=jobs.get(openId),p=facSync(arr);if(!arr.length)p.s
   jobs.set(openId,{...j,...p,steps:{...(j.steps||{}),...p.steps}});renderSheet();render();save(openId,p)}
 // ---------- événements ----------
 document.addEventListener("click",async e=>{
-  const t=e.target.closest("[data-logi],[data-dellogi],[data-delpv],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],#vclose,#vdl,#vedit,#vsave,#vnext");
+  const t=e.target.closest("[data-logi],[data-dellogi],[data-delpv],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],[data-mtnew],#vclose,#vdl,#vedit,#vsave,#vnext");
   if(!t)return;
   if(t.dataset.open&&t.closest("#spanel")){const sp=$("spanel");if(sp)sp.hidden=true}
   if(t.dataset.arc!==undefined){const j=jobs.get(openId),arr=arcsOf(j).map(x=>({...x})),a=arr[+t.dataset.arc],k=t.dataset.arck;a[k]=a[k]&&a[k].d?null:{d:today(),by:me||""};setArcs(arr);return}
@@ -1029,6 +1031,7 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.who){who=t.dataset.who;render()}
   else if(t.dataset.open){openSheet(t.dataset.open)}
   else if(t.dataset.view!==undefined){viewDoc((jobs.get(openId).docs||[])[+t.dataset.view])}
+  else if(t.dataset.mtnew){t.disabled=true;mtNew(openId)}
   else if(t.id==="vclose"){if(vForm&&vForm.dirty&&!vForm.saving){toast("Fiche non enregistrée : appuyez sur « Enregistrer », ou sur « Fermer » une seconde fois pour abandonner.");vForm.dirty=false;return}$("viewer").hidden=true;$("vpages").innerHTML="";vForm=null;resetTools()}
   else if(t.id==="vedit"){startFill()}
   else if(t.id==="vsave"){saveFill()}
@@ -1117,7 +1120,7 @@ document.addEventListener("submit",async e=>{
 });
 $("q").addEventListener("input",e=>{q=e.target.value.trim().toLowerCase();render()});
 $("tri").addEventListener("change",e=>{tri=e.target.value;try{localStorage.setItem("chantiers-tri",tri)}catch(x){}render()});
-document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("viewer").hidden&&vFocus!=null){vFocusOff();return}if(!$("viewer").hidden){$("viewer").hidden=true;$("vpages").innerHTML=""}else if(openId)closeSheet()});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;const mo=$("mtov");if(mo&&!mo.hidden){mtClose();return}if(!$("viewer").hidden&&vFocus!=null){vFocusOff();return}if(!$("viewer").hidden){$("viewer").hidden=true;$("vpages").innerHTML=""}else if(openId)closeSheet()});
 // Les fiches 01-02-03 portent un champ « adresse_chantier_N » : on y écrit l'adresse saisie dans la fiche
 const ADDR_DOCS=["Préparation","Métré","Réception","Support"];
 // polices standard du PDF : pas d'apostrophe typographique ni de œ
@@ -1158,7 +1161,7 @@ async function cleanMetre(blob,d){
   }catch(_){return blob}
 }
 async function viewDoc(d){
-  if(!d)return;const pg=$("vpages");$("vname").textContent=d.name;pg.innerHTML='<p class="sub">Ouverture du document…</p>';$("viewer").hidden=false;$("vdl").hidden=true;resetTools();$("vfill").textContent="";vDoc=d;vPdf=null;vPages=[];vForm=null;vZoom=1;
+  if(!d)return;if(d.mt&&window.mtOpen){mtOpen(openId,d.id);return}const pg=$("vpages");$("vname").textContent=d.name;pg.innerHTML='<p class="sub">Ouverture du document…</p>';$("viewer").hidden=false;$("vdl").hidden=true;resetTools();$("vfill").textContent="";vDoc=d;vPdf=null;vPages=[];vForm=null;vZoom=1;
   try{
     const r=await fetch("/_blob/"+d.id);if(!r.ok)throw 0;vBlob=await r.blob();vName=d.name;$("vdl").hidden=!downloads;
     const isPdf=/pdf/.test(vBlob.type)||/\.pdf$/i.test(d.name);
@@ -3685,10 +3688,10 @@ async function loadDir(){try{const r=await dirDb.list();dirDocs=new Map(r.map(x=
 // « glisser depuis le bord gauche » (iPhone, Android, navigateur) ou Échap. Le retour arrière ramène aussi à l'onglet
 // précédent. Une fiche modifiée et non enregistrée n'est jamais fermée au premier retour : un message prévient.
 (()=>{
-  const ovs=()=>[["viewer",$("viewer")],["asheet",$("asheet")],["sheet",$("sheet")]].filter(([,el])=>el&&!el.hidden);
+  const ovs=()=>[["mtov",$("mtov")],["viewer",$("viewer")],["asheet",$("asheet")],["sheet",$("sheet")]].filter(([,el])=>el&&!el.hidden);
   let entree=false,sauter=0,restaure=false,curTab=null;
   function fermeHaut(){const o=ovs()[0];if(!o)return false;
-    if(o[0]==="viewer"){if(vFocus!=null)vFocusOff();else $("vclose").click()}else if(o[0]==="asheet"&&window.atlClose)atlClose();else closeSheet();return true}
+    if(o[0]==="mtov"){mtClose()}else if(o[0]==="viewer"){if(vFocus!=null)vFocusOff();else $("vclose").click()}else if(o[0]==="asheet"&&window.atlClose)atlClose();else closeSheet();return true}
   function sync(){const ouvert=ovs().length>0,vs=$("vscrim");if(vs.hidden!==$("viewer").hidden)vs.hidden=$("viewer").hidden;
     if(ouvert&&!entree){history.pushState({ov:1,tab:curTab},"");entree=true}
     else if(!ouvert&&entree){entree=false;if(history.state&&history.state.ov){sauter++;history.back()}}}
@@ -4669,4 +4672,5 @@ window.planRender=planRender;window.PLN_OK=()=>PLN.ok;window.plLoad=plLoad;windo
 (function plBoot(n){if(PLN.ok)return;if(!window.sbClient||!window.mgdsProfil||typeof atl==="undefined"||atl.ok!==true){if(n<120)setTimeout(()=>plBoot(n+1),500);return}
   plLoad(true).then(()=>{try{atlRender();const s=$("asheet");if(s&&!s.hidden)atlSheet();if(!$("tab-planning").hidden)planRender()}catch(_){}})})(0);
 </script>
+<script src="metre.js"></script>
 </html>
