@@ -8,12 +8,18 @@
 (()=>{
 const $m=id=>document.getElementById(id);
 const C=(l,o,x={})=>({l,t:"c",o,...x}),M=(l,x={})=>({l,t:"mm",...x}),T=(l,x={})=>({l,t:"t",...x}),N=(l,x={})=>({l,t:"n",...x}),MU=(l,o,x={})=>({l,t:"m",o,...x}),CMD={l:"Cote de commande",t:"cmd"};
+const TRI=(l,sub,x={})=>({l,t:"tri",sub,...x});
+const tv=v=>v["Type de volet roulant"]||"",vr=v=>v["Produit"]==="Volet roulant",kit=v=>vr(v)&&/^Kit/.test(tv(v)),bat=v=>/battant|Persienne/.test(v["Produit"]||""),
+  zip=v=>/zip/.test(v["Produit"]||""),bso=v=>v["Produit"]==="BSO",banne=v=>v["Produit"]==="Store banne";
 const FAM={
  fen:{n:"Fenêtres et portes-fenêtres",g:[
   ["Produit",[C("Type",["Fenêtre","Porte-fenêtre","Coulissant","Fixe","Soufflet"]),C("Matière",["PVC","PVC/alu","Alu","Bois"]),N("Vantaux"),C("Sens (vue int.)",["TD","TG","Fixe"]),T("Coloris int. / ext.")]],
   ["Pose",[C("Type de pose",["Neuf applique","Réno","Dépose totale","Tunnel"]),M("Épaisseur du dormant existant",{opt:1}),M("Épaisseur d'isolation (doublage)"),C("Habillage int.",["Aucun","Cornières","Tôle pliée","Autre"],{opt:1}),C("Habillage ext.",["Aucun","Cornières","Tôle pliée","Autre"],{opt:1})]],
   ["Dimensions",[M("Tableau L"),M("Tableau H"),M("Hors tout L",{opt:1}),M("Hors tout H",{opt:1}),M("Hauteur d'allège",{opt:1}),CMD]],
-  ["Vitrage et options",[C("Vitrage",["Double","Triple","Feuilleté","Phonique","Granité"]),C("Petits bois",["Non","Incorporés","Collés"],{opt:1}),C("Appui / seuil",["Appui","Seuil alu","Seuil PMR"]),C("Ventilation",["Aucune","Grille"]),C("Occultation",["Aucune","Volet roulant","Store zip","BSO"],{opt:1})]]]},
+  ["Vitrage et options",[C("Vitrage",["Double","Triple","Feuilleté","Phonique","Granité"]),C("Petits bois",["Non","Incorporés","Collés"],{opt:1}),C("Appui / seuil",["Appui","Seuil alu","Seuil PMR"]),C("Ventilation",["Aucune","Grille"]),C("Occultation",["Aucune","Volet roulant","Store zip","BSO"],{opt:1})]],
+  ["Volet roulant intégré",[C("Coffre",["Bloc-baie (sur la menuiserie)","Coffre tunnel","Coffre rénovation"]),C("Taille du coffre",["125","137","150","165","180","205"],{opt:1}),
+    C("Manœuvre",["Sangle","Treuil + manivelle","Moteur filaire","Radio RTS","Radio io","Solaire"]),C("Côté de manœuvre (vue int.)",["Gauche","Droite"]),
+    C("Alimentation électrique",["Présente à gauche","Présente à droite","À créer","Sans objet"],{w:v=>!/Sangle|Treuil/.test(v["Manœuvre"]||"")}),T("Coloris du tablier")],v=>v["Occultation"]==="Volet roulant"]]},
  porte:{n:"Porte d'entrée",g:[
   ["Produit",[C("Matière",["Alu","PVC","Bois","Acier"]),T("Modèle",{opt:1}),T("Coloris int. / ext. (RAL)"),C("Sens (vue int.)",["Poussant gauche","Poussant droit"]),N("Vantaux")]],
   ["Pose et dimensions",[C("Dormant",["Réno + habillages","Neuf"]),M("Épaisseur d'isolation (doublage)",{opt:1}),M("Tableau L"),M("Tableau H"),M("Hors tout L",{opt:1}),M("Hors tout H",{opt:1}),M("Épaisseur du bâti existant",{opt:1}),M("Largeur du vantail principal",{opt:1}),CMD]],
@@ -24,9 +30,27 @@ const FAM={
   ["Dimensions",[M("Tableau L"),M("Tableau H"),M("Retombée de linteau"),M("Écoinçon gauche"),M("Écoinçon droit"),M("Profondeur dégagée"),M("Hauteur sous plafond",{opt:1})]],
   ["Sol et électricité",[C("Sol",["De niveau","En pente","Seuil"]),C("Prise électrique à proximité",["Oui","Non"]),C("Motorisation",["Oui","Non"]),N("Télécommandes",{opt:1})]]]},
  occ:{n:"Occultation",g:[
-  ["Produit",[C("Produit",["Volet roulant","Store zip","BSO","Store banne","Volet battant","Persienne"]),C("Pose",["Coffre extérieur","Coffre intérieur","Sous linteau","Coffre caché","En façade"]),T("Lames ou toile, coloris"),T("Coloris coffre et coulisses",{opt:1})]],
-  ["Dimensions",[M("Largeur (entre tapées ou tableau)"),M("Hauteur"),M("Profondeur du tableau",{opt:1}),M("Hauteur de flèche",{opt:1}),M("Avancée (store banne)",{opt:1})]],
-  ["Commande",[C("Manœuvre",["Sangle","Treuil","Moteur filaire","Radio RTS","Radio io","Solaire"]),C("Côté manœuvre / perçage",["Gauche","Droite"]),T("Arrivée électrique : où ?",{opt:1}),C("Capteur",["Aucun","Vent","Vent et soleil"],{opt:1}),C("Commande",["Inter","Télécommande","Domotique"])]]]},
+  ["Produit",[C("Produit",["Volet roulant","Volet battant","Persienne","Store zip / screen","BSO","Store banne"]),
+    C("Type de volet roulant",["Rénovation (coffre extérieur)","Traditionnel (coffre intérieur)","Bloc-baie (sur la menuiserie)","Coffre à enduire (Termo, Rapido)","Kit motorisation sur VR existant"],{w:vr}),
+    C("Position du coffre",["En façade","En tableau"],{w:v=>vr(v)&&/Rénovation/.test(tv(v))}),
+    C("Pose",["En tableau","En façade","Sous linteau","Au plafond"],{w:zip}),T("Gamme / fabricant",{opt:1})]],
+  ["Dimensions",[TRI("Largeur entre tableaux",["en haut","au milieu","en bas"],{w:v=>!banne(v)&&!kit(v)}),TRI("Hauteur de tableau",["à gauche","au milieu","à droite"],{w:v=>!banne(v)&&!kit(v)}),
+    M("Profondeur du tableau",{w:v=>(vr(v)&&!kit(v))||zip(v)||bat(v)}),M("Hauteur disponible au-dessus de l'ouverture",{opt:1,w:v=>(vr(v)&&!kit(v))||zip(v)||bso(v)}),M("Largeur entre tapées",{opt:1,w:v=>(vr(v)&&!kit(v))||bat(v)}),
+    M("Largeur",{w:banne}),M("Avancée",{w:banne}),M("Hauteur de pose",{w:banne})],v=>!kit(v)],
+  ["Volet existant à motoriser",[C("Axe existant",["Octogonal 40","Octogonal 60","Rond","Autre"]),M("Largeur du tablier"),M("Hauteur du tablier"),C("Accès au coffre",["Trappe intérieure","Coffre extérieur démontable","Tunnel (par l'intérieur)"]),C("Ancienne manœuvre",["Sangle","Treuil","Moteur"])],kit],
+  ["Coffre et coulisses",[C("Forme du coffre",["Pan coupé 45°","Quart de rond","Carré"],{w:v=>/Rénovation/.test(tv(v))}),C("Taille du coffre",["125","137","150","165","180","205","250"]),
+    C("Coulisses",["Fixées en tableau","Fixées en façade"]),C("Appui",["Droit","Débordant (coulisses à découper)"],{opt:1})],v=>(vr(v)&&!kit(v))||zip(v)],
+  ["Tablier",[C("Lames",["Alu 39","Alu 42","Alu 55","PVC","Alu sécurité"]),T("Coloris du tablier"),T("Coloris coffre et coulisses"),C("Lame finale",["Standard","Avec joint"],{opt:1})],v=>vr(v)&&!kit(v)],
+  ["Volet battant",[C("Matière",["Alu","PVC","Bois"]),N("Vantaux"),C("Modèle",["Plein (barres et écharpe)","Plein sans écharpe","Persienné","Cadre + panneau","Persienne repliable"]),
+    C("Gonds",["À sceller","À visser (scellement chimique)","Sur platine","Gonds existants conservés"]),C("Pentures",["Droites","Contre-coudées"]),C("Arrêts",["Marseillais","Tête de bergère","Automatiques","À visser en façade"]),
+    C("Fermeture",["Espagnolette","Crémone","Barre"]),C("Repliable en tableau",["Non","Oui"],{opt:1}),T("Coloris")],bat],
+  ["Toile et lames",[C("Toile",["Screen","Soltis","Opaque / occultante"],{w:zip}),T("Coloris de la toile",{w:v=>zip(v)||banne(v)}),C("Lames BSO",["C80","Z90","S90"],{w:bso}),C("Guidage",["Coulisses","Câbles"],{w:bso}),
+    C("Coffre ou linteau",["Linteau caché sous enduit","Coffre apparent","Linteau existant"],{w:bso}),T("Coloris lames et coulisses",{w:bso})],v=>zip(v)||bso(v)||banne(v)],
+  ["Store banne",[C("Type de store",["Coffre intégral","Semi-coffre","Monobloc"]),C("Support",["Mur","Plafond","Chevrons","Sous-face"]),T("Inclinaison (°)",{opt:1}),C("Lambrequin",["Non","Fixe","Enroulable"])],banne],
+  ["Manœuvre et électricité",[C("Manœuvre",["Sangle","Treuil + manivelle","Moteur filaire","Radio RTS","Radio io","Solaire"]),C("Côté de manœuvre (vue int.)",["Gauche","Droite"]),
+    C("Alimentation électrique",["Présente à gauche","Présente à droite","À créer","Sans objet"],{w:v=>!/Sangle|Treuil/.test(v["Manœuvre"]||"")}),C("Point de commande",["Inter filaire","Télécommande","Domotique / box"],{w:v=>/Moteur|Radio|Solaire/.test(v["Manœuvre"]||"")}),
+    C("Capteur",["Aucun","Vent","Vent et soleil"],{opt:1,w:v=>zip(v)||bso(v)||banne(v)})],v=>!bat(v)],
+  ["Existant à déposer",[MU("Dépose",["Rien","Ancien volet roulant","Volets battants","Gonds et arrêts","Persiennes"])],v=>!kit(v)]]},
  portail:{n:"Portail et portillon",g:[
   ["Produit",[C("Type",["Battant","Coulissant","Portillon"]),C("Matière",["Alu","PVC","Acier"]),T("Modèle et teinte")]],
   ["Piliers et terrain",[M("Entre piliers en haut"),M("Entre piliers en bas"),M("Hauteur"),C("Piliers",["Maçonnés","Alu","À créer"]),C("Aplomb des piliers",["Bon","À reprendre"]),C("Terrain",["Plat","En pente vers la maison","En pente vers la rue"])]],
@@ -48,17 +72,32 @@ const ETF=["fen","porte"],COUL={Rouge:"#c0392b",Bleu:"#1f5fbf",Noir:"#1d2633"};
 const SPOT={he:"Haut ext.",be:"Bas ext.",hi:"Haut int.",bi:"Bas int.",me:"Montants ext.",mi:"Montants int."};
 const esc2=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const mlf=n=>(n/1000).toLocaleString("fr-FR",{maximumFractionDigits:1})+" ml";
-const famGuess=s=>{s=(s||"").toLowerCase();return/porte d.entr|porte entr/.test(s)?"porte":/garage|sectionnel|basculant/.test(s)?"garage":/volet|store|bso|zip|persienne|brise.soleil/.test(s)?"occ":/portail|portillon|cl[oô]ture/.test(s)?"portail":/v[ée]randa|pergola/.test(s)?"veranda":"fen"};
+const famGuess=s=>{s=(s||"").toLowerCase();return/porte d.entr|porte entr/.test(s)?"porte":/garage|sectionnel|basculant/.test(s)?"garage":/portail|portillon|cl[oô]ture/.test(s)?"portail":
+  /\+\s*(vr|volet)/.test(s)?"fen":/\bvr\b|\bvb\b|volet|store|bso|zip|screen|persienne|brise.soleil|kit motor/.test(s)?"occ":/v[ée]randa|pergola/.test(s)?"veranda":"fen"};
+// « CHAMBRE VR réno NEOLITE » → repère CHAMBRE, désignation « VR réno NEOLITE » ; « SO 0-4 F 2 vtx+VR » → SO 0-4 / F 2 vtx+VR
+const STOP=/^(VR|VB|PS|PF|F|BSO|FEN\.?|VOLETS?\d*|STORES?|PORTE|KIT|OB|FIXE|CHASSIS|CHÂSSIS)$/i;
+function coupeRep(t){const w=(t||"").trim().split(/\s+/),r=[];for(const x of w){if((x===x.toUpperCase()&&/[A-ZÀ-Ü]/.test(x)||/^[\d\-\/.]+$/.test(x)||/^[A-Za-z]{1,3}-[\d-]+$/.test(x))&&!STOP.test(x))r.push(x);else break}
+  if(r.length===w.length)return{r:"",d:t.trim()};return{r:r.join(" "),d:w.slice(r.length).join(" ")}}
+function preRemplir(p){const s=(p.r+" "+p.d).toLowerCase(),v=p.v,put=(k,x)=>{if(x&&(v[k]===undefined||v[k]===""))v[k]=x},n=(/(\d)\s*vtx/.exec(s)||[])[1];
+  const man=/solaire/.test(s)?"Solaire":/\bio\b/.test(s)?"Radio io":/\brts\b/.test(s)?"Radio RTS":/filaire/.test(s)?"Moteur filaire":/sangle/.test(s)?"Sangle":/treuil|manivelle/.test(s)?"Treuil + manivelle":"";
+  if(p.f==="occ"){const pr=/battant|\bvb\b/.test(s)?"Volet battant":/persienne/.test(s)?"Persienne":/zip|screen/.test(s)?"Store zip / screen":/bso|brise/.test(s)?"BSO":/banne/.test(s)?"Store banne":"Volet roulant";put("Produit",pr);
+    if(pr==="Volet roulant")put("Type de volet roulant",/kit motor/.test(s)?"Kit motorisation sur VR existant":/r[ée]no/.test(s)?"Rénovation (coffre extérieur)":/tradi/.test(s)?"Traditionnel (coffre intérieur)":/termo|enduire|monobloc/.test(s)?"Coffre à enduire (Termo, Rapido)":/bloc.?baie/.test(s)?"Bloc-baie (sur la menuiserie)":"");
+    put("Manœuvre",man);if(/battant|persienne/.test(s)){put("Matière",/alu/.test(s)?"Alu":/pvc/.test(s)?"PVC":/bois/.test(s)?"Bois":"");if(n)put("Vantaux",+n)}
+    const gm=/(roma|neolite|reveau|bubendorff|profalux|franciaflex|somfy|kl-fp)[^,]*/i.exec(p.d);if(gm)put("Gamme / fabricant",gm[0].trim())}
+  if(p.f==="fen"){if(/\+\s*(vr|volet)/.test(s)){put("Occultation","Volet roulant");put("Manœuvre",man)}
+    put("Type",/coulis/.test(s)?"Coulissant":/\bpf\b|porte.fen/.test(s)?"Porte-fenêtre":/\bf\b|fen/.test(s)?"Fenêtre":/fixe/.test(s)?"Fixe":"");if(n)put("Vantaux",+n)}}
+
 const newProd=(r,d,f,cote)=>({k:Math.random().toString(36).slice(2,9),r:r||"",d:d||"",f:f||famGuess(d),cote:cote||"",v:{},hab:[],et:{comp:"",silE:"",silI:"",mem:"",mou:"",opt:[],sol:""},fix:[],ann:[],ph:[]});
 
-let S=null,annot=false,crayon="Rouge";const urls=new Map();
+let S=null,annot=false,crayon="Rouge";const urls=new Map();window.mtEtat=()=>S;
 const ro=()=>!(canWrite||canFill);
-const fields=p=>FAM[p.f].g.flatMap(g=>g[1]);
+const grps=p=>FAM[p.f].g.filter(g=>!g[2]||g[2](p.v)).map(g=>[g[0],g[1].filter(c=>!c.w||c.w(p.v))]);
+const fields=p=>grps(p).flatMap(g=>g[1]);
 const fait=(p,c)=>{const v=p.v[c.l];return Array.isArray(v)?v.length>0:v!==undefined&&v!==""&&v!==0};
 const prog=p=>{const cs=fields(p).filter(c=>!c.opt);let a=cs.filter(c=>fait(p,c)).length,b=cs.length;
   if(ETF.includes(p.f)){b+=3;a+=(p.et.comp?1:0)+(p.et.silE?1:0)+(p.et.silI?1:0);p.hab.forEach(h=>{b++;if(h.pos&&h.p&&(h.c||h.p==="Fourni menuiserie"))a++})}
   return[a,b]};
-const dims=p=>[+p.v["Tableau L"]||+p.v["Largeur (entre tapées ou tableau)"]||0,+p.v["Tableau H"]||+p.v["Hauteur"]||0];
+const dims=p=>[+p.v["Tableau L"]||+p.v["Largeur entre tableaux"]||0,+p.v["Tableau H"]||+p.v["Hauteur de tableau"]||0];
 
 // ---------- enregistrement ----------
 function docOf(){const j=jobs.get(S.jid);return j&&(j.docs||[]).find(d=>d.id===S.did)}
@@ -76,10 +115,10 @@ async function lignesPdf(j){
   try{const r=await fetch("/_blob/"+d.id);if(!r.ok)return[];const doc=await PDFLib.PDFDocument.load(await r.arrayBuffer(),{ignoreEncryption:true});
     const F=doc.getForm().getFields().map(f=>{const n=f.getName(),m=/^cellule_(\d+)_(\d+)$/.exec(n);let v="";try{v=f.getText?f.getText()||"":""}catch(_){}return m?{p:+m[1],i:+m[2],v:v.trim()}:null}).filter(Boolean).sort((a,b)=>a.p-b.p||a.i-b.i);
     const out=[];for(let k=0;k<F.length-1;k++){const a=F[k],b=F[k+1];if(a.v&&!/^\d/.test(a.v)&&/^\d+\s*[×x*]\s*\d+$/.test(b.v)){
-      const m=/^([A-ZÀ-Ü0-9'’ /.-]{2,}?)\s+(?=[a-zà-ü])(.*)$/.exec(a.v),p=newProd(m?m[1].trim():"",m?m[2]:a.v,null,b.v.replace(/\s*[x*]\s*/," × "));
+      const m=coupeRep(a.v),p=newProd(m.r,m.d,null,b.v.replace(/\s*[x*]\s*/," × "));p.fg=1;
       const g=n=>(F[k+n]&&F[k+n].p===a.p?F[k+n].v:"");if(/^\d+$/.test(g(2)))p.v["Tableau L"]=g(2);if(/^\d+$/.test(g(3)))p.v["Tableau H"]=g(3);
       if(/^\d+$/.test(g(4)))p.v["Hors tout L"]=g(4);if(/^\d+$/.test(g(5)))p.v["Hors tout H"]=g(5);if(g(6))p.v["Cote de commande"]=g(6).replace(/\s*[x*]\s*/," × ");
-      out.push(p);k++}}
+      preRemplir(p);out.push(p);k++}}
     return out}catch(_){return[]}}
 window.mtNew=async jid=>{const j=jobs.get(jid);if(!j)return;
   const prod=await lignesPdf(j);
@@ -91,14 +130,16 @@ window.mtNew=async jid=>{const j=jobs.get(jid);if(!j)return;
 // ---------- ouverture ----------
 window.mtOpen=(jid,did)=>{const j=jobs.get(jid),d=j&&(j.docs||[]).find(d=>d.id===did);if(!d)return;
   S={jid,did,mt:JSON.parse(JSON.stringify(d.mt||{jeu:{c:5,t:5},prod:[]})),cur:0,dirty:false};S.mt.prod.forEach(p=>{p.et=p.et||{opt:[]};p.et.opt=p.et.opt||[];p.hab=p.hab||[];p.fix=p.fix||[];p.ann=p.ann||[];p.ph=p.ph||[];p.v=p.v||{}});
+  let rep=0;if(!ro())S.mt.prod.forEach(p=>{if(p.fg)return;const c=coupeRep(p.r+" "+p.d),f=famGuess(c.d);
+    if(f!==p.f&&Object.keys(p.v).every(k=>/^(Tableau|Hors tout|Cote de commande|Type|Vantaux)/.test(k))){p.f=f;p.r=c.r;p.d=c.d;rep++}preRemplir(p);p.fg=1});
   if(!S.mt.prod.length)S.cur=-2;
   $m("mttitre").textContent="Métré · "+(j.client||"");$m("mtsous").textContent=[j.adresse,j.ville].filter(Boolean).join(", ");
-  $m("mtov").hidden=false;$m("mtov").classList.toggle("ro",ro());document.body.style.overflow="hidden";draw()};
+  $m("mtov").hidden=false;$m("mtov").classList.toggle("ro",ro());document.body.style.overflow="hidden";draw();if(rep){sched();toast(rep+" produit"+(rep>1?"s reclassés":" reclassé")+" d'après le devis (volets, stores…)")}};
 window.mtClose=async()=>{if(!S)return;if(S.dirty){await save()}S=null;$m("mtov").hidden=true;document.body.style.overflow=""};
 
 // ---------- affichage ----------
 function liste(){const L=$m("mtliste");const P=S.mt.prod;
-  L.innerHTML=P.map((p,k)=>{const[a,b]=prog(p);return`<button type="button" class="it" data-k="${k}" aria-current="${k===S.cur}"><b>${esc2(p.r||"Repère ?")}</b><small>${esc2(FAM[p.f].n)}</small><small>${esc2(p.d)}</small><span class="jauge"><i style="width:${Math.round(100*a/Math.max(1,b))}%"></i></span><small>${a}/${b} points</small></button>`}).join("")
+  L.innerHTML=P.map((p,k)=>{const[a,b]=prog(p);return`<button type="button" class="it" data-k="${k}" aria-current="${k===S.cur}"><b>${esc2(p.r||"Repère à saisir")}</b><small>${esc2(FAM[p.f].n)}</small><small>${esc2(p.d)}</small><span class="jauge"><i style="width:${Math.round(100*a/Math.max(1,b))}%"></i></span><small>${a}/${b} points</small></button>`}).join("")
    +`<button type="button" class="it recap" data-k="-1" aria-current="${S.cur===-1}"><b>Consommables du chantier</b><small>Totaux calculés</small></button>`+(ro()?"":`<button type="button" class="ajout" data-k="-2">+ Ajouter un produit</button>`);
   L.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{S.cur=+b.dataset.k;draw();$m("mtfiche").scrollTop=0});
   const t=P.reduce((s,p)=>{const[a,b]=prog(p);return[s[0]+a,s[1]+b]},[0,0]);$m("mtglob").textContent=`${t[0]}/${t[1]} points relevés`}
@@ -108,7 +149,7 @@ function draw(){liste();const f=$m("mtfiche");f.innerHTML="";$m("mtjc").value=S.
   const t=document.createElement("div");t.className="ftete";
   t.innerHTML=`<label class="ch"><span>Repère</span><input type="text" data-x="r" value="${esc2(p.r)}"></label><label class="ch"><span>Désignation</span><input type="text" data-x="d" value="${esc2(p.d)}"></label><label class="ch"><span>Famille</span><select class="sel" data-x="f">${Object.entries(FAM).map(([k,F])=>`<option value="${k}" ${k===p.f?"selected":""}>${esc2(F.n)}</option>`).join("")}</select></label><label class="ch"><span>Cote devis</span><input type="text" data-x="cote" value="${esc2(p.cote)}"></label>`;
   t.querySelectorAll("[data-x]").forEach(e=>{const k=e.dataset.x;e.oninput=e.onchange=()=>{p[k]=e.value;sched();if(k==="f")draw();else liste()}});f.appendChild(t);
-  FAM[p.f].g.forEach(([titre,cs])=>{const g=document.createElement("section");g.className="grp";g.innerHTML=`<h3>${esc2(titre)}</h3>`;const d=document.createElement("div");d.className="champs";cs.forEach(c=>d.appendChild(champ(p,c)));g.appendChild(d);f.appendChild(g)});
+  grps(p).forEach(([titre,cs])=>{const g=document.createElement("section");g.className="grp";g.innerHTML=`<h3>${esc2(titre)}</h3>`;const d=document.createElement("div");d.className="champs";cs.forEach(c=>d.appendChild(champ(p,c)));g.appendChild(d);f.appendChild(g)});
   if(ETF.includes(p.f)){f.appendChild(habBloc(p));f.appendChild(coupeBloc(p));f.appendChild(etBloc(p))}
   f.appendChild(fixBloc(p));if(!ETF.includes(p.f))f.appendChild(coupeBloc(p));
   f.appendChild(photoBloc(p));
@@ -118,10 +159,15 @@ function draw(){liste();const f=$m("mtfiche");f.innerHTML="";$m("mtjc").value=S.
 function champ(p,c){const w=document.createElement("div");w.className="ch"+(c.t==="t"&&/^Accès|Façade|Pignons/.test(c.l)?" large":"")+(!c.opt&&!fait(p,c)?" vide":"");w.innerHTML=`<span>${esc2(c.l)}${c.opt?' <small>(si besoin)</small>':""}</span>`;
   const set=v=>{p.v[c.l]=v;sched();liste()};
   if(c.t==="mm"){const d=document.createElement("div");d.className="mm";const i=document.createElement("input");i.type="text";i.inputMode="numeric";i.value=p.v[c.l]||"";i.setAttribute("aria-label",c.l);
-    i.oninput=()=>{set(i.value.replace(/\D/g,""));i.value=p.v[c.l];w.classList.toggle("vide",!c.opt&&!i.value)};i.onchange=()=>{if(/Tableau|Isolation|isolation/.test(c.l))redraw()};d.append(i,Object.assign(document.createElement("em"),{textContent:"mm"}));w.appendChild(d)}
+    i.oninput=()=>{set(i.value.replace(/\D/g,""));i.value=p.v[c.l];w.classList.toggle("vide",!c.opt&&!i.value)};i.onchange=()=>redraw();d.append(i,Object.assign(document.createElement("em"),{textContent:"mm"}));w.appendChild(d)}
+  if(c.t==="tri"){const k=c.l+" · mesures",arr=(p.v[k]||["","",""]).slice(),d=document.createElement("div");d.className="tri";
+    c.sub.forEach((sb,n)=>{const z=document.createElement("label");z.innerHTML=`<small>${esc2(sb)}</small>`;const m=document.createElement("div");m.className="mm";const i=document.createElement("input");i.type="text";i.inputMode="numeric";i.value=arr[n]||"";i.setAttribute("aria-label",c.l+" "+sb);
+      i.oninput=()=>{arr[n]=i.value.replace(/\D/g,"");i.value=arr[n];p.v[k]=arr.slice();const ok=arr.filter(Boolean).map(Number);p.v[c.l]=ok.length?String(Math.min(...ok)):"";h.innerHTML=ok.length?`Retenue (la plus petite) : <b>${p.v[c.l]} mm</b>`:"3 mesures, la plus petite est retenue";w.classList.toggle("vide",!c.opt&&!ok.length);sched();liste()};
+      i.onchange=()=>redraw();m.append(i,Object.assign(document.createElement("em"),{textContent:"mm"}));z.appendChild(m);d.appendChild(z)});
+    const h=document.createElement("small");h.className="sub";const ok=arr.filter(Boolean);h.innerHTML=ok.length?`Retenue (la plus petite) : <b>${p.v[c.l]} mm</b>`:"3 mesures, la plus petite est retenue";w.append(d,h);w.classList.add("large")}
   if(c.t==="t"){const i=document.createElement("input");i.type="text";i.value=p.v[c.l]||"";i.setAttribute("aria-label",c.l);i.oninput=()=>{set(i.value);w.classList.toggle("vide",!c.opt&&!i.value)};w.appendChild(i)}
   if(c.t==="cmd"){const L=+p.v["Tableau L"],H=+p.v["Tableau H"],J=S.mt.jeu,prop=L&&H?`${L-2*J.c} × ${H-J.t}`:"";const i=document.createElement("input");i.type="text";i.value=p.v[c.l]||"";i.placeholder=prop||"L × H";i.setAttribute("aria-label",c.l);
-    i.oninput=()=>{set(i.value);w.classList.toggle("vide",!i.value)};const h=document.createElement("small");h.className="sub";
+    i.oninput=()=>{set(i.value);w.classList.toggle("vide",!i.value)};const h=document.createElement("small");h.className="sub";h.dataset.cmdh="1";
     h.innerHTML=prop?`Calcul : tableau − ${J.c} mm par côté, − ${J.t} mm en tête = <b>${prop}</b> `:"Saisissez le tableau pour avoir le calcul";
     if(prop&&!ro()&&p.v[c.l]!==prop){const b=document.createElement("button");b.type="button";b.className="b2 mini";b.textContent="Reprendre";b.onclick=()=>{set(prop);draw()};h.appendChild(b)}w.append(i,h)}
   if(c.t==="n"){const d=document.createElement("div");d.className="pas";const v=()=>+p.v[c.l]||0;d.innerHTML=`<button type="button" aria-label="moins">−</button><b>${v()||"–"}</b><button type="button" aria-label="plus">+</button>`;const[m,,pl]=d.children;m.onclick=()=>{set(Math.max(0,v()-1)||"");draw()};pl.onclick=()=>{set(v()+1);draw()};w.appendChild(d)}
@@ -182,10 +228,101 @@ function svgH(p,plus,u){const reno=/Réno/.test(p.v["Type de pose"]||p.v["Dorman
   <rect x="20" y="40" width="120" height="${iso?110:150}" fill="url(#hh${u})" stroke="#10407e"/>${iso?`<rect x="20" y="150" width="120" height="50" fill="#f3e6a6" stroke="#10407e"/><text x="80" y="180" font-size="9" text-anchor="middle" fill="#566070">doublage ${iso}</text>`:""}
   ${reno?`<rect x="140" y="118" width="34" height="9" fill="#d9c7a5" stroke="#8a7350"/>`:""}<rect x="140" y="127" width="34" height="24" fill="#7d8794"/><line x1="174" y1="139" x2="312" y2="139" stroke="#7fb0e0" stroke-width="3"/>${trace(p,["me","mi"],plus)}</svg>`}
 // les annotations sont gardées en coordonnées relatives (0 à 1) d'un cadre de proportions fixes : même dessin à l'écran et à l'impression
-const coupesHtml=(p,plus,u)=>{const et=ETF.includes(p.f);return`<div class="coupes${et?"":" seul"}">${et?`<div class="pan"><h4>Coupe verticale (haut / bas)</h4>${svgV(p,plus,u)}</div><div class="pan"><h4>Coupe horizontale (tableau)</h4>${svgH(p,plus,u)}</div>`:""}<div class="pan grille"><h4>Croquis</h4></div></div>`};
+// ---------- croquis propres à chaque produit (volets, stores, garage, portail) ----------
+const mmv=(v,k)=>v[k]?v[k]+" mm":"…";
+const DEFS=u=>`<defs><pattern id="hz${u}" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#9aa3b0" stroke-width="1.2"/></pattern><pattern id="tl${u}" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r=".9" fill="#7d8794"/></pattern><marker id="fl${u}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#10407e"/></marker></defs>`;
+const coteH=(u,x1,x2,y,t)=>`<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#10407e" marker-start="url(#fl${u})" marker-end="url(#fl${u})"/><text x="${(x1+x2)/2}" y="${y+13}" font-size="11" font-weight="700" text-anchor="middle" fill="#10407e">${esc2(t)}</text>`;
+const coteV=(u,x,y1,y2,t)=>`<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="#10407e" marker-start="url(#fl${u})" marker-end="url(#fl${u})"/><text x="${x+5}" y="${(y1+y2)/2}" font-size="11" font-weight="700" fill="#10407e" transform="rotate(90 ${x+5} ${(y1+y2)/2})" text-anchor="middle">${esc2(t)}</text>`;
+const T_=(x,y,t,o="")=>`<text x="${x}" y="${y}" font-size="10" fill="#566070" ${o}>${esc2(t)}</text>`;
+const motor=v=>/Moteur|Radio|Solaire/.test(v["Manœuvre"]||"");
+function manoeuvre(v,xg,xd,y){const c=v["Côté de manœuvre (vue int.)"],x=c==="Gauche"?xg:c==="Droite"?xd:null,a=v["Alimentation électrique"]||"";let o="";
+  if(x!=null){if(motor(v))o+=`<circle cx="${x}" cy="${y}" r="9" fill="#c96a2c"/><text x="${x}" y="${y+4}" font-size="11" font-weight="700" text-anchor="middle" fill="#fff">M</text>`;
+    else if(/Sangle/.test(v["Manœuvre"]||""))o+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${y+110}" stroke="#c96a2c" stroke-width="3"/><rect x="${x-5}" y="${y+110}" width="10" height="16" fill="#c96a2c"/>`;
+    else if(/Treuil/.test(v["Manœuvre"]||""))o+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${y+120}" stroke="#c96a2c" stroke-width="2.5"/><path d="M${x} ${y+120} h10" stroke="#c96a2c" stroke-width="3"/>`;
+    o+=T_(160,318,"manœuvre : "+(v["Manœuvre"]||"?").toLowerCase()+", côté "+c.toLowerCase()+" (vue int.)",'text-anchor="middle" font-weight="700" fill="#c96a2c"')}
+  if(/gauche|droite/.test(a)){const xa=/gauche/.test(a)?xg:xd;o+=`<text x="${xa}" y="${y+70}" font-size="18" text-anchor="middle">⚡</text>`+T_(xa,y+86,"alim.",'text-anchor="middle" font-weight="700"')}
+  return o}
+function svgOccFace(p,u){const v=p.v,pr=v["Produit"]||"Volet roulant",L=mmv(v,"Largeur entre tableaux"),H=mmv(v,"Hauteur de tableau"),t=v["Taille du coffre"];
+  const mur=`<rect x="16" y="14" width="288" height="22" fill="url(#hz${u})" stroke="#10407e"/><rect x="16" y="36" width="40" height="240" fill="url(#hz${u})" stroke="#10407e"/><rect x="264" y="36" width="40" height="240" fill="url(#hz${u})" stroke="#10407e"/><rect x="44" y="274" width="232" height="8" fill="#c9d1dc"/>`;
+  if(bat(v)){const n=Math.max(1,+v["Vantaux"]||2),w=208/n,mod=v["Modèle"]||"";let o=mur+`<rect x="56" y="36" width="208" height="238" fill="#e6f0fa"/>`;
+    for(let k=0;k<n;k++){const x=56+k*w;o+=`<rect x="${x+1}" y="38" width="${w-2}" height="234" fill="#eef1f5" stroke="#10407e"/>`;
+      if(/Persienn/.test(mod))for(let y=46;y<268;y+=8)o+=`<line x1="${x+5}" y1="${y}" x2="${x+w-5}" y2="${y}" stroke="#8a96a8"/>`;
+      else{for(let xx=x+9;xx<x+w-4;xx+=10)o+=`<line x1="${xx}" y1="40" x2="${xx}" y2="270" stroke="#c9d1dc"/>`;o+=`<rect x="${x+4}" y="62" width="${w-8}" height="7" fill="#8a96a8"/><rect x="${x+4}" y="232" width="${w-8}" height="7" fill="#8a96a8"/>`;if(/écharpe/.test(mod))o+=`<line x1="${x+6}" y1="232" x2="${x+w-6}" y2="69" stroke="#8a96a8" stroke-width="6"/>`}
+      const xg=k<n/2?x+2:x+w-2,hs=(+v["Hauteur de tableau"]||0)>1600?[65,150,236]:[65,236];hs.forEach(y=>o+=`<rect x="${xg-4}" y="${y-2}" width="8" height="10" fill="#1d2633"/>`)}
+    o+=T_(160,30,"vue de l'extérieur · gonds en noir",'text-anchor="middle"')+(v["Arrêts"]?T_(36,296,"arrêts : "+v["Arrêts"].toLowerCase()):"");
+    return`<svg viewBox="0 0 320 320" role="img" aria-label="Vue de face">${DEFS(u)}${o}${coteH(u,56,264,288,"L "+L)}${coteV(u,310,36,274,"H "+H)}</svg>`}
+  let o=mur+`<rect x="56" y="36" width="208" height="238" fill="#e6f0fa"/><line x1="160" y1="70" x2="160" y2="274" stroke="#9aa3b0"/>`;
+  if(!bso(v)){o+=`<rect x="56" y="36" width="208" height="34" fill="#d6dbe3" stroke="#10407e"/><text x="160" y="57" font-size="11" font-weight="700" text-anchor="middle" fill="#10407e">coffre ${esc2(t||"?")}</text>`;
+    o+=`<rect x="56" y="70" width="9" height="204" fill="#aab4c2"/><rect x="255" y="70" width="9" height="204" fill="#aab4c2"/>`}
+  if(zip(v))o+=`<rect x="65" y="70" width="190" height="120" fill="url(#tl${u})" opacity=".8"/><rect x="65" y="188" width="190" height="5" fill="#566070"/>`;
+  else if(bso(v)){const cab=v["Guidage"]==="Câbles";o+=`<rect x="56" y="36" width="208" height="16" fill="#d6dbe3" stroke="#10407e"/>`+(cab?`<line x1="62" y1="52" x2="62" y2="274" stroke="#566070"/><line x1="258" y1="52" x2="258" y2="274" stroke="#566070"/>`:`<rect x="56" y="52" width="9" height="222" fill="#aab4c2"/><rect x="255" y="52" width="9" height="222" fill="#aab4c2"/>`);
+    for(let y=58;y<200;y+=9)o+=`<line x1="66" y1="${y}" x2="254" y2="${y+3}" stroke="#7d8794" stroke-width="4"/>`}
+  else{for(let y=72;y<170;y+=7)o+=`<line x1="65" y1="${y}" x2="255" y2="${y}" stroke="#8a96a8"/>`;o+=`<rect x="65" y="168" width="190" height="5" fill="#566070"/>`}
+  o+=T_(160,10,"vue de l'intérieur",'text-anchor="middle"')+manoeuvre(v,36,284,88);
+  return`<svg viewBox="0 0 320 320" role="img" aria-label="Vue de face">${DEFS(u)}${o}${coteH(u,56,264,284,"L "+L)}${coteV(u,310,36,274,"H "+H)}</svg>`}
+function svgOccCoupe(p,u){const v=p.v,t=tv(v),pos=v["Position du coffre"]||"",taille=v["Taille du coffre"]||"?";
+  let lin=`<rect x="70" y="20" width="130" height="70" fill="url(#hz${u})" stroke="#10407e"/>`,fen=[150,90,240],cof=null,cou=null,lab="";
+  if(bat(v)){return`<svg viewBox="0 0 320 300" role="img" aria-label="Vue de dessus">${DEFS(u)}${T_(160,14,"vue de dessus",'text-anchor="middle"')}${T_(10,40,"EXT.")}${T_(285,290,"INT.")}
+    <rect x="20" y="120" width="70" height="90" fill="url(#hz${u})" stroke="#10407e"/><rect x="230" y="120" width="70" height="90" fill="url(#hz${u})" stroke="#10407e"/><line x1="0" y1="120" x2="320" y2="120" stroke="#10407e" stroke-dasharray="2 3"/>
+    <rect x="90" y="180" width="140" height="10" fill="#7d8794"/><line x1="92" y1="128" x2="158" y2="128" stroke="#10407e" stroke-width="5" stroke-dasharray="5 3"/><line x1="162" y1="128" x2="228" y2="128" stroke="#10407e" stroke-width="5" stroke-dasharray="5 3"/>
+    <line x1="88" y1="116" x2="22" y2="116" stroke="#10407e" stroke-width="5"/><line x1="232" y1="116" x2="298" y2="116" stroke="#10407e" stroke-width="5"/><circle cx="90" cy="120" r="4" fill="#1d2633"/><circle cx="230" cy="120" r="4" fill="#1d2633"/>
+    <path d="M158 128 A68 68 0 0 0 24 112" fill="none" stroke="#9aa3b0" stroke-dasharray="3 3"/><path d="M162 128 A68 68 0 0 1 296 112" fill="none" stroke="#9aa3b0" stroke-dasharray="3 3"/>
+    <rect x="10" y="100" width="8" height="12" fill="#c96a2c"/><rect x="302" y="100" width="8" height="12" fill="#c96a2c"/>${T_(6,94,"arrêt")}${T_(96,145,"gond")}${T_(110,205,"fenêtre")}
+    ${coteH(u,90,230,250,"L "+mmv(v,"Largeur entre tableaux"))}${coteV(u,305,128,182,"prof. "+mmv(v,"Profondeur du tableau"))}</svg>`}
+  if(banne(v)){return`<svg viewBox="0 0 320 300" role="img" aria-label="Vue de côté">${DEFS(u)}<rect x="10" y="10" width="26" height="280" fill="url(#hz${u})" stroke="#10407e"/><line x1="0" y1="290" x2="320" y2="290" stroke="#566070"/>
+    <rect x="36" y="70" width="34" height="24" rx="6" fill="#d6dbe3" stroke="#10407e"/><line x1="56" y1="92" x2="290" y2="150" stroke="#c96a2c" stroke-width="3"/><line x1="56" y1="94" x2="250" y2="125" stroke="#566070" stroke-width="2"/>
+    ${v["Lambrequin"]&&v["Lambrequin"]!=="Non"?`<rect x="286" y="150" width="8" height="26" fill="#c96a2c"/>`:""}${T_(76,66,(v["Type de store"]||"store banne")+" · "+(v["Support"]||"support ?").toLowerCase())}
+    ${coteH(u,36,292,200,"avancée "+mmv(v,"Avancée"))}${coteV(u,300,92,288,"pose "+mmv(v,"Hauteur de pose"))}</svg>`}
+  if(/^Kit/.test(t)||/Traditionnel/.test(t)){lin=`<rect x="70" y="20" width="80" height="70" fill="url(#hz${u})" stroke="#10407e"/>`;cof=[150,40,52,50];cou=[136,90];lab=/^Kit/.test(t)?"coffre existant (kit moteur)":"coffre intérieur";}
+  else if(/Bloc/.test(t)){cof=[146,90,44,36];fen=[150,126,240];cou=[140,126];lab="coffre bloc-baie"}
+  else if(/enduire/.test(t)){lin=`<rect x="70" y="20" width="130" height="30" fill="url(#hz${u})" stroke="#10407e"/>`;cof=[70,50,80,40];cou=[76,90];lab="coffre à enduire"}
+  else if(/Rénovation/.test(t)&&pos==="En tableau"){cof=[72,90,40,38];cou=[72,128];lab="coffre en tableau"}
+  else if(zip(v)&&/tableau/i.test(v["Pose"]||"")){cof=[72,90,40,38];cou=[72,128];lab="coffre en tableau"}
+  else if(zip(v)&&/plafond|linteau/i.test(v["Pose"]||"")){cof=[72,90,40,38];cou=[72,128];lab="coffre sous linteau"}
+  else if(bso(v)){lin=`<rect x="70" y="20" width="130" height="30" fill="url(#hz${u})" stroke="#10407e"/>`;cof=[70,50,60,40];cou=[76,90];lab=(v["Coffre ou linteau"]||"linteau BSO").toLowerCase()}
+  else{cof=[30,52,40,38];cou=[62,90];lab="coffre en façade"}
+  const pf=+v["Profondeur du tableau"]?mmv(v,"Profondeur du tableau"):"…";
+  return`<svg viewBox="0 0 320 300" role="img" aria-label="Coupe verticale">${DEFS(u)}${T_(12,14,"EXT.",'font-weight="700"')}${T_(280,14,"INT.",'font-weight="700"')}${lin}
+   <rect x="70" y="240" width="130" height="50" fill="url(#hz${u})" stroke="#10407e"/><polygon points="40,242 70,238 70,248 40,250" fill="#c9d1dc"/>
+   <rect x="${fen[0]}" y="${fen[1]}" width="16" height="${fen[2]-fen[1]}" fill="#7d8794"/><line x1="${fen[0]+8}" y1="${fen[1]+12}" x2="${fen[0]+8}" y2="${fen[2]-12}" stroke="#7fb0e0" stroke-width="3"/>
+   <rect x="${cof[0]}" y="${cof[1]}" width="${cof[2]}" height="${cof[3]}" rx="${/Quart/.test(v["Forme du coffre"]||"")?14:3}" fill="#d6dbe3" stroke="#10407e" stroke-width="1.5"/>
+   <circle cx="${cof[0]+cof[2]/2}" cy="${cof[1]+cof[3]/2}" r="${Math.min(cof[2],cof[3])/3}" fill="none" stroke="#566070"/>${/^Kit/.test(t)?`<text x="${cof[0]+cof[2]/2}" y="${cof[1]+cof[3]/2+4}" font-size="11" font-weight="700" text-anchor="middle" fill="#c96a2c">M</text>`:""}
+   ${bso(v)&&v["Guidage"]==="Câbles"?`<line x1="${cou[0]+3}" y1="${cou[1]}" x2="${cou[0]+3}" y2="238" stroke="#566070"/>`:`<rect x="${cou[0]}" y="${cou[1]}" width="6" height="${238-cou[1]}" fill="#aab4c2"/>`}
+   <line x1="${cou[0]+3}" y1="${cou[1]}" x2="${cou[0]+3}" y2="200" stroke="#c96a2c" stroke-width="2" stroke-dasharray="5 3"/>
+   ${T_(Math.max(6,cof[0]-4),cof[1]-6,lab+(bso(v)?"":" "+taille))}${coteH(u,70,fen[0],272,"prof. tableau "+pf)}
+   ${+v["Hauteur disponible au-dessus de l'ouverture"]?coteV(u,212,40,90,"dispo "+mmv(v,"Hauteur disponible au-dessus de l'ouverture")):""}</svg>`}
+function svgGarage(p,u){const v=p.v,ty=v["Type"]||"Sectionnelle";let o=`<rect x="10" y="20" width="300" height="56" fill="url(#hz${u})" stroke="#10407e"/><rect x="10" y="76" width="56" height="200" fill="url(#hz${u})" stroke="#10407e"/><rect x="254" y="76" width="56" height="200" fill="url(#hz${u})" stroke="#10407e"/><line x1="0" y1="276" x2="320" y2="276" stroke="#566070" stroke-width="2"/><line x1="0" y1="14" x2="320" y2="14" stroke="#566070" stroke-dasharray="4 3"/>${T_(260,10,"plafond")}`;
+  o+=`<rect x="66" y="76" width="188" height="200" fill="#eef1f5" stroke="#10407e"/>`;
+  if(/Section/.test(ty))[0,1,2,3].forEach(k=>o+=`<line x1="66" y1="${76+50*k}" x2="254" y2="${76+50*k}" stroke="#7d8794" stroke-width="2"/>`);
+  else if(/Enroul/.test(ty)){for(let y=80;y<276;y+=6)o+=`<line x1="66" y1="${y}" x2="254" y2="${y}" stroke="#aab4c2"/>`;o+=`<rect x="66" y="56" width="188" height="20" fill="#d6dbe3" stroke="#10407e"/>`}
+  else if(/Battante/.test(ty))o+=`<line x1="160" y1="76" x2="160" y2="276" stroke="#7d8794" stroke-width="2"/>`;
+  if((v["Options"]||[]).includes("Hublots"))[100,145,190].forEach(x=>o+=`<rect x="${x}" y="112" width="30" height="14" rx="4" fill="#bcd3ee"/>`);
+  if((v["Options"]||[]).includes("Portillon intégré"))o+=`<rect x="190" y="150" width="50" height="124" fill="none" stroke="#c96a2c" stroke-width="2"/>`;
+  return`<svg viewBox="0 0 320 320" role="img" aria-label="Vue de face">${DEFS(u)}${o}${T_(160,32,"vue de l'intérieur · "+ty.toLowerCase(),'text-anchor="middle" font-weight="700"')}
+   ${coteH(u,66,254,298,"L "+mmv(v,"Tableau L"))}${coteV(u,300,76,276,"H "+mmv(v,"Tableau H"))}${coteV(u,150,20,76,"retombée "+mmv(v,"Retombée de linteau"))}
+   ${coteH(u,10,66,258,"G "+mmv(v,"Écoinçon gauche"))}${coteH(u,254,310,258,"D "+mmv(v,"Écoinçon droit"))}</svg>`}
+function svgPortail(p,u){const v=p.v,ty=v["Type"]||"Battant",int=(v["Sens (vue de la rue)"]||"Vers l'intérieur")==="Vers l'intérieur",yv=150,dy=int?-1:1;
+  let o=`${T_(140,290,"RUE",'font-weight="700"')}${T_(120,22,"PROPRIÉTÉ",'font-weight="700"')}<rect x="40" y="140" width="24" height="24" fill="url(#hz${u})" stroke="#10407e"/><rect x="256" y="140" width="24" height="24" fill="url(#hz${u})" stroke="#10407e"/>`;
+  if(/Coulissant/.test(ty)){const g=v["Refoulement (coulissant)"]!=="Vers la droite";o+=`<rect x="64" y="${yv-4}" width="192" height="8" fill="#10407e"/><path d="M${g?120:200} ${yv+24} h${g?-60:60}" stroke="#c96a2c" stroke-width="3" marker-end="url(#fl${u})"/>`
+      +`<rect x="${g?2:280}" y="${yv-3}" width="38" height="6" fill="none" stroke="#9aa3b0" stroke-dasharray="4 3"/>`+T_(g?10:230,yv+44,"refoulement "+mmv(v,"Longueur de refoulement disponible"))}
+  else if(/Portillon/.test(ty)){o+=`<line x1="64" y1="${yv}" x2="256" y2="${yv}" stroke="#10407e" stroke-width="2" stroke-dasharray="5 3"/><line x1="64" y1="${yv}" x2="64" y2="${yv+dy*150}" stroke="#10407e" stroke-width="5"/><path d="M256 ${yv} A192 192 0 0 ${int?0:1} 64 ${yv+dy*192}" fill="none" stroke="#9aa3b0" stroke-dasharray="3 3"/>`}
+  else{const r=v["Vantaux"]==="Inégaux"?.62:.5,xm=64+192*r;o+=`<line x1="64" y1="${yv}" x2="${xm}" y2="${yv}" stroke="#10407e" stroke-width="2" stroke-dasharray="5 3"/><line x1="${xm}" y1="${yv}" x2="256" y2="${yv}" stroke="#10407e" stroke-width="2" stroke-dasharray="5 3"/>`
+      +`<line x1="64" y1="${yv}" x2="${64+18}" y2="${yv+dy*(xm-64-10)}" stroke="#10407e" stroke-width="5"/><line x1="256" y1="${yv}" x2="${256-18}" y2="${yv+dy*(256-xm-10)}" stroke="#10407e" stroke-width="5"/>`
+      +`<path d="M${xm} ${yv} A${xm-64} ${xm-64} 0 0 ${int?0:1} ${64+18} ${yv+dy*(xm-64-10)}" fill="none" stroke="#9aa3b0" stroke-dasharray="3 3"/><path d="M${xm} ${yv} A${256-xm} ${256-xm} 0 0 ${int?1:0} ${256-18} ${yv+dy*(256-xm-10)}" fill="none" stroke="#9aa3b0" stroke-dasharray="3 3"/>`}
+  if(v["Moteur"]&&v["Moteur"]!=="Non")o+=`<circle cx="76" cy="${yv+dy*-18}" r="9" fill="#c96a2c"/><text x="76" y="${yv+dy*-18+4}" font-size="11" font-weight="700" text-anchor="middle" fill="#fff">M</text>`;
+  if((v["Accessoires"]||[]).includes("Photocellules"))o+=`<rect x="30" y="170" width="8" height="8" fill="#c96a2c"/><rect x="282" y="170" width="8" height="8" fill="#c96a2c"/><line x1="38" y1="174" x2="282" y2="174" stroke="#c96a2c" stroke-dasharray="2 4"/>`;
+  return`<svg viewBox="0 0 320 300" role="img" aria-label="Vue de dessus">${DEFS(u)}${T_(160,40,"vue de dessus · "+ty.toLowerCase()+" · ouverture "+(int?"vers l'intérieur":"vers l'extérieur"),'text-anchor="middle"')}${o}
+   ${coteH(u,64,256,250,"entre piliers "+mmv(v,"Entre piliers en bas"))}</svg>`}
+// les annotations sont gardées en coordonnées relatives (0 à 1) d'un cadre de proportions fixes : même dessin à l'écran et à l'impression
+const coupesHtml=(p,plus,u)=>{const et=ETF.includes(p.f),cro=`<div class="pan grille"><h4>Croquis</h4></div>`,pan=(t,x)=>`<div class="pan"><h4>${t}</h4>${x}</div>`;
+  if(et)return`<div class="coupes">${pan("Coupe verticale (haut / bas)",svgV(p,plus,u))}${pan("Coupe horizontale (tableau)",svgH(p,plus,u))}${cro}</div>`;
+  if(p.f==="occ"){const v=p.v;return`<div class="coupes">${banne(v)?pan("Vue de côté",svgOccCoupe(p,u)):pan(bat(v)?"Vue de face":"Vue de face",svgOccFace(p,u))+pan(bat(v)?"Vue de dessus (ouverture)":"Coupe verticale (position du coffre)",svgOccCoupe(p,u))}${banne(v)?cro.replace("Croquis","Vue de face / croquis"):cro}</div>`}
+  if(p.f==="garage")return`<div class="coupes deux">${pan("Vue de face",svgGarage(p,u))}${cro}</div>`;
+  if(p.f==="portail")return`<div class="coupes deux">${pan("Vue de dessus",svgPortail(p,u))}${cro}</div>`;
+  return`<div class="coupes seul">${cro}</div>`};
 const annSvg=p=>`<svg class="annsvg" viewBox="0 0 1000 1000" preserveAspectRatio="none">${p.ann.map(s=>`<polyline points="${s.p.split(" ").map(xy=>xy.split(",").map(n=>Math.round(n*1000)).join(",")).join(" ")}" fill="none" stroke="${COUL[s.c]||"#c0392b"}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`).join("")}</svg>`;
 function coupeBloc(p){const g=document.createElement("section");g.className="grp";const et=ETF.includes(p.f);
-  g.innerHTML=`<h3>${et?"Coupes de principe et croquis":"Croquis"}</h3><p class="sub">${et?"Les habillages choisis se dessinent à leur place ; touchez un + pour en ajouter un. ":""}Touchez « Annoter » pour dessiner par-dessus, au doigt ou au stylet ; touchez-le à nouveau pour faire défiler la page.</p>`;
+  g.innerHTML=`<h3>${et?"Coupes de principe et croquis":p.f==="veranda"?"Plan et croquis":"Croquis du produit"}</h3><p class="sub">${et?"Les habillages choisis se dessinent à leur place ; touchez un + pour en ajouter un. ":p.f==="veranda"?"":"Le dessin suit les choix de la fiche (type, coffre, manœuvre, côtés) et affiche les cotes saisies. "}Touchez « Annoter » pour dessiner par-dessus, au doigt ou au stylet ; touchez-le à nouveau pour faire défiler la page.</p>`;
   const tb=document.createElement("div");tb.className="atb";
   if(!ro())tb.innerHTML=`<button type="button" data-a="on" aria-pressed="${annot}">✏️ Annoter</button>${Object.entries(COUL).map(([n,c])=>`<button type="button" class="pt" data-c="${n}" aria-label="Crayon ${n.toLowerCase()}" aria-pressed="${crayon===n}" style="background:${c}"></button>`).join("")}<button type="button" data-a="undo">↶ Annuler le trait</button><button type="button" data-a="clr">Tout effacer</button>`;
   const w=document.createElement("div");w.innerHTML=coupesHtml(p,!ro(),"e");const z=w.firstChild;if(annot&&!ro())z.classList.add("on");
@@ -207,9 +344,9 @@ function ajout(f){f.innerHTML=`<div class="ftete"><h2>Ajouter un produit</h2></d
   <label class="ch"><span>Repère (pièce)</span><input type="text" id="mtar" placeholder="ex. Séjour"></label><label class="ch large"><span>Désignation</span><input type="text" id="mtad" placeholder="ex. Fenêtre 2 vantaux PVC 1200 × 1350"></label>
   <label class="ch"><span>Famille</span><select class="sel" id="mtaf">${Object.entries(FAM).map(([k,F])=>`<option value="${k}">${esc2(F.n)}</option>`).join("")}</select></label><label class="ch"><span>Cote devis</span><input type="text" id="mtac" placeholder="L × H"></label></div>
   <button type="button" class="b1" id="mtaok">Ajouter</button></section>${S.mt.prod.length?"":`<p class="sub">Aucun produit pour l'instant. Astuce : si le chantier a déjà un métré PDF pré-rempli, ses lignes sont reprises à la création.</p>`}`}`;
-  if(ro())return;$m("mtad").oninput=()=>{$m("mtaf").value=famGuess($m("mtad").value)};
+  if(ro())return;$m("mtad").oninput=()=>{$m("mtaf").value=famGuess($m("mtad").value)};$m("mtar").oninput=()=>{};
   $m("mtaok").onclick=()=>{const r=$m("mtar").value.trim(),d=$m("mtad").value.trim();if(!r&&!d){$m("mtar").focus();return}
-    S.mt.prod.push(newProd(r,d,$m("mtaf").value,$m("mtac").value.trim()));S.cur=S.mt.prod.length-1;sched();draw()}}
+    {const np=newProd(r,d,$m("mtaf").value,$m("mtac").value.trim());np.fg=1;preRemplir(np);S.mt.prod.push(np)}S.cur=S.mt.prod.length-1;sched();draw()}}
 
 // ---------- consommables du chantier (mêmes calculs que le métré PDF) ----------
 function totaux(){const sil={},comp={},hab={},vis={},manque=[];let mou=0;
@@ -244,10 +381,16 @@ function imprimer(){const j=jobs.get(S.jid)||{},P=S.mt.prod,{rows}=totaux();
 
 // redessin après une cote : attendu jusqu'à la fin du toucher en cours (sinon le bouton touché disparaît sous le doigt)
 let doigt=false,aRedessiner=false;
-function redraw(){if(!S)return;if(doigt){aRedessiner=true;return}draw()}
+function redraw(){if(!S)return;if(doigt){aRedessiner=true;return}majVisuels()}
 addEventListener("pointerdown",()=>{doigt=true},true);
-const lache=()=>setTimeout(()=>{doigt=false;if(aRedessiner&&S){aRedessiner=false;draw()}},0);
+const lache=()=>setTimeout(()=>{doigt=false;if(aRedessiner&&S){aRedessiner=false;majVisuels()}},0);
 addEventListener("click",lache,true);addEventListener("pointercancel",lache,true);addEventListener("pointerup",()=>setTimeout(lache,350),true);
+function majVisuels(){if(!S||!S.mt.prod[S.cur])return;const p=S.mt.prod[S.cur],f=$m("mtfiche");
+  const z=f.querySelector(".coupes");if(z){const t=document.createElement("div");t.innerHTML=coupesHtml(p,!ro(),"e");const nv=t.querySelectorAll(".pan svg");z.querySelectorAll(".pan svg").forEach((o,k)=>{if(nv[k])o.replaceWith(nv[k])});
+    z.querySelectorAll(".hs").forEach(h=>{const add=()=>{p.hab.push({pos:SPOT[h.dataset.sp],p:"",c:"",r:""});sched();draw()};h.onclick=add})}
+  f.querySelectorAll("[data-cmdh]").forEach(h=>{const L=+p.v["Tableau L"],H=+p.v["Tableau H"],J=S.mt.jeu,prop=L&&H?`${L-2*J.c} × ${H-J.t}`:"";h.innerHTML=prop?`Calcul : tableau − ${J.c} mm par côté, − ${J.t} mm en tête = <b>${prop}</b> `:"Saisissez le tableau pour avoir le calcul";
+    if(prop&&!ro()&&p.v["Cote de commande"]!==prop){const b=document.createElement("button");b.type="button";b.className="b2 mini";b.textContent="Reprendre";b.onclick=()=>{p.v["Cote de commande"]=prop;sched();draw()};h.appendChild(b)}});
+  const[L,H]=dims(p);f.querySelectorAll(".hl .ml").forEach((m,k)=>{const h=p.hab[k];if(h)m.textContent=L&&H&&HAB_POS[h.pos]?mlf(HAB_POS[h.pos](L,H)):"–"})}
 // ---------- fenêtre ----------
 const css=`#mtov{position:fixed;inset:0;z-index:60;background:var(--bg,#f5f5f7);color:var(--ink,#1d1d1f);display:grid;grid-template-rows:auto 1fr;font-size:16px}
 #mtov .mbar{background:#10407e;color:#fff;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
@@ -267,7 +410,7 @@ const css=`#mtov{position:fixed;inset:0;z-index:60;background:var(--bg,#f5f5f7);
 #mtov .grp h3{font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:#10407e;margin:0}#mtov .sub{font-size:13px;color:var(--muted,#6e6e73);margin:0}
 #mtov .champs{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px}
 #mtov .ch{display:grid;gap:5px;align-content:start;min-width:0}#mtov .ch>span{font-size:14px;font-weight:600}#mtov .ch small{font-weight:400;color:var(--muted,#6e6e73)}#mtov .ch.large{grid-column:1/-1}
-#mtov .ch.vide>span::after{content:" •";color:#c96a2c}
+#mtov .tri{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}#mtov .tri label{display:grid;gap:3px}#mtov .ch.vide>span::after{content:" •";color:#c96a2c}
 #mtov .mm{display:flex;align-items:center;border:1px solid var(--line,#d3dae4);border-radius:10px;background:var(--surface,#fff);overflow:hidden}
 #mtov .mm input{border:0;font:600 19px inherit;padding:8px 10px;width:100%;min-width:0;background:none;color:inherit}#mtov .mm em{font-style:normal;color:var(--muted,#6e6e73);padding:0 10px;font-size:14px}
 #mtov input[type=text],#mtov textarea,#mtov .sel{font:400 16px inherit;width:100%;box-sizing:border-box;border:1px solid var(--line,#d3dae4);border-radius:10px;padding:9px 10px;background:var(--surface,#fff);color:inherit;min-width:0}
@@ -282,7 +425,7 @@ const css=`#mtov{position:fixed;inset:0;z-index:60;background:var(--bg,#f5f5f7);
 #mtov .b2.mini{padding:3px 8px;font-size:12px;margin-left:6px}#mtov .b2.rouge{color:#b83a3a}#mtov .acts{display:flex;flex-wrap:wrap;gap:10px}
 #mtov .atb{display:flex;flex-wrap:wrap;gap:6px;align-items:center}#mtov .atb button{font:600 14px inherit;padding:8px 12px;border-radius:10px;border:1.5px solid var(--line,#d3dae4);background:var(--surface,#fff);color:inherit;cursor:pointer}
 #mtov .atb button[aria-pressed="true"]{box-shadow:0 0 0 2px #10407e inset;border-color:#10407e}#mtov .atb .pt{width:34px;height:34px;padding:0;border-radius:50%}
-.coupes{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;aspect-ratio:3/1.5}.coupes.seul{grid-template-columns:1fr;aspect-ratio:2.2/1}
+.coupes{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;aspect-ratio:3/1.5}.coupes.seul{grid-template-columns:1fr;aspect-ratio:2.2/1}.coupes.deux{grid-template-columns:1fr 1fr;aspect-ratio:2/1.05}
 .coupes .pan{border:1px solid #c9d1dc;border-radius:10px;background:#fff;color:#1d2633;padding:6px;display:flex;flex-direction:column;gap:2px;min-height:0;overflow:hidden}
 .coupes .pan h4{margin:0;font-size:13px;color:#10407e}.coupes .pan svg{flex:1;min-height:0;width:100%;height:100%}
 .coupes .pan.grille{background-image:linear-gradient(#e4e9f0 1px,transparent 1px),linear-gradient(90deg,#e4e9f0 1px,transparent 1px);background-size:14px 14px}
