@@ -63,12 +63,17 @@ def liste():
         d = r["data"]; docs = d.get("docs") or []
         neufs = [x for x in docs if not x.get("traite")]
         sans = not any(x.get("type") in FICHES for x in docs)
-        if not neufs and not sans: continue
+        # type changé dans l'appli (neuf ↔ rénovation, Steven 20/11/2026) : la fiche du nouveau type manque
+        manque = ""
+        if not sans and docs and d.get("typeChange") and not d.get("devis_manquant"):
+            if d.get("type") == "neuf" and not any(x.get("type") == "Support" for x in docs): manque = "Support"
+            elif d.get("type") != "neuf" and not d.get("sansMetre") and not any(x.get("type") == "Métré" for x in docs): manque = "Métré"
+        if not neufs and not sans and not manque: continue
         print(f"== {r['id']} · {d.get('client', '')} · type {d.get('type') or '?'} · commercial {d.get('commercial') or '?'}"
-              + (" · SANS FICHES" if sans else ""))
+              + (" · SANS FICHES" if sans else "") + (f" · FICHE MANQUANTE {manque} (type changé)" if manque else ""))
         for x in neufs:
             print(f"   à contrôler : {x.get('type')} | {x.get('name')} | {x.get('at')} | {x['id']}" + (" | REMPLIE" if x.get("rempli") else ""))
-        if sans:
+        if sans or manque:
             for x in docs:
                 if x.get("type") == "Devis": print(f"   devis : {x.get('name')} | {x['id']}")
 

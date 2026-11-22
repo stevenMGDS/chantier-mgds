@@ -147,6 +147,12 @@ html.embed body{background:transparent}html.embed header.top,html.embed .who{dis
 .viewer input.fld[type=checkbox]{appearance:none;-webkit-appearance:none;cursor:pointer;padding:0}
 .viewer input.fld[type=checkbox]:checked{background:var(--accent);box-shadow:inset 0 0 0 2px #fff}
 #vfill{font:600 14px var(--f-body);color:var(--s-orange)}#vfill.ok{color:var(--s-vert)}
+.acam{position:fixed;inset:0;z-index:200;background:#000;display:grid;grid-template-rows:auto 1fr auto auto;color:#fff}
+.acam video{width:100%;height:100%;object-fit:contain;min-height:0;background:#000}.acam.flash video{opacity:.4}
+.acamh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top))}.acamh b{font-size:17px}
+.acamt{display:flex;gap:6px;overflow-x:auto;padding:6px 12px;min-height:8px}.acamt img{height:58px;border-radius:6px;border:2px solid #fff}
+.acamb{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;padding-bottom:max(14px,env(safe-area-inset-bottom))}
+.acamb .btn{min-width:110px}.acamb .shot{width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:#e8e8e8;cursor:pointer}
 </style>
 <link rel="stylesheet" href="theme-mac.css">
 </head>
@@ -170,6 +176,20 @@ if(/[?&]embed=1/.test(location.search))document.documentElement.classList.add("e
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let sb,me,role="lecteur",chr=false,profils=[],chantiers=new Map(),week,tab,openId=null;
+window.appCam=async(onFiles,{titre="Photo",repli}={})=>{
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){repli&&repli();return}
+  let st;try{st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:2560},height:{ideal:1920}},audio:false})}
+  catch(e){toast(e&&e.name==="NotAllowedError"?"Autorisez l'appareil photo pour l'appli (réglages du navigateur), ou choisissez une photo.":"Appareil photo indisponible : choisissez une photo.");repli&&repli();return}
+  const ov=document.createElement("div");ov.className="acam";ov.setAttribute("role","dialog");ov.setAttribute("aria-label","Appareil photo");
+  ov.innerHTML=`<div class="acamh"><b></b><span class="acamn">0 photo</span></div><video playsinline muted autoplay></video><div class="acamt"></div><div class="acamb"><button type="button" class="btn ghost" data-a="x">Annuler</button><button type="button" class="shot" data-a="s" aria-label="Prendre la photo"></button><button type="button" class="btn" data-a="ok" disabled>Envoyer</button></div>`;
+  ov.querySelector("b").textContent=titre;document.body.appendChild(ov);const v=ov.querySelector("video");v.srcObject=st;v.play().catch(()=>{});
+  const pris=[],fin=()=>{st.getTracks().forEach(t=>t.stop());ov.remove()},maj=()=>{ov.querySelector(".acamn").textContent=pris.length+" photo"+(pris.length>1?"s":"");const b=ov.querySelector('[data-a="ok"]');b.disabled=!pris.length;b.textContent=pris.length?"Envoyer ("+pris.length+")":"Envoyer"};
+  ov.addEventListener("click",async e=>{const a=e.target.closest("[data-a]");if(!a)return;e.stopPropagation();
+    if(a.dataset.a==="x"){if(!pris.length||confirm("Abandonner les "+pris.length+" photo(s) prise(s) ?"))fin()}
+    else if(a.dataset.a==="ok"){fin();onFiles(pris)}
+    else if(a.dataset.a==="s"&&v.videoWidth){const c=document.createElement("canvas");c.width=v.videoWidth;c.height=v.videoHeight;c.getContext("2d").drawImage(v,0,0);
+      const b=await new Promise(r=>c.toBlob(r,"image/jpeg",.9));c.width=0;if(!b)return;pris.push(new File([b],"photo-"+(pris.length+1)+".jpg",{type:"image/jpeg"}));
+      const im=new Image();im.src=URL.createObjectURL(b);im.alt="Photo "+pris.length;ov.querySelector(".acamt").appendChild(im);ov.classList.add("flash");setTimeout(()=>ov.classList.remove("flash"),120);maj()}})};
 let tT;function toast(t){const e=$("toast");e.textContent=t;e.hidden=false;clearTimeout(tT);tT=setTimeout(()=>e.hidden=true,3500)}
 
 // ---------- dates (heure locale) ----------
@@ -285,7 +305,7 @@ const CATS=[["avant","Photos avant chantier","De préférence une fois les prote
   ["conso_retour","Consommables remis au stock","En fin de chantier, photographiez ce que vous rapportez."]];
 const CAT_L=Object.fromEntries(CATS.map(c=>[c[0],c[1]]));
 // ---------- onglet Stock (poseurs) : photographier ce qu'on prend ou rapporte au stock, sans passer par la fiche du chantier ----------
-let stkJob="";
+let stkJob="",stkLibre="";
 async function vStock(v){
   const t=new Date(),pl=await loadPlanning(iso(addDays(t,-21)),iso(addDays(t,21))),td=today();
   const mesJours=pl.filter(p=>p.poseur===me&&chantiers.has(p.chantier));
@@ -299,12 +319,14 @@ async function vStock(v){
      <label class="btn ghost small" style="display:block;text-align:center;margin-top:8px">ou choisir dans la galerie<input type="file" accept="image/*" multiple hidden data-up="${k}" data-job="1" data-note="stk-note"></label></div>`;
   v.innerHTML=`<div class="box" style="margin-top:16px"><h3>📷 Photographier des consommables</h3>
     <div class="sub">Avant de partir, photographiez ce que vous prenez au stock (silicone, mousse, vis…). En fin de chantier, ce que vous rapportez.</div>
-    <label class="fld" style="margin-top:12px">Chantier<select id="stk-job"><option value="">Choisir le chantier…</option>${ids.map(i=>`<option value="${esc(i)}" ${i===stkJob?"selected":""}>${esc(jobName(i))}${(rang.get(i)||[3])[0]===0?" (aujourd'hui)":""}</option>`).join("")}</select></label>
+    <label class="fld" style="margin-top:12px">Chantier<select id="stk-job"><option value="">Choisir le chantier…</option>${ids.map(i=>`<option value="${esc(i)}" ${i===stkJob?"selected":""}>${esc(jobName(i))}${(rang.get(i)||[3])[0]===0?" (aujourd'hui)":""}</option>`).join("")}<option value="__libre" ${stkJob==="__libre"?"selected":""}>✏️ Autre chantier ou SAV (pas dans la liste)</option></select></label>
+    <label class="fld" id="stk-librew" ${stkJob==="__libre"?"":"hidden"}>Quel chantier ? (client, ville, SAV…)<input type="text" id="stk-libre" value="${esc(stkLibre)}" placeholder="ex. SAV Dupont, Saran"></label>
     <label class="fld">Ce que vous prenez ou rapportez (facultatif)<input type="text" id="stk-note" placeholder="ex. 4 silicones blanc, 2 mousses"></label>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">${bt("conso_sortie","Sortie du stock","ce que j'emporte")}${bt("conso_retour","Retour au stock","ce que je rapporte")}</div></div>
-   <div class="box"><h3>Mes dernières photos de stock</h3>${ph.length?`<div class="thumbs">${ph.map(p=>`<button data-photo="${p.id}" aria-label="Voir la photo">${urls[p.chemin]?`<img src="${esc(urls[p.chemin])}" alt="" loading="lazy">`:""}<span class="cap">${p.categorie==="conso_sortie"?"Sortie":"Retour"} · ${esc(jobShort(p.chantier))} · ${esc(fmtTs(p.pris_le))}</span></button>`).join("")}</div>`:`<div class="sub">Aucune pour l'instant.</div>`}</div>`;
+   <div class="box"><h3>Mes dernières photos de stock</h3>${ph.length?`<div class="thumbs">${ph.map(p=>`<button data-photo="${p.id}" aria-label="Voir la photo">${urls[p.chemin]?`<img src="${esc(urls[p.chemin])}" alt="" loading="lazy">`:""}<span class="cap">${p.categorie==="conso_sortie"?"Sortie":"Retour"} · ${esc(p.chantier?jobShort(p.chantier):p.chantier_libre||"")} · ${esc(fmtTs(p.pris_le))}</span></button>`).join("")}</div>`:`<div class="sub">Aucune pour l'instant.</div>`}</div>`;
   v._photos=ph;v._urls=urls;
-  $("stk-job").addEventListener("change",e=>{stkJob=e.target.value});
+  $("stk-job").addEventListener("change",e=>{stkJob=e.target.value;$("stk-librew").hidden=stkJob!=="__libre";if(stkJob==="__libre")$("stk-libre").focus()});
+  $("stk-libre").addEventListener("input",e=>{stkLibre=e.target.value});
 }
 const FICHES=["Préparation","Métré","Plans d'exé","Réception"]; // réception de fin de chantier en dernier
 const FICHE_L={"Préparation":"Fiche de préparation","Métré":"Fiche de métré","Réception":"Fiche de réception","Plans d'exé":"Plans d'exé"};
@@ -363,23 +385,32 @@ async function shrink(file){
   }catch(_){return file.type==="image/jpeg"&&file.size<8e6?file:null}
   finally{URL.revokeObjectURL(url)}
 }
-document.addEventListener("change",async e=>{const inp=e.target.closest("[data-up]");if(!inp||!inp.files.length)return;
-  const cat=inp.dataset.up,id=inp.dataset.job?($("stk-job")||{}).value:openId,files=[...inp.files],note=($(inp.dataset.note||"note-"+cat)?.value||"").trim()||null;inp.value="";
-  if(!id){toast("Choisissez d'abord le chantier.");return}
-  if(inp.dataset.job)stkJob=id;
+document.addEventListener("change",async e=>{const inp=e.target.closest("[data-up]");if(!inp||!inp.files.length)return;const files=[...inp.files];inp.value="";envoiPhotos(inp,files)});
+// appareil photo de l'appli (Steven, 20/11/2026 : certains téléphones ouvraient le dossier au lieu de l'appareil photo) :
+// un bouton « Prendre une photo » ouvre la caméra dans l'appli, plusieurs photos d'affilée ; sans caméra, l'ancien sélecteur
+document.addEventListener("click",e=>{const l=e.target.closest("label");if(!l)return;const inp=l.querySelector("input[type=file][capture][data-up]");if(!inp||e.target===inp)return;
+  if(inp.dataset.job&&!photoCible(inp).ok){e.preventDefault();toast(photoCible(inp).msg);return}
+  e.preventDefault();appCam(fs=>envoiPhotos(inp,fs),{repli:()=>inp.click()})});
+function photoCible(inp){if(!inp.dataset.job)return{ok:!!openId,id:openId,lib:null};const v=($("stk-job")||{}).value;
+  if(v==="__libre"){const t=(($("stk-libre")||{}).value||"").trim();return t?{ok:true,id:null,lib:t}:{ok:false,msg:"Écrivez le chantier ou le SAV."}}
+  return v?{ok:true,id:v,lib:null}:{ok:false,msg:"Choisissez d'abord le chantier."}}
+async function envoiPhotos(inp,files){
+  const cat=inp.dataset.up,C=photoCible(inp),note=($(inp.dataset.note||"note-"+cat)?.value||"").trim()||null;
+  if(!C.ok){toast(C.msg||"Choisissez d'abord le chantier.");return}const id=C.id;
+  if(inp.dataset.job)stkJob=id||"__libre";
   let ok=0;
   for(const [n,f] of files.entries()){
     toast(`Envoi de la photo ${n+1} sur ${files.length}…`);
     const blob=await shrink(f);if(!blob){toast("Cette photo ne peut pas être lue.");continue}
-    const path=`${me}/${id}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const path=`${me}/${id||"libre"}/${cat}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
     const up=await sb.storage.from("photos").upload(path,blob,{contentType:"image/jpeg",upsert:false});
     if(up.error){toast("Envoi impossible. Vérifiez le réseau et réessayez.");continue}
-    const ins=await sb.from("photos").insert({chantier:id,categorie:cat,chemin:path,note});
+    const ins=await sb.from("photos").insert({chantier:id,categorie:cat,chemin:path,note,...(C.lib?{chantier_libre:C.lib}:{})});
     if(ins.error){await sb.storage.from("photos").remove([path]);toast("Envoi impossible. Réessayez.");continue}
     ok++;
   }
-  if(ok){toast(ok>1?ok+" photos enregistrées ✓":"Photo enregistrée ✓");if(openId===id)renderSheet();else render()}
-});
+  if(ok){toast(ok>1?ok+" photos enregistrées ✓":"Photo enregistrée ✓");if(openId&&openId===id)renderSheet();else render()}
+}
 // agrandir une photo
 document.addEventListener("click",e=>{const b=e.target.closest("[data-photo]");if(!b)return;
   const holder=b.closest("[data-photos-scope]")||$("sheetbody")||$("view");
@@ -587,7 +618,7 @@ async function vHeures(v){
   v._heures=hs;
 }
 function lineH(h){return`<button class="hline${h.valide_le?" ok":""}${isAtl(h)?" atl":""}" data-hedit="${h.id}">
-  <span><b>${esc(hLab(h))}</b><br><span class="sub">${h.debut?h.debut.slice(0,5)+" – "+(h.fin||"").slice(0,5):""}${h.pause_min?" · pause "+h.pause_min+" min":""}${hRem(h)?" · "+esc(hRem(h)):""}</span></span>
+  <span><b>${esc(hLab(h))}</b>${h.motif?` <span class="tag ${h.motif==="heures_sup"?"b":""}" style="${h.motif==="heures_sup"?"":"background:var(--t-rouge);color:var(--s-rouge)"}">${{retard:"Retard",absence:"Absence",heures_sup:"Heures sup"}[h.motif]}${h.motif_detail?" · "+esc(h.motif_detail):""}</span>`:""}<br><span class="sub">${h.debut?h.debut.slice(0,5)+" – "+(h.fin||"").slice(0,5):""}${h.pause_min?" · pause "+h.pause_min+" min":""}${hRem(h)?" · "+esc(hRem(h)):""}</span></span>
   <span class="h">${hfmt(+h.heures)}${h.valide_le?"<br><span class=\"tag\">validé ✓</span>":""}</span></button>`}
 document.addEventListener("click",e=>{
   const a=e.target.closest("[data-hadd]");if(a){formHeures({jour:a.dataset.hadd,chantier:a.dataset.hjob||null});return}
@@ -624,6 +655,8 @@ async function formHeures(h){
    <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Arrivée</div>${hmSel("debut",dft.debut)}
    <div class="fld" style="font-size:15px;font-weight:600;margin-top:10px">Départ</div>${hmSel("fin",dft.fin)}
    <label class="fld">Pause<select name="pause">${[0,15,30,45,60,75,90,120].map(n=>`<option value="${n}" ${n==dft.pause?"selected":""}>${n?n+" min":"aucune"}</option>`).join("")}</select></label>
+   <label class="fld">Particularité<select name="motif">${[["","Aucune"],["retard","Retard"],["absence","Absence (journée ou demi-journée)"],["heures_sup","Heures supplémentaires"]].map(([k,l])=>`<option value="${k}" ${k===(h.motif||"")?"selected":""}>${l}</option>`).join("")}</select></label>
+   <label class="fld" id="hmotd" hidden><span id="hmotdl">Précision</span><input type="text" name="motif_detail" value="${esc(h.motif_detail||"")}"></label>
    <label class="fld">Remarque (facultatif)<input type="text" name="note" value="${esc(h.id?hRem(h):"")}" placeholder="ex. trajet, intempéries, réglage"></label>
    <div class="tot"><span>Heures travaillées</span><b id="hcalc">–</b></div>
    <div class="acts">${h.id&&(mine||role==="editeur")?`<button class="btn danger" data-del>Supprimer</button>`:""}<button class="btn ghost" data-x>Annuler</button><button class="btn" data-ok>Enregistrer</button></div>`);
@@ -634,6 +667,10 @@ async function formHeures(h){
   const prec=()=>{const v=f("chantier").value,t=v.startsWith("t:")?v.slice(2):"";m.querySelector("#hprec").hidden=!t;
     m.querySelector("#hprecl").textContent=t==="SAV"?"SAV chez qui ? (client, ville)":t==="Autre chantier"?"Quel chantier ? (client, ville)":t==="Dépôt / atelier"?"Quoi ? (facultatif)":"Quelle tâche ?"};
   f("chantier").addEventListener("change",prec);prec();
+  const mot=()=>{const v=f("motif").value,abs=v==="absence";m.querySelector("#hmotd").hidden=!v;
+    m.querySelector("#hmotdl").textContent=v==="retard"?"Retard de combien, pourquoi ? (ex. 30 min, bouchons)":v==="absence"?"Motif (congé, maladie, RTT…) et durée":"Pourquoi ? (ex. fin de chantier urgente)";
+    ["debut_h","debut_m","fin_h","fin_m","pause"].forEach(k=>{const x=f(k);if(x)x.disabled=abs});if(abs&&!f("chantier").value)f("chantier").value="t:Autre tâche"};
+  f("motif").addEventListener("change",mot);mot();
   m.addEventListener("input",upd);m.addEventListener("change",upd);upd();
   m.querySelector("[data-x]").onclick=()=>m.close();
   m.querySelector("[data-del]")?.addEventListener("click",async ev=>{const btn=ev.currentTarget;
@@ -641,14 +678,15 @@ async function formHeures(h){
     const{error}=await sb.from("heures").delete().eq("id",h.id);if(error){toast("Suppression impossible.");return}
     m.close();toast("Ligne supprimée.");render()});
   m.querySelector("[data-ok]").onclick=async ev=>{
-    const n=calc();if(!f("jour").value){toast("Indiquez le jour.");return}
-    if(n==null||n>16){toast("Vérifiez l'heure d'arrivée, de départ et la pause.");return}
+    const motif=f("motif").value||null,abs=motif==="absence";const n=abs?0:calc();if(!f("jour").value){toast("Indiquez le jour.");return}
+    if(!abs&&(n==null||n>16)){toast("Vérifiez l'heure d'arrivée, de départ et la pause.");return}
+    if(motif&&!f("motif_detail").value.trim()){toast("Précisez le retard, l'absence ou les heures sup.");f("motif_detail").focus();return}
     const v=f("chantier").value,rem=f("note").value.trim(),pr=f("prec").value.trim().replace(/[·\[\]]/g," ").trim();
     if(!v){toast("Choisissez le chantier ou la tâche.");return}
     const tag=v.startsWith("t:")?v.slice(2):v.startsWith("lib:")?"Chantier":"";
-    if(tag&&tag!=="Dépôt / atelier"&&!pr&&tag!=="Chantier"){toast(tag==="SAV"?"Indiquez chez qui était le SAV.":"Précisez le chantier ou la tâche.");f("prec").focus();return}
+    if(tag&&tag!=="Dépôt / atelier"&&!pr&&tag!=="Chantier"&&!abs){toast(tag==="SAV"?"Indiquez chez qui était le SAV.":"Précisez le chantier ou la tâche.");f("prec").focus();return}
     const note=tag?`[${tag}] ${tag==="Chantier"?v.slice(4):pr}`.trim()+(rem?" · "+rem:""):(rem||null);
-    const row={jour:f("jour").value,chantier:tag?null:v,debut:hm("debut"),fin:hm("fin"),pause_min:+f("pause").value,heures:n,note};
+    const row={jour:f("jour").value,chantier:tag?null:v,debut:abs?null:hm("debut"),fin:abs?null:hm("fin"),pause_min:abs?0:+f("pause").value,heures:n,note,motif,motif_detail:motif?f("motif_detail").value.trim():null};
     ev.currentTarget.disabled=true;
     const r=h.id?await sb.from("heures").update(row).eq("id",h.id):await sb.from("heures").insert(row);
     ev.currentTarget.disabled=false;
@@ -762,11 +800,11 @@ let gVue="equipe";
 const kOf=x=>x.chantier||"~"+(x.libelle||""),labOf=x=>x.chantier?jobShort(x.chantier):(x.libelle||"");
 // atelier (onglet Atelier de l'appli) : jours de production prévus et date « prêt », d'après la fin de production calculée
 // (calc.fin) et le temps de production (7 h par jour ouvré). Lecture seule : le planning de pose (Excel de Marine) n'est pas modifié.
-async function loadAtelier(){try{const{data,error}=await sb.from("atelier").select("id,data");if(error)return[];
+async function loadAtelier(){try{if(!CMD.size)await loadCmd();const{data,error}=await sb.from("atelier").select("id,data");if(error)return[];
   return(data||[]).filter(r=>r.id[0]!=="_"&&r.data&&!(r.data.steps&&r.data.steps.livre&&r.data.steps.livre.d)).map(r=>{const a=r.data,st=a.steps||{};
     const fin=(st.fin&&st.fin.d)||(a.calc&&a.calc.fin)||"",num=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n:0},pj=Math.max(1,Math.ceil((num(a.heures)||(a.taches||[]).reduce((t,x)=>t+num(x.h),0)*1.2)/7));let deb=st.debut&&st.debut.d||"";
     if(!deb&&fin){let d=parse(fin),k=pj-1;while(k>0){d=addDays(d,-1);if(d.getDay()%6)k--}deb=iso(d)}
-    return{id:r.id,chantier:a.chantier||"",nom:a.chantier?jobShort(a.chantier):(a.client||r.id),fin,deb,fait:!!(st.fin&&st.fin.d)}}).filter(x=>x.fin)}catch(_){return[]}}
+    return{id:r.id,chantier:a.chantier||"",nom:(a.chantier&&chantiers.has(a.chantier)?jobShort(a.chantier):String(cmdName(r.id)||a.client||r.id).split(" - ")[0])+(a.objet?" · "+a.objet:""),fin,deb,fait:!!(st.fin&&st.fin.d)}}).filter(x=>x.fin)}catch(_){return[]}}
 const atlPasPret=(A,c,d)=>A.find(x=>x.chantier&&x.chantier===c&&!x.fait&&x.fin>=d);
 async function vGPlanning(v){
   const days=weekDays(),pl=await loadPlanning(days[0],days[6]),ps=poseurs(),t=today(),ed=role==="editeur",A=await loadAtelier();

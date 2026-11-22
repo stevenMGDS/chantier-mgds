@@ -337,6 +337,9 @@ textarea{min-height:64px;resize:vertical}
 .acamt{display:flex;gap:6px;overflow-x:auto;padding:6px 12px;min-height:8px}.acamt img{height:58px;border-radius:6px;border:2px solid #fff}
 .acamb{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;padding-bottom:max(14px,env(safe-area-inset-bottom))}
 .acamb .btn{min-width:110px}.acamb .shot{width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:#e8e8e8;cursor:pointer}
+.docact{display:flex;gap:6px;align-items:center}
+.retro{grid-column:1/-1}.rjal{display:flex;flex-wrap:wrap;gap:6px}.rj{display:grid;padding:5px 9px;border-radius:8px;background:var(--sunk);font-size:13px}.rj b{font-size:12px}
+.rj.ok{background:var(--t-vert,#ddf0e2)}.rj.late{background:var(--t-rouge,#f8dada);color:var(--s-rouge,#b83a3a)}
 </style>
 <link rel="stylesheet" href="theme-mac.css">
 
@@ -488,7 +491,7 @@ sb.auth.onAuthStateChange((ev,s)=>{if(ev==="PASSWORD_RECOVERY"){session=s;gate("
 // ---------- base ----------
 const isObj=v=>v&&typeof v==="object"&&!Array.isArray(v);
 // profil « terrain » (Yannick, Stéphanie) : remplir les fiches et cocher les tâches, rien d'autre (la base vérifie aussi)
-const okTerrain=p=>Object.keys(p).every(k=>k==="docs"||k==="av"||k==="ap"||(k==="steps"&&isObj(p.steps)&&Object.keys(p.steps).every(s=>["metre","prepa","recep"].includes(s))));
+const okTerrain=p=>Object.keys(p).every(k=>["docs","av","ap","type","typeChange","delai","jp","sansMetre"].includes(k)||(k==="steps"&&isObj(p.steps)&&Object.keys(p.steps).every(s=>["metre","prepa","recep","rdv"].includes(s))));
 function merge(a,b){const o=isObj(a)?{...a}:{};for(const[k,v]of Object.entries(b))o[k]=isObj(v)&&isObj(o[k])?merge(o[k],v):v;return o}
 function docRef(path){
   const id=path.split("/")[1];
@@ -670,14 +673,35 @@ let jobs=new Map(),openId=null,filter="encours",who="Tous",q="",pendingSheet=fal
 let tri=(()=>{try{return localStorage.getItem("chantiers-tri")||"pose"}catch(e){return"pose"}})();
 
 const sd=(j,k)=>{const v=(j.steps||{})[k];return v&&v.d?v.d:""};
-function stepsOf(j){return STEPS.filter(s=>!s.only||(s.only==="reno"&&j.type!=="neuf")||(s.only==="neuf"&&j.type==="neuf")||(s.only==="plans"&&j.plans)||(s.only==="acompte"&&!j.sansAcompte))}
+function stepsOf(j){return STEPS.filter(s=>!s.only||(s.only==="reno"&&j.type!=="neuf"&&!j.sansMetre)||(s.only==="neuf"&&j.type==="neuf")||(s.only==="plans"&&j.plans)||(s.only==="acompte"&&!j.sansAcompte))}
 function nDone(j){return stepsOf(j).filter(s=>sd(j,s.k)).length}
 function curStep(j){const ss=stepsOf(j);for(let n=0;n<ss.length;n++){const s=ss[n];if(s.opt)continue;if(s.k==="levees"&&!sd(j,"reserves"))continue;if(s.k==="facac"&&sd(j,"acompte"))continue;if((s.man||s.k==="prepa")&&ss.slice(n+1).some(x=>sd(j,x.k)))continue;if(!sd(j,s.k))return s.k}return null}
 function locked(j,k){return !!(j.plans&&NEED_PLANS.includes(k)&&!sd(j,"plansok"))}
+const RETRO_DEF={metreJ:5,arcJ:5,poseJ:7};
+const retroD=()=>({...RETRO_DEF,...Object.fromEntries(Object.entries(((window.REG||{}).delais)||{}).filter(([k,v])=>k in RETRO_DEF&&v!=null&&!isNaN(+v)).map(([k,v])=>[k,+v]))});
+const jo=(d,n)=>typeof addJo==="function"?addJo(d,n):addDays(d,Math.ceil(n*7/5));
+function retro(j){
+  if(!j||done(j))return null;const D=retroD();
+  const dep=sd(j,"acompte")||(j.sansAcompte?sd(j,"signe"):"");if(!dep)return null;
+  const out=[],t=today(),add=(k,l,due,fait,why)=>{const r={k,l,due,fait,why,retard:!fait&&due&&due<t?days(due):0};out.push(r);return fait||due};
+  let base=dep;
+  if(j.type!=="neuf"&&!j.sansMetre)base=add("metre","Métré",jo(dep,D.metreJ),sd(j,"metre"),D.metreJ+" j ouvrés après l'acompte");
+  base=add("arc","ARC validé",jo(base,D.arcJ),sd(j,"arc"),D.arcJ+" j ouvrés après "+(j.type!=="neuf"&&!j.sansMetre?"le métré":"l'acompte"));
+  const A=arcsOf(j),prev=A.map(a=>a.prev).filter(Boolean).sort().slice(-1)[0]||(!A.length&&sd(j,"livprev"))||"";
+  const w=A.length?Math.max(...A.map(a=>stkFourSem(a.four||"").w)):STK_FOUR_DEF,four=A.map(a=>a.four).filter(Boolean).join(", ");
+  base=add("livre","Livraison",prev||addDays(base,7*w),sd(j,"livre"),prev?"semaine annoncée sur l'ARC":"ARC + délai fournisseur ("+(four?four+" : ":"")+w+" sem.)");
+  add("pose","Pose",addDays(base,D.poseJ),sd(j,"pose"),"livraison + "+D.poseJ+" jours");
+  // une étape suivante faite (ex. posé) vaut pour les précédentes restées non cochées
+  for(let k=out.length-2;k>=0;k--)if(!out[k].fait&&out[k+1].fait){out[k].fait=out[k+1].fait;out[k].implicite=1;out[k].retard=0}
+  out.dep=dep;return out}
+// alertes seulement pour les chantiers lancés depuis moins de 3 mois (les anciens n'ont pas toutes leurs étapes cochées)
+const retroLate=(j,k)=>{const R=retro(j);if(!R||days(R.dep)>90)return null;const r=R.find(x=>x.k===k);return r&&r.retard>0?r:null};
 const LATE=[
  [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"facac")&&!sd(j,"acompte")&&days(sd(j,"signe"))>(+((window.REG||{}).delais||{}).facac||3),"facac",j=>"Facture d'acompte à envoyer (devis signé depuis "+days(sd(j,"signe"))+" j)"],
  [j=>!j.sansAcompte&&sd(j,"signe")&&!sd(j,"acompte")&&days(sd(j,"facac")||sd(j,"signe"))>(+((window.REG||{}).delais||{}).acompte||14),"acompte",j=>"Acompte attendu depuis "+days(sd(j,"facac")||sd(j,"signe"))+" j"],
- [j=>j.type!=="neuf"&&sd(j,"rdv")&&sd(j,"rdv")<today()&&!sd(j,"metre"),"metre",j=>"Métré du "+fr(sd(j,"rdv"))+" non validé"],
+ [j=>!!retroLate(j,"metre"),"metre",j=>{const r=retroLate(j,"metre");return"Métré à faire avant le "+fr(r.due)+" ("+r.retard+" j de retard)"+(sd(j,"rdv")?"":" · RDV à fixer")}],
+ [j=>!!retroLate(j,"arc"),"arc",j=>{const r=retroLate(j,"arc");return"ARC à valider avant le "+fr(r.due)+" ("+r.retard+" j de retard)"}],
+ [j=>j.type!=="neuf"&&!j.sansMetre&&sd(j,"rdv")&&sd(j,"rdv")<today()&&!sd(j,"metre"),"metre",j=>"Métré du "+fr(sd(j,"rdv"))+" non validé"],
  [j=>arcsOf(j).some(a=>a.prev&&a.prev<today()&&!(a.livre&&a.livre.d)),"livre",j=>{const a=arcsOf(j).find(a=>a.prev&&a.prev<today()&&!(a.livre&&a.livre.d));return"Livraison "+(a.four||"")+" prévue "+sem(a.prev)+" non reçue"}],
  [j=>!hasArcs(j)&&sd(j,"livprev")&&sd(j,"livprev")<today()&&!sd(j,"livre"),"livre",j=>"Livraison prévue "+sem(sd(j,"livprev"))+" non reçue"],
  [j=>poseRef(j)&&poseRef(j)<today()&&!sd(j,"pose")&&!partial(j),"pose",j=>poseOk(j)?"Pose du "+fr(poseOk(j))+" non faite":"Pose du "+fr(poseRef(j))+" sans réponse du client"],
@@ -792,7 +816,7 @@ async function renderSheet(){
   if(!openId)return;
   if(openId==="__new"){renderNew();return}
   const j={id:openId,...(jobs.get(openId)||{})};
-  const ro=canWrite?"":"disabled";
+  const ro=canWrite?"":"disabled",roT=canWrite||canFill?"":"disabled"; // roT : ce que le terrain (Stéphanie, Yannick) peut aussi changer
   const cur=curStep(j);
   const tag=k=>{const st=stateOf(j,k);return st==="blk"?'<span class="state blk">bloqué</span>':st==="late"?'<span class="state late">en retard</span>':st==="part"?'<span class="state late">partiel</span>':k===cur?'<span class="state cur">à faire</span>':""};
   const steps=stepsOf(j).map(s=>{
@@ -807,18 +831,18 @@ async function renderSheet(){
     if(i==="poseprop")return `<li><span></span><span class="lab">${s.l}<em>2 dates à proposer au client</em>${m}${tag(i)}</span><span class="pdates"><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${v&&v.d||""}" aria-label="Date proposée 1" ${ro}><span class="sub">ou</span><input type="date" min="2000-01-01" max="2099-12-31" data-field="pose2" value="${j.pose2||""}" aria-label="Date proposée 2" ${ro}></span></li>`;
     if(i==="posevalid"){const pd=poseDates(j).sort(),ok=v&&v.d;return `<li><span></span><span class="lab">${s.l}<em>date retenue par le client</em>${m}${tag(i)}${pd.length&&canWrite?`<span class="pchoice">${pd.map(d=>`<button class="btn ${ok===d?"":"ghost"}" data-posechoice="${d}">${ok===d?"✓ ":""}${fr(d)} · ${sem(d)}</button>`).join("")}</span>`:""}</span><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${ok||""}" aria-label="Date de pose validée" ${ro}></li>`}
     if(i==="livprev")return `<li><span></span><span class="lab">${s.l}<em>semaine de livraison</em>${m}${tag(i)}</span>${semInput(`data-stepwk="livprev" ${ro}`,v&&v.d)}</li>`;
-    if(s.man)return `<li><span></span><span class="lab">${s.l}<em>date à saisir</em>${m}${tag(i)}</span><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${v&&v.d||""}" ${ro}></li>`;
+    if(s.man)return `<li><span></span><span class="lab">${s.l}<em>date à saisir</em>${m}${tag(i)}</span><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${v&&v.d||""}" ${i==="rdv"?roT:ro}></li>`;
     return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" data-step="${i}" aria-label="${lab(j,s)}" ${ro||(lk||fl?"disabled":"")}>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}${m}${note}${tag(i)}<span class="who-by" data-by="${v&&v.by||""}"></span></span><span class="date">${fr(v&&v.d)}</span></li>`}).join("");
   const tl=k=>(j[k]||[]).map((t,i)=>`<div class="task ${t.f?"done":""}"><input type="checkbox" data-task="${k}" data-i="${i}" ${t.f?"checked":""} ${canWrite||canFill?"":"disabled"} aria-label="${esc(t.t)}"><span>${esc(t.t)}${t.f?` <span class="mono">${fr(t.f)}</span>`:""}</span>${canWrite?`<button class="x" data-deltask="${k}" data-i="${i}" aria-label="Supprimer">×</button>`:""}</div>`).join("");
   // les fiches à remplir (préparation, métré / réception de support, réception de fin de chantier, toujours en dernier) à part
   // des documents repris du serveur ou déposés (devis, plans, factures…) — Steven, 09/11/2026
   const FICHE_ORD={"Préparation":0,"Métré":1,"Support":2,"Réception":3},docLi=([d,i])=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.name)}</button>${d.traite?"":`<span class="new">nouveau</span>`}${d.rempli?d.rempli.reste?`<span class="new">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:`<span class="new ok">fiche complète</span>`:""}<br><span class="mono">${fr(d.at)} · ${d.mt?"sur tablette":Math.max(1,Math.round((d.size||0)/1024))+" ko"}</span></span>
-    ${canWrite?`<select data-doctype="${i}" aria-label="Type de document">${DOC_TYPES.map(t=>`<option ${t===d.type?"selected":""}>${t}</option>`).join("")}</select>`:""}</li>`;
+    ${canWrite?`<span class="docact"><select data-doctype="${i}" aria-label="Type de document">${DOC_TYPES.map(t=>`<option ${t===d.type?"selected":""}>${t}</option>`).join("")}</select><button class="x" data-deldoc="${i}" aria-label="Retirer ce document" title="Retirer ce document (erreur)">×</button></span>`:""}</li>`;
   const allDocs=(j.docs||[]).map((d,i)=>[d,i]),isFiche=([d])=>d.type in FICHE_ORD;
   const fiches=allDocs.filter(isFiche).sort(([a],[b])=>FICHE_ORD[a.type]-FICHE_ORD[b.type]).map(docLi).join("");
   const docs=allDocs.filter(x=>!isFiche(x)).map(docLi).join("");
   // métré sur tablette (essai, 20/11/2026) : fiche HTML rangée dans docs[].mt, voir metre.js
-  const mtBtn=(canWrite||canFill)&&window.mtNew&&!(j.docs||[]).some(d=>d.mt)?`<button class="btn ghost" data-mtnew="1" style="margin:6px 0 4px">📐 Faire le métré sur tablette (essai)</button>`:"";
+  const mtBtn=(canWrite||canFill)&&window.mtNew&&j.type!=="neuf"&&!j.sansMetre&&!(j.docs||[]).some(d=>d.mt)?`<button class="btn ghost" data-mtnew="1" style="margin:6px 0 4px">📐 Faire le métré sur tablette (essai)</button>`:"";
   const mails=moments(j).map(m=>{const dueStep=sd(j,m[0]);const sent=(j.mails||{})[m[0]];
     const st=sent?`<span class="pill vert">envoyé le ${fr(sent)}</span>`:dueStep?`<span class="pill orange">à envoyer</span>`:`<span class="pill">plus tard</span>`;
     const subj=fillMail(m[2],j),body=fillMail(m[3],j);
@@ -870,8 +894,9 @@ async function renderSheet(){
      const D=window.plDecompte&&window.PLN_OK&&PLN_OK()?plDecompte(openId,j):null,f=n=>String(Math.round(n*10)/10).replace(".",",");let P=null;try{P=posePrevue(openId,j)}catch(_){}
      const autre=P&&P.d&&P.src!=="délai prévu"&&(!j.delai||sem(P.d)!==sem(j.delai))?`pose ${P.src==="planning"?"au planning de Marine":"retenue par l'appli"} : ${sem(P.d)}${P.src==="planning"?"":" ("+esc(P.why||P.src)+")"}`:"";
      return`<div class="prevtop">
-      <div class="prevc"><span class="prevl">Délai prévu</span>${semInput(`data-dlwk="1" ${ro}`,j.delai||"")}<span class="sub">${j.delai?"semaine du "+fr(j.delai):"semaine de pose annoncée"}${autre?" · "+autre:""}</span></div>
-      <div class="prevc"><span class="prevl">Temps prévu</span><span class="prevj"><input type="number" min="0" step="0.5" inputmode="decimal" id="f-jp" data-field="jp" value="${esc(j.jp??"")}" placeholder="0" aria-label="Temps de pose prévu en jours" ${ro}> jours</span><span class="sub">1 jour = 2 poseurs${D?` · au planning ${f(D.pl+D.pvj)} j${D.jp?` · <b>reste ${f(D.reste)} j</b>${D.pl+D.pvj>D.jp+.01?` <span class="state late">${f(D.pl+D.pvj-D.jp)} j de plus que prévu</span>`:""}`:""}`:""}</span></div></div>`})()}
+      <div class="prevc"><span class="prevl">Délai prévu</span>${semInput(`data-dlwk="1" ${roT}`,j.delai||"")}<span class="sub">${j.delai?"semaine du "+fr(j.delai):"semaine de pose annoncée"}${autre?" · "+autre:""}</span></div>
+      ${(()=>{const R=retro(j);if(!R)return"";return`<div class="prevc retro"><span class="prevl">Rétro-planning</span><span class="rjal">${R.map(r=>`<span class="rj ${r.fait?"ok":r.retard?"late":""}" title="${esc(r.why)}"><b>${r.l}</b>${r.fait?(r.implicite?"fait":"fait le "+fr(r.fait)):(r.retard?"⚠ ":"")+"avant le "+fr(r.due)+(r.retard?" · "+r.retard+" j de retard":"")}</span>`).join("")}</span><span class="sub">${esc(R.map(r=>r.l+" : "+r.why).join(" · "))}</span></div>`})()}
+      <div class="prevc"><span class="prevl">Temps prévu</span><span class="prevj"><input type="number" min="0" step="0.5" inputmode="decimal" id="f-jp" data-field="jp" value="${esc(j.jp??"")}" placeholder="0" aria-label="Temps de pose prévu en jours" ${roT}> jours</span><span class="sub">1 jour = 2 poseurs${D?` · au planning ${f(D.pl+D.pvj)} j${D.jp?` · <b>reste ${f(D.reste)} j</b>${D.pl+D.pvj>D.jp+.01?` <span class="state late">${f(D.pl+D.pvj-D.jp)} j de plus que prévu</span>`:""}`:""}`:""}</span></div></div>`})()}
    <div class="fields">
     <label class="wide">Client<input type="text" id="f-cnom" data-field="clientNom" value="${esc(j.clientNom)}" placeholder="M. MME …, SCI …" style="font-weight:700" ${ro}></label>
     <label class="wide">Adresse du client<input type="text" id="f-cadr" data-field="clientAdresse" value="${esc(j.clientAdresse)}" placeholder="N°, rue - code postal ville" ${ro}></label>
@@ -881,7 +906,8 @@ async function renderSheet(){
     <label>Email du client<input type="email" id="f-email" data-field="email" value="${esc(j.email)}" ${ro}></label>
     <label>Formule de politesse<input type="text" id="f-civ" data-field="civilite" value="${esc(j.civilite)}" placeholder="Madame, Monsieur ${esc(j.client)}" ${ro}></label>
     <label>Commercial<select id="f-com" data-field="commercial" ${ro}>${["","Stéphanie","Steven"].map(x=>`<option ${x===(j.commercial||"")?"selected":""}>${x}</option>`).join("")}</select></label>
-    <label>Type de chantier<select id="f-type" data-field="type" ${ro}><option value="reno" ${j.type!=="neuf"?"selected":""}>Rénovation</option><option value="neuf" ${j.type==="neuf"?"selected":""}>Neuf</option></select></label>
+    <label>Type de chantier<select id="f-type" data-field="type" ${roT}><option value="reno" ${j.type!=="neuf"?"selected":""}>Rénovation</option><option value="neuf" ${j.type==="neuf"?"selected":""}>Neuf</option></select></label>
+    ${j.type!=="neuf"?`<label style="display:flex;flex-direction:row;gap:8px;align-items:center;align-self:end"><input type="checkbox" style="width:22px;height:22px" data-fieldbool="sansMetre" ${j.sansMetre?"checked":""} ${roT}> Pas de métré à programmer <span class="sub">(déjà métré, suite d'un chantier)</span></label>`:""}
     <label>Lieu de livraison<select id="f-liv" data-field="livraison" ${ro||(hasArcs(j)?"disabled title='Déduit des ARC'":"")}>${[["","à préciser"],["depot","Dépôt MGDS"],["chantier","Chantier"],["mixte","Les deux (voir remarques)"]].map(([v,t])=>`<option value="${v}" ${v===(j.livraison||"")?"selected":""}>${t}</option>`).join("")}</select></label>
     <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="f-plans" data-flag="plans" ${j.plans?"checked":""} ${ro} style="width:18px;height:18px">Plans d'exé à faire valider par le MOE</label>
     <label style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)"><input type="checkbox" id="f-sansac" data-flag="sansAcompte" ${j.sansAcompte?"checked":""} ${ro} style="width:18px;height:18px">Pas d'acompte sur ce chantier</label>
@@ -1021,7 +1047,7 @@ function setFacs(arr){const j=jobs.get(openId),p=facSync(arr);if(!arr.length)p.s
   jobs.set(openId,{...j,...p,steps:{...(j.steps||{}),...p.steps}});renderSheet();render();save(openId,p)}
 // ---------- événements ----------
 document.addEventListener("click",async e=>{
-  const t=e.target.closest("[data-logi],[data-dellogi],[data-delpv],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],[data-mtnew],#vclose,#vdl,#vedit,#vsave,#vnext");
+  const t=e.target.closest("[data-logi],[data-dellogi],[data-delpv],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],[data-mtnew],[data-deldoc],#vclose,#vdl,#vedit,#vsave,#vnext");
   if(!t)return;
   if(t.dataset.open&&t.closest("#spanel")){const sp=$("spanel");if(sp)sp.hidden=true}
   if(t.dataset.arc!==undefined){const j=jobs.get(openId),arr=arcsOf(j).map(x=>({...x})),a=arr[+t.dataset.arc],k=t.dataset.arck;a[k]=a[k]&&a[k].d?null:{d:today(),by:me||""};setArcs(arr);return}
@@ -1038,6 +1064,10 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.open){openSheet(t.dataset.open)}
   else if(t.dataset.view!==undefined){viewDoc((jobs.get(openId).docs||[])[+t.dataset.view])}
   else if(t.dataset.mtnew){t.disabled=true;mtNew(openId)}
+  else if(t.dataset.deldoc!==undefined){const j=jobs.get(openId),k=+t.dataset.deldoc,d=(j.docs||[])[k];if(!d)return;
+    const arc=/^ARC/i.test(d.type||"")||/\bARC\b/i.test(d.name||"");
+    if(!confirm(`Retirer « ${d.name} » de la fiche ?${arc?"\n\nC'est un ARC : ne le retirez que s'il a été déposé par erreur.":""}${d.mt?"\n\nC'est le métré tablette : tout ce qui a été saisi dedans sera perdu.":""}\n\nLe fichier reste sur le serveur.`))return;
+    const arr=(j.docs||[]).filter((_,n)=>n!==k);jobs.set(openId,{...j,docs:arr});renderSheet();render();save(openId,{docs:arr});toast("Document retiré de la fiche.")}
   else if(t.id==="vclose"){if(vForm&&vForm.dirty&&!vForm.saving){toast("Fiche non enregistrée : appuyez sur « Enregistrer », ou sur « Fermer » une seconde fois pour abandonner.");vForm.dirty=false;return}$("viewer").hidden=true;$("vpages").innerHTML="";vForm=null;resetTools()}
   else if(t.id==="vedit"){startFill()}
   else if(t.id==="vsave"){saveFill()}
@@ -1078,7 +1108,12 @@ document.addEventListener("change",e=>{
   if(!openId||openId==="__new")return;const j=jobs.get(openId);
   if(t.dataset.date!==undefined){const i=t.dataset.date,v=t.value?{d:t.value,by:me||""}:null;jobs.set(openId,{...j,steps:{...(j.steps||{}),[i]:v}});render();if(i==="poseprop"||i==="posevalid")renderSheet();save(openId,{steps:{[i]:v}})}
   else if(t.dataset.flag){const k=t.dataset.flag,v=t.checked;jobs.set(openId,{...j,[k]:v});renderSheet();render();save(openId,{[k]:v})}
-  else if(t.dataset.field){const k=t.dataset.field,v=t.value.trim();if((j[k]||"")===v)return;jobs.set(openId,{...j,[k]:v});render();if(k==="type"||k==="livraison"||k==="pose2"||k==="jp")renderSheet();save(openId,{[k]:v})}
+  else if(t.dataset.fieldbool){const k=t.dataset.fieldbool,v=t.checked;jobs.set(openId,{...j,[k]:v});render();renderSheet();save(openId,{[k]:v})}
+  else if(t.dataset.field){const k=t.dataset.field,v=t.value.trim();if((j[k]||"")===v)return;
+    // type changé : Claude prépare la fiche du nouveau type (réception de support en neuf, métré en rénovation) au contrôle de 11 h 50
+    const extra=k==="type"?{typeChange:{le:today(),de:j.type||"",vers:v,by:me||""}}:{};
+    jobs.set(openId,{...j,[k]:v,...extra});render();if(k==="type"||k==="livraison"||k==="pose2"||k==="jp")renderSheet();save(openId,{[k]:v,...extra});
+    if(k==="type")toast(v==="neuf"?"Chantier neuf : la réception de support remplace le métré. Claude prépare la fiche au contrôle de 11 h 50.":"Rénovation : le métré remplace la réception de support. Faites-le sur la tablette, ou Claude prépare le PDF au contrôle de 11 h 50.")}
   else if(t.dataset.task){const k=t.dataset.task,arr=(j[k]||[]).map(x=>({...x}));arr[+t.dataset.i].f=t.checked?today():"";jobs.set(openId,{...j,[k]:arr});renderSheet();render();save(openId,{[k]:arr})}
   else if(t.dataset.logifield){const arr=logiOf(j).map(x=>({...x}));arr[+t.dataset.i][t.dataset.logifield]=t.value.trim();setLogi(arr)}
   else if(t.dataset.pvfield){const arr=prevuOf(j).map(x=>({...x}));arr[+t.dataset.i][t.dataset.pvfield]=t.value.trim();setPrevu(arr)}
@@ -1561,7 +1596,7 @@ const nrm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase()
 function parseReleve(s){if(!s)return null;try{const o=JSON.parse(s);if(o&&Array.isArray(o.articles))return o}catch(e){}return{articles:[],txt:String(s)}}
 async function consoPhotos(chantier){
   const sb=window.sbClient;if(!sb)return[];
-  let r=sb.from("photos").select("id,chantier,categorie,chemin,note,pris_le,poseur,traite,releve").in("categorie",Object.keys(CONSO_CAT)).order("pris_le",{ascending:false});
+  let r=sb.from("photos").select("id,chantier,chantier_libre,categorie,chemin,note,pris_le,poseur,traite,releve").in("categorie",Object.keys(CONSO_CAT)).order("pris_le",{ascending:false});
   r=chantier?r.eq("chantier",chantier):r.limit(400);
   const{data,error}=await r;if(error)throw error;return data||[];
 }
@@ -2225,12 +2260,12 @@ async function loadStockList(nameOf){
   try{P=await consoPhotos()}catch(e){box.innerHTML=`<span class="sub">Impossible de charger les photos pour le moment.</span>`;return}
   if(!P.length){box.innerHTML=`<h3>Entrées et sorties par chantier</h3><span class="sub">Aucune photo de consommables pour l'instant.</span>`+await depotHtml();return}
   const urls=Object.fromEntries((((await window.sbClient.storage.from("photos").createSignedUrls(P.map(p=>p.chemin),3600)).data)||[]).map(x=>[x.path,x.signedUrl]));
-  const wait=P.filter(p=>!p.traite),by=new Map();P.forEach(p=>{if(!by.has(p.chantier))by.set(p.chantier,[]);by.get(p.chantier).push(p)});
+  const wait=P.filter(p=>!p.traite),by=new Map(),cle=p=>p.chantier||"libre:"+(p.chantier_libre||"chantier non précisé");P.forEach(p=>{const k=cle(p);if(!by.has(k))by.set(k,[]);by.get(k).push(p)});
   const th=p=>`<a href="${esc(urls[p.chemin]||"#")}" target="_blank" rel="noopener" title="${esc(CONSO_CAT[p.categorie]+" · "+fr(p.pris_le.slice(0,10))+(p.note?" · "+p.note:""))}"><img loading="lazy" src="${esc(urls[p.chemin]||"")}" alt="${esc(CONSO_CAT[p.categorie])}"><span class="tag ${p.categorie==="conso_sortie"?"out":"in"}">${p.categorie==="conso_sortie"?"Sortie":"Retour"}</span></a>`;
   let h=`<h3>Entrées et sorties par chantier</h3>`;
   if(wait.length)h+=`<p class="sub">${wait.length} photo${wait.length>1?"s":""} en attente de lecture par Claude.</p>`;
   for(const [c,L] of by){const B=consoBilan(L);
-    h+=`<div class="stkch"><h4>${esc(nameOf(c))}</h4>${B.length?`<table class="ctab"><tr><th>Article</th><th>Sorti</th><th>Remis</th><th>Utilisé</th></tr>${B.map(x=>`<tr><td>${esc([x.a,x.c].filter(Boolean).join(" "))}</td><td>${nb(x.sorti)}</td><td>${nb(x.remis)}</td><td><b>${nb(x.sorti-x.remis)}</b> ${esc(x.u)}</td></tr>`).join("")}</table>`:`<span class="sub">Pas encore relu par Claude.</span>`}
+    h+=`<div class="stkch"><h4>${esc(/^libre:/.test(c)?c.slice(6)+" (hors liste)":nameOf(c))}</h4>${B.length?`<table class="ctab"><tr><th>Article</th><th>Sorti</th><th>Remis</th><th>Utilisé</th></tr>${B.map(x=>`<tr><td>${esc([x.a,x.c].filter(Boolean).join(" "))}</td><td>${nb(x.sorti)}</td><td>${nb(x.remis)}</td><td><b>${nb(x.sorti-x.remis)}</b> ${esc(x.u)}</td></tr>`).join("")}</table>`:`<span class="sub">Pas encore relu par Claude.</span>`}
       <div class="thumbs">${L.map(th).join("")}</div></div>`}
   box.innerHTML=h+await depotHtml();
 }
@@ -3508,7 +3543,7 @@ const RT_BILAN={charges:1204000,atelierN:1};
 const RT_LAB={charges:["Charges annuelles visées","€ (bilan 2025-2026 : 1 204 000 €)"],resultat:["Résultat visé","€"],poseurs:["Poseurs","pers."],atelierN:["Productifs à l'atelier","pers."],jours:["Jours travaillés","par mois"],mois:["Mois travaillés","par an"],hPose:["Heures par jour, poseur","h"],hAtl:["Heures par jour, atelier","h"],tauxAtl:["Main-d'œuvre d'atelier dans le prix de Christophe","€/h"],nonTrav:["Temps non vendu","% (SAV, trous, glissements)"],secu:["Marge de sécurité","%"]};
 const rt={tout:false};
 function rtObj(){const o={...RT_DEF};const d=(window.REG||{}).objectif||{};for(const k in RT_DEF)if(d[k]!=null&&!isNaN(+d[k]))o[k]=+d[k];
-  o.hBrut=o.mois*o.jours*(o.poseurs*o.hPose+o.atelierN*o.hAtl);o.hAn=o.hBrut*(1-o.nonTrav/100);
+  o.hBrut=o.mois*o.jours*(o.poseurs*o.hPose+o.atelierN*o.hAtl);o.hPoseV=o.mois*o.jours*o.poseurs*o.hPose*(1-o.nonTrav/100);o.hAtlV=o.mois*o.jours*o.atelierN*o.hAtl;o.hAn=o.hPoseV+o.hAtlV; // 7 % non vendus sur la pose seulement : l'atelier a déjà 20 % dans les chiffrages de Christophe (Steven, 20/11/2026)
   o.taux=o.hAn?(o.charges+o.resultat)/o.hAn*(1+o.secu/100):0;o.obj=o.taux*PL_EQ;o.taux0=o.tauxAtl;return o}
 function rtData(){
   const O=rtObj(),staff=dirH.staff||new Set(),A=new Map();
@@ -3626,8 +3661,8 @@ function rtHtml(){
      <p class="sub">Les heures sont pointées depuis le 12/11/2026 : les mois précédents sont incomplets.</p>`:`<p class="sub">Aucune heure pointée pour l'instant.</p>`}</div>
    <details class="atldet"><summary><b>Calcul de l'objectif</b> <span class="sub">· ${eur(O.obj)} par journée d'équipe · 100 000 € de charges en moins et 2<sup>e</sup> opérateur à l'atelier</span></summary>
      <p class="sub">Ces chiffres se modifient dans l'onglet <button class="lnk" type="button" data-tab="reglages">Réglages</button>.</p>
-     <p class="sub">(${eur(O.charges)} + ${eur(O.resultat)}) ÷ ${Math.round(O.hAn).toLocaleString("fr-FR")} heures vendables (${O.mois} mois × ${O.jours} j × (${O.poseurs} poseurs × ${h1(O.hPose)} h + ${O.atelierN} à l'atelier × ${h1(O.hAtl)} h), moins ${O.nonTrav} % non vendus) + ${O.secu} % de sécurité = <b>${eur(O.taux)} par heure</b>, soit <b>${eur(O.obj)}</b> par journée d'équipe de 2.</p>
-     <p class="sub">${(()=>{const b={...O,...RT_BILAN},h=b.mois*b.jours*(b.poseurs*b.hPose+b.atelierN*b.hAtl)*(1-b.nonTrav/100),t=(b.charges+b.resultat)/h*(1+b.secu/100);return`Situation du bilan 2025-2026 (charges ${eur(b.charges)}, ${b.atelierN} à l'atelier) : ${eur(t)} par heure, ${eur(t*PL_EQ)} par journée d'équipe.`})()}</p></details>`;
+     <p class="sub">(${eur(O.charges)} + ${eur(O.resultat)}) ÷ ${Math.round(O.hAn).toLocaleString("fr-FR")} heures vendables (${O.mois} mois × ${O.jours} j × (${O.poseurs} poseurs × ${h1(O.hPose)} h + ${O.atelierN} à l'atelier × ${h1(O.hAtl)} h), moins ${O.nonTrav} % non vendus sur la pose ; l'atelier a déjà ses 20 % dans les chiffrages de Christophe) + ${O.secu} % de sécurité = <b>${eur(O.taux)} par heure</b>, soit <b>${eur(O.obj)}</b> par journée d'équipe de 2.</p>
+     <p class="sub">${(()=>{const b={...O,...RT_BILAN},h=b.mois*b.jours*(b.poseurs*b.hPose*(1-b.nonTrav/100)+b.atelierN*b.hAtl),t=(b.charges+b.resultat)/h*(1+b.secu/100);return`Situation du bilan 2025-2026 (charges ${eur(b.charges)}, ${b.atelierN} à l'atelier) : ${eur(t)} par heure, ${eur(t*PL_EQ)} par journée d'équipe.`})()}</p></details>`;
 }
 const eur=n=>Math.round(n||0).toLocaleString("fr-FR")+" €",eur2=n=>(n||0).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 const dirLines=()=>[...dirDocs].filter(([,d])=>d.kind==="facture").flatMap(([fid,f])=>(f.lignes||[]).map((l,i)=>({...l,fid,i,four:f.four||"?",num:f.num||"",date:f.date||""}))).sort((a,b)=>a.date.localeCompare(b.date)||a.fid.localeCompare(b.fid)||a.i-b.i);
@@ -3709,14 +3744,18 @@ function regRender(){const el=$("tab-reglages");if(!el||el.hidden)return;
    ${regMsg?`<p class="regm" role="status">${esc(regMsg)}</p>`:""}
    <section class="regs"><h3>Objectif de rentabilité</h3>
     <div class="regobj"><b>${eur(O.obj)}</b> de marge par journée d'équipe de 2 · <b>${eur(O.taux)}</b> par heure de production</div>
-    <div class="regg">${num("charges","Charges annuelles visées","€")}${num("resultat","Résultat visé","€")}${num("poseurs","Poseurs","personnes",1)}${num("atelierN","Productifs à l'atelier","personnes",1)}${num("jours","Jours travaillés","par mois",1)}${num("mois","Mois travaillés","par an",1)}${num("hPose","Heures par jour, poseur","h",.25)}${num("hAtl","Heures par jour, atelier","h",.1)}${num("nonTrav","Temps non vendu","% (SAV, trous, intempéries)",1)}</div>
+    <div class="regg">${num("charges","Charges annuelles visées","€")}${num("resultat","Résultat visé","€")}${num("poseurs","Poseurs","personnes",1)}${num("atelierN","Productifs à l'atelier","personnes",1)}${num("jours","Jours travaillés","par mois",1)}${num("mois","Mois travaillés","par an",1)}${num("hPose","Heures par jour, poseur","h",.25)}${num("hAtl","Heures par jour, atelier","h",.1)}${num("nonTrav","Temps non vendu (pose)","% (SAV, trous, intempéries) ; pas sur l'atelier",1)}</div>
     <p class="sub">(charges + résultat) ÷ heures vendables (mois × jours × (poseurs × h + atelier × h), moins le temps non vendu) = ${eur(O.taux)} par heure.</p></section>
    <section class="regs"><h3>Règles de chiffrage</h3><div class="regg">${num("moJour","Main-d'œuvre d'une journée de pose","€ par jour d'équipe (jours de pose = main-d'œuvre ÷ ce montant)",50)}${num("tauxAtl","Main-d'œuvre d'atelier dans le prix de Christophe","€ par heure (rajoutée à la marge)",1)}</div>
     <p class="sub">Une heure d'atelier se vend au moins ${eur(O.taux)}, comme une heure de pose.</p></section>
    <section class="regs"><h3>Horaires de l'atelier</h3><p class="sub">Pré-remplis chaque jour dans « Mes heures » de Manu et du futur opérateur.</p><div class="regg">${hor("lj","Du lundi au jeudi")}${hor("ven","Le vendredi")}</div></section>
    <section class="regs"><h3>Alertes des acomptes</h3><div class="regg">
     <label>Facture d'acompte à envoyer<span>jours après la signature</span><input type="number" min="0" step="1" data-regdl="facac" value="${dl.facac}"></label>
-    <label>Acompte attendu<span>jours après la facture d'acompte</span><input type="number" min="0" step="1" data-regdl="acompte" value="${dl.acompte}"></label></div></section></div>`}
+    <label>Acompte attendu<span>jours après la facture d'acompte</span><input type="number" min="0" step="1" data-regdl="acompte" value="${dl.acompte}"></label></div></section>
+   <section class="regs"><h3>Rétro-planning des chantiers</h3><p class="sub">À partir de l'acompte reçu. Une étape qui dépasse sa date passe en alerte rouge. Le délai du fournisseur est appris des ARC (ou celui annoncé sur l'ARC).</p><div class="regg">
+    <label>Métré réalisé<span>jours ouvrés après l'acompte</span><input type="number" min="0" step="1" data-regdl="metreJ" value="${retroD().metreJ}"></label>
+    <label>ARC validé<span>jours ouvrés après le métré</span><input type="number" min="0" step="1" data-regdl="arcJ" value="${retroD().arcJ}"></label>
+    <label>Pose<span>jours après la livraison</span><input type="number" min="0" step="1" data-regdl="poseJ" value="${retroD().poseJ}"></label></div></section></div>`}
 $("tab-reglages").addEventListener("change",e=>{const t=e.target,v=t.value===""?null:+String(t.value).replace(",",".");
   if(t.dataset.regobj){if(v==null||isNaN(v)||v<0)return;regSave("objectif",{[t.dataset.regobj]:v});return}
   if(t.dataset.regdl){if(v==null||isNaN(v)||v<0)return;regSave("delais",{[t.dataset.regdl]:v});return}

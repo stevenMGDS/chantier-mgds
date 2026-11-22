@@ -139,7 +139,7 @@ window.mtClose=async()=>{if(!S)return;if(S.dirty){await save()}S=null;$m("mtov")
 
 // ---------- affichage ----------
 function liste(){const L=$m("mtliste");const P=S.mt.prod;
-  L.innerHTML=P.map((p,k)=>{const[a,b]=prog(p);return`<button type="button" class="it" data-k="${k}" aria-current="${k===S.cur}"><b>${esc2(p.r||"Repère à saisir")}</b><small>${esc2(FAM[p.f].n)}</small><small>${esc2(p.d)}</small><span class="jauge"><i style="width:${Math.round(100*a/Math.max(1,b))}%"></i></span><small>${a}/${b} points</small></button>`}).join("")
+  L.innerHTML=(ro()?"":`<button type="button" class="ajout haut" data-k="-2">＋ Ajouter un élément oublié</button>`)+P.map((p,k)=>{const[a,b]=prog(p);return`<button type="button" class="it" data-k="${k}" aria-current="${k===S.cur}"><b>${esc2(p.r||"Repère à saisir")}</b><small>${esc2(FAM[p.f].n)}${p.ajout?" · ajouté":""}</small><small>${esc2(p.d)}</small><span class="jauge"><i style="width:${Math.round(100*a/Math.max(1,b))}%"></i></span><small>${a}/${b} points</small></button>`}).join("")
    +`<button type="button" class="it recap" data-k="-1" aria-current="${S.cur===-1}"><b>Consommables du chantier</b><small>Totaux calculés</small></button>`+(ro()?"":`<button type="button" class="ajout" data-k="-2">+ Ajouter un produit</button>`);
   L.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{S.cur=+b.dataset.k;draw();$m("mtfiche").scrollTop=0});
   const t=P.reduce((s,p)=>{const[a,b]=prog(p);return[s[0]+a,s[1]+b]},[0,0]);$m("mtglob").textContent=`${t[0]}/${t[1]} points relevés`}
@@ -344,12 +344,14 @@ function coupeBloc(p){const g=document.createElement("section");g.className="grp
 
 // ---------- ajout d'un produit ----------
 function ajout(f){f.innerHTML=`<div class="ftete"><h2>Ajouter un produit</h2></div>${ro()?`<p class="sub">Lecture seule.</p>`:`<section class="grp"><div class="champs">
+  <div class="ch large"><span>Quoi ?</span><div class="seg" id="mtaq">${[["Fenêtre","fen"],["Porte-fenêtre","fen"],["Coulissant","fen"],["Fixe","fen"],["Porte d'entrée","porte"],["Porte de garage","garage"],["Volet roulant","occ"],["Volet battant","occ"],["Store","occ"],["Portail","portail"],["Autre","fen"]].map(([l,f])=>`<button type="button" data-q="${esc2(l)}" data-f="${f}">${esc2(l)}</button>`).join("")}</div></div>
   <label class="ch"><span>Repère (pièce)</span><input type="text" id="mtar" placeholder="ex. Séjour"></label><label class="ch large"><span>Désignation</span><input type="text" id="mtad" placeholder="ex. Fenêtre 2 vantaux PVC 1200 × 1350"></label>
   <label class="ch"><span>Famille</span><select class="sel" id="mtaf">${Object.entries(FAM).map(([k,F])=>`<option value="${k}">${esc2(F.n)}</option>`).join("")}</select></label><label class="ch"><span>Cote devis</span><input type="text" id="mtac" placeholder="L × H"></label></div>
-  <button type="button" class="b1" id="mtaok">Ajouter</button></section>${S.mt.prod.length?"":`<p class="sub">Aucun produit pour l'instant. Astuce : si le chantier a déjà un métré PDF pré-rempli, ses lignes sont reprises à la création.</p>`}`}`;
-  if(ro())return;$m("mtad").oninput=()=>{$m("mtaf").value=famGuess($m("mtad").value)};$m("mtar").oninput=()=>{};
+  <button type="button" class="b1" id="mtaok">Ajouter et ouvrir sa fiche</button><p class="sub">La fiche s'ouvre avec ses champs, ses coupes et le croquis à dessiner. Elle est notée « ajoutée au métré » pour le bureau (pas dans le devis).</p></section>${S.mt.prod.length?"":`<p class="sub">Aucun produit pour l'instant. Astuce : si le chantier a déjà un métré PDF pré-rempli, ses lignes sont reprises à la création.</p>`}`}`;
+  if(ro())return;$m("mtad").oninput=()=>{$m("mtaf").value=famGuess($m("mtad").value)};
+  $m("mtaq").querySelectorAll("button").forEach(b=>b.onclick=()=>{$m("mtaq").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));$m("mtaf").value=b.dataset.f;if(b.dataset.q!=="Autre")$m("mtad").value=b.dataset.q+" (ajouté au métré)";$m("mtar").focus()});$m("mtar").oninput=()=>{};
   $m("mtaok").onclick=()=>{const r=$m("mtar").value.trim(),d=$m("mtad").value.trim();if(!r&&!d){$m("mtar").focus();return}
-    {const np=newProd(r,d,$m("mtaf").value,$m("mtac").value.trim());np.fg=1;preRemplir(np);S.mt.prod.push(np)}S.cur=S.mt.prod.length-1;sched();draw()}}
+    {const np=newProd(r,d,$m("mtaf").value,$m("mtac").value.trim());np.fg=1;np.ajout=1;preRemplir(np);const q=($m("mtaq").querySelector("[aria-pressed=true]")||{}).dataset;if(q&&q.q){if(np.f==="fen"&&/Fenêtre|Porte-fenêtre|Coulissant|Fixe/.test(q.q))np.v["Type"]=np.v["Type"]||q.q;if(np.f==="occ")np.v["Produit"]=np.v["Produit"]||(q.q==="Store"?"":q.q)}S.mt.prod.push(np)}S.cur=S.mt.prod.length-1;sched();draw()}}
 
 // ---------- consommables du chantier (mêmes calculs que le métré PDF) ----------
 function totaux(){const sil={},comp={},hab={},vis={},manque=[];let mou=0;
@@ -406,7 +408,7 @@ const css=`#mtov{position:fixed;inset:0;z-index:60;background:var(--bg,#f5f5f7);
 #mtov .liste .it{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:2px;padding:9px 11px;border-radius:12px;border:1.5px solid var(--line,#e3e3e8);background:var(--surface,#fff)}
 #mtov .liste .it[aria-current="true"]{border-color:#10407e;box-shadow:0 0 0 2px #10407e inset}#mtov .liste .it small{color:var(--muted,#6e6e73);font-size:12.5px}
 #mtov .liste .recap{background:#e8eff8}#mtov .jauge{height:5px;border-radius:3px;background:var(--line,#e3e3e8);overflow:hidden}#mtov .jauge i{display:block;height:100%;background:#2f7d4a}
-#mtov .ajout{font:600 14px inherit;border:1.5px dashed var(--muted,#6e6e73);border-radius:12px;padding:10px;background:none;color:var(--ink,#1d1d1f);cursor:pointer}
+#mtov .ajout.haut{border-style:solid;border-color:#10407e;color:#10407e;background:#e8eff8}#mtov .ajout{font:600 14px inherit;border:1.5px dashed var(--muted,#6e6e73);border-radius:12px;padding:10px;background:none;color:var(--ink,#1d1d1f);cursor:pointer}
 #mtov .fiche{padding:14px 18px 40px;display:grid;gap:14px;align-content:start;overflow:auto;-webkit-overflow-scrolling:touch}
 #mtov .ftete{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}#mtov .ftete h2{margin:0;font-size:22px;color:#10407e}
 #mtov .grp{border:1px solid var(--line,#e3e3e8);border-radius:14px;padding:12px 14px;display:grid;gap:12px;background:var(--surface,#fff)}
