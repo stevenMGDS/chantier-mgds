@@ -340,6 +340,7 @@ textarea{min-height:64px;resize:vertical}
 .docact{display:flex;gap:6px;align-items:center}
 .retro{grid-column:1/-1}.rjal{display:flex;flex-wrap:wrap;gap:6px}.rj{display:grid;padding:5px 9px;border-radius:8px;background:var(--sunk);font-size:13px}.rj b{font-size:12px}
 .rj.ok{background:var(--t-vert,#ddf0e2)}.rj.late{background:var(--t-rouge,#f8dada);color:var(--s-rouge,#b83a3a)}
+.plnoms{display:block;grid-column:2/-1;font-size:12.5px;color:var(--ink);margin-top:2px}.plobj{display:block;font-size:12px;color:var(--muted)}
 </style>
 <link rel="stylesheet" href="theme-mac.css">
 
@@ -4016,7 +4017,7 @@ function atlRow(a){
 function atlWeekLoad(live){
   const wk={},who={},by={};
   if(window.atlSchedOf&&live.some(a=>atlSchedOf(a.id))){live.forEach(a=>{const p=atlPlan(a);if(!p.wk||atlD(a,"fin"))return;
-    for(const f in p.wk){const h=p.wk[f].h;wk[f]=(wk[f]||0)+h;(who[f]=who[f]||new Set).add(atlName(a));(by[f]=by[f]||[]).push({lab:window.atlCourt?atlCourt(a):atlName(a),id:a.id,h,tard:p.wk[f].tard})}});
+    for(const f in p.wk){const h=p.wk[f].h;wk[f]=(wk[f]||0)+h;(who[f]=who[f]||new Set).add(atlName(a));(by[f]=by[f]||[]).push({lab:window.atlCourt?atlCourt(a):atlName(a),id:a.id,h,tard:p.wk[f].tard,obj:a.objet||""})}});
     return{wk,who,by}}
   live.forEach(a=>{const p=atlPlan(a),h=atlHeures(a);if(!h||atlD(a,"fin"))return;
     let d=atlD(a,"debut")?maxS(nextJo(today()),p.P.debut):p.P.debut;const ds=[];while(d<=p.P.fin&&ds.length<60){ds.push(d);d=addJo(d,1)}
@@ -4581,7 +4582,7 @@ function plCharge(n){
   for(const [m,L] of plPrevus())L.forEach(x=>{if(x.qui==="st"||x.qui==="atelier")return;put(m,"p",0,x.j||4,x.lab,x.id)});
   plAPlacer().out.forEach(x=>put(x.mon,x.k,0,x.j,x.lab,x.id));
   const {by}=atlWeekLoad(plLive());W.forEach(w=>{(by[aFri(w.mon)]||[]).forEach(x=>{const ok=x.h-x.tard;w.A.c+=ok;w.A.r+=x.tard;
-    if(ok>0.05)w.A.it.push({lab:x.lab,aid:x.id,k:"c",h:ok});if(x.tard>0.05)w.A.it.push({lab:x.lab,aid:x.id,k:"r",h:x.tard})})});
+    if(ok>0.05)w.A.it.push({lab:x.lab,aid:x.id,k:"c",h:ok,obj:x.obj});if(x.tard>0.05)w.A.it.push({lab:x.lab,aid:x.id,k:"r",h:x.tard,obj:x.obj})})});
   // devis probables : heures de pose réparties sur les semaines du mois souhaité, heures d'atelier sur le mois précédent
   const byM=new Map();W.forEach((w,i)=>{if(!byM.has(w.mois))byM.set(w.mois,[]);byM.get(w.mois).push(i)});
   const cur=W[0].mois,prevM=m=>{const d=new Date(+m.slice(0,4),+m.slice(5,7)-2,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)};
@@ -4634,15 +4635,16 @@ function plItems(it,pose,kn){const M=new Map();(it||[]).forEach(x=>{const key=x.
   const L=[...M.values()].filter(x=>x.h>0.05).sort((a,b)=>b.h-a.h);if(!L.length)return`<p class="plnote">Aucun chantier.</p>`;
   return`<ul class="plit">${L.map(x=>{const [cl,nm]=PL_KN[x.k]||PL_KN.c,lab=x.k==="c"&&kn?kn:nm,
     name=x.aid?`<button class="lnk" data-aopen="${esc(x.aid)}">${esc(x.lab)}</button>`:x.id&&!plChr()?`<button class="lnk" data-open="${esc(x.id)}">${esc(x.lab)}</button>`:`<span>${esc(x.lab)}</span>`;
-    return`<li><i class="sw ${cl}" title="${lab}"></i>${name}<span class="plh">${plNf(x.h)} h${pose?" · "+plNf(x.h/PL_EQ)+" j":""}</span><span class="plk">${lab}</span></li>`}).join("")}</ul>`}
-function plBar(lab,parts,cap,max,txt,det){
-  return `<div class="plcr"${det?` role="button" tabindex="0" aria-expanded="false" data-pldet`:""}><span class="wk">${lab}</span><div class="pltr" role="img" aria-label="${esc(lab+" : "+txt)}">${parts.filter(x=>x[0]>0.05).map(([v,k,l])=>`<i class="${k}" style="width:${Math.min(100,v/max*100)}%" title="${l} : ${plNf(v)} h"></i>`).join("")}<span class="plcap" style="left:${Math.min(100,cap/max*100)}%" title="disponible : ${plNf(cap)} h"></span></div><span class="txt">${txt}${det?` · <span class="pldt">voir les chantiers</span>`:""}</span>${det?`<div class="pldet" hidden>${det}</div>`:""}</div>`}
+    return`<li><i class="sw ${cl}" title="${lab}"></i>${name}${x.obj?`<small class="plobj">${esc(x.obj)}</small>`:""}<span class="plh">${plNf(x.h)} h${pose?" · "+plNf(x.h/PL_EQ)+" j":""}</span><span class="plk">${lab}</span></li>`}).join("")}</ul>`}
+const plNoms=it=>{const M=new Map();(it||[]).forEach(x=>{if(x.h>0.05)M.set(x.lab,(M.get(x.lab)||0)+x.h)});return[...M].sort((a,b)=>b[1]-a[1]).map(([l,h])=>esc(l)+" "+plNf(h)+" h").join(" · ")};
+function plBar(lab,parts,cap,max,txt,det,noms){
+  return `<div class="plcr"${det?` role="button" tabindex="0" aria-expanded="false" data-pldet`:""}><span class="wk">${lab}</span><div class="pltr" role="img" aria-label="${esc(lab+" : "+txt)}">${parts.filter(x=>x[0]>0.05).map(([v,k,l])=>`<i class="${k}" style="width:${Math.min(100,v/max*100)}%" title="${l} : ${plNf(v)} h"></i>`).join("")}<span class="plcap" style="left:${Math.min(100,cap/max*100)}%" title="disponible : ${plNf(cap)} h"></span></div><span class="txt">${txt}${det?` · <span class="pldt">voir les chantiers</span>`:""}</span>${noms?`<span class="plnoms">${noms}</span>`:""}${det?`<div class="pldet" hidden>${det}</div>`:""}</div>`}
 const plEtat=(ferme,tot,cap)=>ferme>cap+.05?"il manque "+plNf(ferme-cap)+" h":tot>cap+.05?"plein si les devis sont signés":"reste "+plNf(cap-tot)+" h";
 const plTxt=(o,noms)=>{const r=o.r||0,P=[[o.c,noms[0]],[o.p,"prévu"],[o.e,"estimé"],[r,"en retard sur la pose"],[o.d,"devis probables"]].filter(x=>x[0]>0.05);return(P.map(([v,l])=>plNf(v)+" h "+l).join(" + ")||"rien de prévu")+" · "+plNf(o.cap)+" h disponibles · "+plEtat(o.c+o.p+o.e+r,o.c+o.p+o.e+r+o.d,o.cap)};
 function plAtlHtml(){
   const W=plCharge(12),live=plLive(),max=Math.max(60,...W.map(w=>Math.max(w.A.cap,w.A.c+w.A.r+w.A.d)))*1.05;
   let h=`<div class="plw"><header><b>Charge de l'atelier</b><span>Manu 39 h par semaine, plus le renfort des poseurs</span></header>${W.map(w=>
-    plBar(sem(w.mon),[[w.A.c,"pk1","à produire"],[w.A.r,"pk5","en retard sur la pose"],[w.A.d,"pk4","devis probables"]],w.A.cap,max,plTxt(w.A,["à produire"])+(w.A.renf?" (dont "+plNf(w.A.renf)+" h de renfort)":""),w.A.it.length?plItems(w.A.it,false,"à produire"):"")).join("")}</div>
+    plBar(sem(w.mon),[[w.A.c,"pk1","à produire"],[w.A.r,"pk5","en retard sur la pose"],[w.A.d,"pk4","devis probables"]],w.A.cap,max,plTxt(w.A,["à produire"])+(w.A.renf?" (dont "+plNf(w.A.renf)+" h de renfort)":""),w.A.it.length?plItems(w.A.it,false,"à produire"):"",plNoms(w.A.it))).join("")}</div>
    <div class="leg"><span><i class="sw pk1"></i>À produire</span><span><i class="sw pk5"></i>En retard sur la pose</span><span><i class="sw pk4"></i>Devis en attente (probables)</span><span><i class="sw" style="width:2px;background:var(--ink)"></i>Heures disponibles</span></div>
    <p class="plnote">Touchez une semaine pour voir les commandes. Chaque commande est fabriquée au plus près de sa pose en gardant une semaine de sécurité, en remontant le temps dans les jours où l'atelier a de la place, jamais avant l'arrivée de la matière ; les commandes déjà lancées passent d'abord. Faute de place, la production empiète sur la semaine de sécurité ; les heures en rouge ne tiennent pas avant la pose.</p>`;
   const rows=live.map(a=>({a,p:atlPlan(a)})).sort((x,y)=>(x.p.besoin||"9999").localeCompare(y.p.besoin||"9999")||(x.p.fin||"").localeCompare(y.p.fin||"")).map(({a,p})=>{
@@ -4680,7 +4682,7 @@ function plChgHtml(){
    <div class="plsep">Le détail des 15 prochaines semaines : touchez une semaine pour voir ses chantiers</div>`;
   const W15=W.slice(0,15),mxP=Math.max(60,...W15.map(w=>Math.max(w.P.cap,w.P.c+w.P.p+w.P.e+w.P.d)))*1.05,mxA=Math.max(60,...W15.map(w=>Math.max(w.A.cap,w.A.c+w.A.r+w.A.d)))*1.05;
   h+=`<div class="plw"><header><b>Pose</b><span>heures des ${PLN.np} poseurs par semaine</span></header>${W15.map(w=>plBar(sem(w.mon),[[w.P.c,"pk1","confirmé"],[w.P.p,"pk2","prévu"],[w.P.e,"pk3","estimé"],[w.P.d,"pk4","devis probables"]],w.P.cap,mxP,plTxt(w.P,["confirmé"]),w.P.it.length?plItems(w.P.it,true):"")).join("")}</div>
-   <div class="plw"><header><b>Atelier</b><span>heures de Manu et du renfort</span></header>${W15.map(w=>plBar(sem(w.mon),[[w.A.c,"pk1","à produire"],[w.A.r,"pk5","en retard sur la pose"],[w.A.d,"pk4","devis probables"]],w.A.cap,mxA,plTxt(w.A,["à produire"]),w.A.it.length?plItems(w.A.it,false,"à produire"):"")).join("")}</div>`;
+   <div class="plw"><header><b>Atelier</b><span>heures de Manu et du renfort</span></header>${W15.map(w=>plBar(sem(w.mon),[[w.A.c,"pk1","à produire"],[w.A.r,"pk5","en retard sur la pose"],[w.A.d,"pk4","devis probables"]],w.A.cap,mxA,plTxt(w.A,["à produire"]),w.A.it.length?plItems(w.A.it,false,"à produire"):"",plNoms(w.A.it))).join("")}</div>`;
   return h+dvHtml(DV)}
 // ---------- devis en attente ----------
 function dvMois(sel){const d=new Date(),o=[`<option value="">à préciser</option>`];for(let i=0;i<18;i++){const x=new Date(d.getFullYear(),d.getMonth()+i,1),v=x.getFullYear()+"-"+pad(x.getMonth()+1);o.push(`<option value="${v}" ${v===sel?"selected":""}>${plMoisLab(v)}</option>`)}
