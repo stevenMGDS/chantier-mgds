@@ -4844,6 +4844,14 @@ function dvDepRes(d){const x=d.dep;if(!x||!x.lieu||x.km===""||x.km==null||!(+d.j
   r.mj=0;r.mf=0;if(x.metre){const pj=Math.max(1,Math.ceil((2*base.heures/DEP_T.camion/8+.5)*2)/2),m=depCalc({...base,pers:1,jours:1});
     r.mj=pj;r.mn=base.heures>3.5?1:0;r.mf=m.P.camion+m.P.peage+(r.mn?(DEP_Z[base.zone]||DEP_Z.province).b*1.1+DEP_T.prime:0);r.total+=r.mf}
   r.jt=+d.jp+r.jr+r.mj/2;return r}
+
+// Option métré (Steven, 23/11/2026) : souvent non vendu dans le devis (supplément à facturer) ou fait par le maître
+// d'œuvre (type Godot et Fils) : on montre toujours la marge jour avec et sans le déplacement du métré, et le supplément
+// qui couvre le métré sans baisser la marge jour (frais du métré + ses journées d'équipe × objectif de marge jour).
+function dvMetOpt(d){const x=d.dep||{};if(!x.lieu||x.km===""||x.km==null||!(+d.jp>0))return"";
+  const sans={...d,dep:{...x,metre:false}},avec={...d,dep:{...x,metre:true}},ra=dvDepRes(avec),ms=dvMj(sans),ma=dvMj(avec);if(!ra||!ra.mj)return"";
+  const O=rtObj(),sup=Math.round((ra.mf+ra.mj/2*O.obj)/10)*10,cls=v=>v==null?"":v>=O.obj?"ok":v>=O.obj*.9?"o":"r";
+  return`<br><span class="dvmetopt">Métré sur place : <b>${plNf(ra.mj)} j</b> à 1 personne + <b>${plEur(ra.mf)}</b> de frais · marge jour <b class="dvmj ${cls(ma)}">${ma!=null?plEur(ma):"–"}</b> avec, <b class="dvmj ${cls(ms)}">${ms!=null?plEur(ms):"–"}</b> sans (métré fait par le maître d'œuvre ou facturé à part) · supplément pour le vendre à part sans baisser la marge jour : <b>≈ ${plEur(sup)} HT</b>. ${x.metre?"Compté dans ce devis.":"Pas compté dans ce devis."}</span>`}
 // temps total d'un devis en journées d'équipe de 2 (sur place + route + métré)
 function dvJT(d){const r=dvDepRes(d);return r?r.jt:(+d.jp||0)}
 function dvFrais(d){const r=dvDepRes(d);return r?r.total:0}
@@ -4861,10 +4869,10 @@ function dvDep(d){const id=esc(d.id),x=d.dep||{},ro=plW()?"":"disabled",r=dvDepR
   const res=!x.lieu?`<span class="sub">Lieu du chantier à saisir : les frais de déplacement de l'équipe sont alors déduits de la marge.</span>`
    :x.km===""||x.km==null?`<span class="sub">${x.src==="cherche"?"Recherche de la distance…":"Distance inconnue : saisissez km, péage et temps de route."}</span>`
    :!r?`<span class="sub">Jours de pose à saisir pour calculer les frais.</span>`
-   :`<span><b>Temps total ${plNf(r.jt)} j</b> = ${plNf(+d.jp)} j sur place + ${plNf(r.jr)} j de route (${DEP_ORG[r.org]})${r.mj?` + métré ${plNf(r.mj)} j à 1 personne (${plNf(r.mj/2)} j d'équipe)`:""} : il divise la marge et remplit la charge.<br><b>Frais de déplacement ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers.${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} · camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}${r.mf?`, métré ${plEur(r.mf)}`:""}. Le salaire du trajet n'est pas recompté : il est dans le temps total.</span>`;
+   :`<span><b>Temps total ${plNf(r.jt)} j</b> = ${plNf(+d.jp)} j sur place + ${plNf(r.jr)} j de route (${DEP_ORG[r.org]})${r.mj?` + métré ${plNf(r.mj)} j à 1 personne (${plNf(r.mj/2)} j d'équipe)`:""} : il divise la marge et remplit la charge.<br><b>Frais de déplacement ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers.${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} · camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}${r.mf?`, métré ${plEur(r.mf)}`:""}. Le salaire du trajet n'est pas recompté : il est dans le temps total.${dvMetOpt(d)}</span>`;
   return`<div class="dvdep"><label>Lieu du chantier<input type="text" list="depVilles" data-dvdep="lieu" data-id="${id}" value="${esc(x.lieu||"")}" placeholder="ville" ${ro}></label>
    <label>Équipe (pers.)<input type="number" min="1" step="1" inputmode="numeric" data-dvdep="pers" data-id="${id}" value="${esc(x.pers||2)}" ${ro}></label>
-   <label class="dvmet"><input type="checkbox" data-dvdep="metre" data-id="${id}" ${x.metre?"checked":""} ${ro}> Métré sur place (1 personne)</label>
+   <label class="dvmet"><input type="checkbox" data-dvdep="metre" data-id="${id}" ${x.metre?"checked":""} ${ro}> Métré sur place à notre charge (1 personne)</label>
    ${x.lieu?`<details class="dvdepx"><summary>km, péage, temps</summary><label>Km aller<input type="number" min="0" data-dvdep="km" data-id="${id}" value="${esc(x.km??"")}" ${ro}></label><label>Péage aller (€ HT)<input type="number" min="0" data-dvdep="peage" data-id="${id}" value="${esc(x.peage??"")}" ${ro}></label><label>Route aller (h, camion)<input type="number" min="0" step="0.1" data-dvdep="h" data-id="${id}" value="${esc(x.h??"")}" ${ro}></label><label>Zone d'hôtel<select data-dvdep="zone" data-id="${id}" ${ro}>${Object.entries(DEP_Z).map(([k,z])=>`<option value="${k}" ${k===(x.zone||"province")?"selected":""}>${z.n}</option>`).join("")}</select></label></details>`:""}
    <div class="dvdepr">${res}</div></div>`}
 async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=PLN.devis.get(id)||{},x={...(d.dep||{})};
