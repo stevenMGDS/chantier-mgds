@@ -4824,6 +4824,10 @@ function depCalc(p){const T=DEP_T,addD=(d,n)=>{const x=new Date(d);x.setDate(x.g
   let d=new Date(p.debut+"T12:00:00");const wd=[];while(wd.length<p.jours){const k=d.getDay();if(k&&k!==6)wd.push(new Date(d));d=addD(d,1)}
   const org=p.heures<=1?"jour":p.heures>=4?"both":p.heures>=2.5?"veille":"matin";
   let seq=[];if(org==="jour")seq=wd.map(x=>[x,x]);else wd.forEach((x,i)=>{if(i&&(x-wd[i-1])<1.5*864e5)seq[seq.length-1][1]=x;else seq.push([x,x])});
+  // retours à Orléans (Steven, 23/11/2026) : chaque week-end par défaut ; sinon k retours sur tout le chantier (0 = on reste
+  // sur place, comme au Cap-Ferret) : les semaines sont regroupées en k+1 séjours, nuits et primes du week-end comptées
+  if(org!=="jour"&&p.retours!=null&&p.retours!=="we"){const k=Math.max(0,Math.min(seq.length-1,+p.retours||0)),n=seq.length,g=[];
+    for(let i=0;i<=k;i++){const a=Math.floor(i*n/(k+1)),b=Math.floor((i+1)*n/(k+1))-1;if(b>=a)g.push([seq[a][0],seq[b][1]])}seq=g}
   const nuits=[];if(org!=="jour")seq.forEach(([a,b])=>{const deb=org==="matin"?a:addD(a,-1),fin=org==="both"?b:addD(b,-1);for(let x=new Date(deb);x<=fin;x=addD(x,1))nuits.push(new Date(x))});
   const Z=DEP_Z[p.zone]||DEP_Z.province,camions=Math.ceil(p.pers/T.places),ar=seq.length,kmCamion=2*p.km*ar+(org==="jour"?0:T.kmLocal*p.jours),hRoute=2*p.heures*ar;
   const P={route:hRoute*p.pers*T.tarif/T.hJour,camion:camions*kmCamion*(T.conso/100*T.gazole+T.usure),peage:camions*2*ar*p.peage,
@@ -4841,10 +4845,11 @@ const depDebut=per=>{let d=per?new Date(per+"-01T12:00:00"):new Date(Date.now()+
 const DEP_JR={both:2,veille:1,matin:.5,jour:0};
 function dvDepRes(d){const x=d.dep;if(!x||!x.lieu||x.km===""||x.km==null||!(+d.jp>0))return null;
   const base={km:+x.km||0,peage:+x.peage||0,heures:+x.h||0,zone:x.zone||"province",debut:depDebut(d.periode)};
-  const r=depCalc({...base,pers:Math.max(1,+x.pers||2),jours:Math.max(1,Math.ceil(+d.jp))});r.jr=r.ar*DEP_JR[r.org];r.total-=r.P.route;r.P.route=0;
+  const r=depCalc({...base,pers:Math.max(1,+x.pers||2),jours:Math.max(1,Math.ceil(+d.jp)),retours:x.retours??"we"});r.jr=r.ar*DEP_JR[r.org];r.total-=r.P.route;r.P.route=0;
   r.mj=0;r.mf=0;if(x.metre){const pj=Math.max(1,Math.ceil((2*base.heures/DEP_T.camion/8+.5)*2)/2),m=depCalc({...base,pers:1,jours:1});
     r.mj=pj;r.mn=base.heures>3.5?1:0;r.mf=m.P.camion+m.P.peage+(r.mn?(DEP_Z[base.zone]||DEP_Z.province).b*1.1+DEP_T.prime:0);r.total+=r.mf}
-  r.jt=+d.jp+r.jr+r.mj/2;return r}
+  // journées d'équipe de 2 (l'objectif de marge jour est par équipe de 2) : sur place et route × personnes ÷ 2, métré à 1 personne
+  r.pers=Math.max(1,+x.pers||2);r.jt=(+d.jp+r.jr)*r.pers/2+r.mj/2;return r}
 
 // Option métré (Steven, 23/11/2026) : souvent non vendu dans le devis (supplément à facturer) ou fait par le maître
 // d'œuvre (type Godot et Fils) : on montre toujours la marge jour avec et sans le déplacement du métré, et le supplément
@@ -4854,7 +4859,7 @@ function dvMetOpt(d){const x=d.dep||{};if(!x.lieu||x.km===""||x.km==null||!(+d.j
   const O=rtObj(),sup=Math.round((ra.mf+ra.mj/2*O.obj)/10)*10,cls=v=>v==null?"":v>=O.obj?"ok":v>=O.obj*.9?"o":"r";
   return`<br><span class="dvmetopt">Métré sur place : <b>${plNf(ra.mj)} j</b> à 1 personne + <b>${plEur(ra.mf)}</b> de frais · marge jour <b class="dvmj ${cls(ma)}">${ma!=null?plEur(ma):"–"}</b> avec, <b class="dvmj ${cls(ms)}">${ms!=null?plEur(ms):"–"}</b> sans (métré fait par le maître d'œuvre ou facturé à part) · supplément pour le vendre à part sans baisser la marge jour : <b>≈ ${plEur(sup)} HT</b>. ${x.metre?"Compté dans ce devis.":"Pas compté dans ce devis."}</span>`}
 // temps total d'un devis en journées d'équipe de 2 (sur place + route + métré)
-function dvJT(d){const r=dvDepRes(d);return r?r.jt:(+d.jp||0)}
+function dvJT(d){const r=dvDepRes(d);return r?r.jt:(+d.jp||0)*Math.max(1,+((d.dep||{}).pers)||2)/2}
 function dvFrais(d){const r=dvDepRes(d);return r?r.total:0}
 // lieu hors de la liste : commune trouvée par la Base adresse nationale (api-adresse.data.gouv.fr, seul le nom de la commune
 // est envoyé), distance à vol d'oiseau depuis Orléans × 1,25, temps et péage estimés : à corriger à la main si besoin
@@ -4870,9 +4875,10 @@ function dvDep(d){const id=esc(d.id),x=d.dep||{},ro=plW()?"":"disabled",r=dvDepR
   const res=!x.lieu?`<span class="sub">Lieu du chantier à saisir : les frais de déplacement de l'équipe sont alors déduits de la marge.</span>`
    :x.km===""||x.km==null?`<span class="sub">${x.src==="cherche"?"Recherche de la distance…":"Distance inconnue : saisissez km, péage et temps de route."}</span>`
    :!r?`<span class="sub">Jours de pose à saisir pour calculer les frais.</span>`
-   :`<span><b>Temps total ${plNf(r.jt)} j</b> = ${plNf(+d.jp)} j sur place + ${plNf(r.jr)} j de route (${DEP_ORG[r.org]})${r.mj?` + métré ${plNf(r.mj)} j à 1 personne (${plNf(r.mj/2)} j d'équipe)`:""} : il divise la marge et remplit la charge.<br><b>Frais de déplacement ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers.${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} · camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}${r.mf?`, métré ${plEur(r.mf)}`:""}. Le salaire du trajet n'est pas recompté : il est dans le temps total.${dvMetOpt(d)}</span>`;
+   :`<span><b>Temps total ${plNf(r.jt)} j d'équipe de 2</b> = (${plNf(+d.jp)} j sur place + ${plNf(r.jr)} j de route : ${r.org==="jour"?"retour chaque soir":`${r.ar} aller${r.ar>1?"s":""}-retour${r.ar>1?"s":""}, ${DEP_ORG[r.org]}, ${(x.retours??"we")==="we"?"retour chaque week-end":+x.retours?`${+x.retours} retour${+x.retours>1?"s":""} pendant le chantier`:"pas de retour avant la fin"}`})${r.pers!==2?` × ${r.pers} pers. ÷ 2`:""}${r.mj?` + métré ${plNf(r.mj)} j à 1 personne (${plNf(r.mj/2)} j d'équipe)`:""} : il divise la marge et remplit la charge.<br><b>Frais de déplacement ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers.${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} · camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}${r.mf?`, métré ${plEur(r.mf)}`:""}. Le salaire du trajet n'est pas recompté : il est dans le temps total.${dvMetOpt(d)}</span>`;
   return`<div class="dvdep"><label>Lieu du chantier<input type="text" list="depVilles" data-dvdep="lieu" data-id="${id}" value="${esc(x.lieu||"")}" placeholder="ville" ${ro}></label>
    <label>Équipe (pers.)<input type="number" min="1" step="1" inputmode="numeric" data-dvdep="pers" data-id="${id}" value="${esc(x.pers||2)}" ${ro}></label>
+   ${x.lieu?`<label>Retours à Orléans<select data-dvdep="retours" data-id="${id}" ${ro}>${[["we","chaque week-end"],["0","aucun (reste sur place)"],...[1,2,3,4,5,6].map(n=>[String(n),n+" fois pendant le chantier"])].map(([v,t])=>`<option value="${v}" ${String(x.retours??"we")===v?"selected":""}>${t}</option>`).join("")}</select></label>`:""}
    <label class="dvmet"><input type="checkbox" data-dvdep="metre" data-id="${id}" ${x.metre?"checked":""} ${ro}> Métré sur place à notre charge (1 personne)</label>
    ${x.lieu?`<details class="dvdepx"><summary>km, péage, temps</summary><label>Km aller<input type="number" min="0" data-dvdep="km" data-id="${id}" value="${esc(x.km??"")}" ${ro}></label><label>Péage aller (€ HT)<input type="number" min="0" data-dvdep="peage" data-id="${id}" value="${esc(x.peage??"")}" ${ro}></label><label>Route aller (h, camion)<input type="number" min="0" step="0.1" data-dvdep="h" data-id="${id}" value="${esc(x.h??"")}" ${ro}></label><label>Zone d'hôtel<select data-dvdep="zone" data-id="${id}" ${ro}>${Object.entries(DEP_Z).map(([k,z])=>`<option value="${k}" ${k===(x.zone||"province")?"selected":""}>${z.n}</option>`).join("")}</select></label></details>`:""}
    <div class="dvdepr">${res}</div></div>`}
@@ -4884,6 +4890,7 @@ async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=PLN.devi
       let e=null;try{e=await depEstime(l)}catch(_){}
       const y={...((PLN.devis.get(id)||{}).dep||x)};if(e)Object.assign(y,e);else Object.assign(y,{src:"saisi"});await dvSave(id,{dep:y});dvKeep(planRender);return}}
   else if(k==="metre")x.metre=t.checked;
+  else if(k==="retours")x.retours=t.value;
   else{x[k]=k==="zone"?t.value:(t.value===""?"":Math.max(k==="pers"?1:0,+String(t.value).replace(",",".")||0));if(k!=="pers"&&k!=="zone")x.src="saisi"}
   await dvSave(id,{dep:x});dvKeep(planRender)}
 document.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.dvdep)dvDepChange(t)});
