@@ -345,6 +345,8 @@ textarea{min-height:64px;resize:vertical}
 .afaire summary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;cursor:pointer;font-size:17px}.afaire ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
 .afaire li{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;padding:8px;border-radius:8px;background:var(--sunk)}.afaire li.ok{opacity:.6}.afaire li.ok b{text-decoration:line-through}
 .afc input{width:22px;height:22px}.afb{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--s-rouge,#b83a3a);color:#fff;font:700 13px/1 sans-serif}.afr{color:var(--s-rouge,#b83a3a);font-weight:600}
+.plv{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:6px 0 12px;display:grid;gap:6px;background:var(--surface)}
+.plvh{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center}.plvok{color:var(--s-vert,#2f7d4a);font-weight:600}.plverr{color:var(--s-rouge,#b83a3a);font-weight:600}
 </style>
 <link rel="stylesheet" href="theme-mac.css">
 
@@ -744,6 +746,36 @@ function newDocs(j){return (j.docs||[]).filter(d=>!d.traite).length}
 function done(j){return curStep(j)===null}
 const ORDER=Object.fromEntries(STEPS.map((s,i)=>[s.k,i]));
 // ---------- liste ----------
+// ---------- Valider le planning (Steven, 23/11/2026) ----------
+// Marine (ou Steven) dépose l'Excel PLANNING : stockage « outil » planning/PLANNING_<date>.xlsx + ligne planning_validation.
+// La validation (dès le jeudi) vaut pour l'envoi du vendredi matin suivant ; « semaine » = lundi de la semaine planifiée.
+const plvQui=()=>canWrite&&window.mgdsProfil&&mgdsProfil.role==="editeur"&&/marine|steven/i.test((mgdsProfil.nom||"")+" "+(mgdsProfil.email||""));
+function plvSemaine(){const d=new Date(),wd=d.getDay();let k=(5-wd+7)%7;if(wd===5&&d.getHours()>=8)k=7;if(wd===6)k=6;const v=new Date(d.getFullYear(),d.getMonth(),d.getDate()+k+3);
+  return v.getFullYear()+"-"+pad(v.getMonth()+1)+"-"+pad(v.getDate())}
+let plvRows=null,plvNoms={},plvMsg="";
+async function plvLoad(){const sb=window.sbClient;if(!sb)return;
+  const{data,error}=await sb.from("planning_validation").select("*").order("valide_le",{ascending:false}).limit(6);
+  if(error){plvRows=[];plvMsg="La table planning_validation n'est pas encore installée (outil/planning-validation.sql).";return}
+  plvRows=data||[];const ids=[...new Set(plvRows.map(r=>r.valide_par))].filter(i=>!plvNoms[i]);
+  if(ids.length){const{data:P}=await sb.from("profils").select("id,nom,email").in("id",ids);(P||[]).forEach(p=>plvNoms[p.id]=p.nom||(p.email||"").split("@")[0])}}
+function plvRender(){const el=$("plnValid");if(!el)return;if(!plvQui()){el.innerHTML="";return}
+  if(plvRows===null){plvRows=[];plvLoad().then(plvRender);return}
+  const sem=plvSemaine(),R=plvRows.filter(r=>r.semaine===sem),r=R[0],dt=x=>new Date(x).toLocaleString("fr-FR",{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"});
+  const etat=r?`<div class="plvok">✓ Validé par ${esc(plvNoms[r.valide_par]||"?")} le ${dt(r.valide_le)}</div>${r.statut==="envoye"?`<div class="plvok">✓ Envoyé dans l'appli le ${dt(r.envoye_le||r.valide_le)}</div>`:r.statut==="erreur"?`<div class="plverr">⚠ L'envoi n'a pas marché</div>`:`<div class="sub">Envoi dans l'appli vendredi ${fr(addDays(sem,-3))} au matin.</div>`}${r.resume?`<div class="sub">${esc(r.resume)}</div>`:""}`
+    :`<div class="sub">Pas encore validé pour la semaine du ${fr(sem)}.</div>`;
+  const avant=plvRows.filter(x=>x.semaine!==sem).slice(0,3);
+  el.innerHTML=`<div class="plv"><div class="plvh"><div><b>Planning de la semaine du ${fr(sem)}</b><div class="sub">Validation possible dès le jeudi : elle vaut pour l'envoi du vendredi ${fr(addDays(sem,-3))} au matin.</div></div>
+    <label class="btn">📥 Valider le planning<input type="file" id="plvFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div>${etat}${plvMsg?`<div class="plverr">${esc(plvMsg)}</div>`:""}
+    ${avant.length?`<details><summary class="sub">Validations précédentes</summary>${avant.map(x=>`<div class="sub">Semaine du ${fr(x.semaine)} : validé par ${esc(plvNoms[x.valide_par]||"?")} le ${fr(x.valide_le.slice(0,10))} · ${x.statut==="envoye"?"envoyé":x.statut==="erreur"?"erreur":"en attente"}${x.resume?" · "+esc(x.resume):""}</div>`).join("")}</details>`:""}</div>`;
+  $("plvFile").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
+    if(!/\.xlsx$/i.test(f.name)){toast("Choisissez le fichier Excel PLANNING (.xlsx).");return}
+    if(!/planning/i.test(f.name)&&!confirm("Le fichier s'appelle « "+f.name+" ». C'est bien le planning ?"))return;
+    const sb=window.sbClient,chemin="planning/PLANNING_"+today()+".xlsx";plvMsg="";toast("Envoi du planning…");
+    const up=await sb.storage.from("outil").upload(chemin,f,{upsert:true,contentType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    if(up.error){plvMsg="Le fichier n'a pas pu être déposé ("+up.error.message+").";plvRender();return}
+    const ins=await sb.from("planning_validation").insert({semaine:sem,fichier:chemin,statut:"valide"});
+    if(ins.error){plvMsg="Le fichier est déposé, mais la validation n'a pas pu être enregistrée ("+ins.error.message+").";plvRender();return}
+    toast("Planning validé pour la semaine du "+fr(sem)+".");await plvLoad();plvRender()}}
 // ---------- « À faire – Marine » (Steven, 23/11/2026) ----------
 // Tâches créées automatiquement : devis signé manquant (alerte posée par la synchro de l'iMac, retirée quand le devis arrive)
 // et fichier d'OFFRE MGDS qui bloque la synchro (liste écrite par la synchro dans reglages « synchro » à chaque passage).
@@ -4631,8 +4663,8 @@ function plCharge(n){
 // ---------- rendu ----------
 function planRender(){
   const el=$("tab-planning");if(!el)return;
-  if(!$("plnBody")){el.innerHTML=`<div class="plnnav chips" role="tablist">${[["sem","Pose"],["atl","Atelier"],["chg","Charge"],["jour","Jour par jour"]].filter(x=>x[0]!=="jour"||!plChr()).map(([k,l])=>`<button class="chip" role="tab" data-pview="${k}" aria-pressed="${PLN.view===k}">${l}</button>`).join("")}</div><div id="plnBody" class="pln"></div><div id="plnJour" hidden></div>`}
-  el.querySelectorAll("[data-pview]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.pview===PLN.view));
+  if(!$("plnBody")){el.innerHTML=`<div id="plnValid"></div><div class="plnnav chips" role="tablist">${[["sem","Pose"],["atl","Atelier"],["chg","Charge"],["jour","Jour par jour"]].filter(x=>x[0]!=="jour"||!plChr()).map(([k,l])=>`<button class="chip" role="tab" data-pview="${k}" aria-pressed="${PLN.view===k}">${l}</button>`).join("")}</div><div id="plnBody" class="pln"></div><div id="plnJour" hidden></div>`}
+  el.querySelectorAll("[data-pview]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.pview===PLN.view));plvRender();
   const body=$("plnBody"),jr=$("plnJour");body.hidden=PLN.view==="jour";jr.hidden=PLN.view!=="jour";
   if(PLN.view==="jour"&&plChr())PLN.view="atl";
   if(PLN.view==="jour"){if(!jr.firstChild)jr.innerHTML=`<iframe class="planframe" src="poseurs.html?embed=1#planning" title="Planning des poseurs"></iframe>`;return}
