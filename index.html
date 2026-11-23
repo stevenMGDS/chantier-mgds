@@ -4837,8 +4837,15 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
   const F=(lab,inner,cls="")=>`<label class="dvfl ${cls}"><span>${lab}</span>${inner}</label>`;
   const chance=`<select id="dv-chance-${id}" ${a} data-k="chance" ${ro}>${Object.entries(DV_CH).map(([k,[l]])=>`<option value="${k}" ${k===((d&&d.chance)||"moyenne")?"selected":""}>${l}</option>`).join("")}</select>`;
   const num=(k,step,ph="",mode="decimal")=>`<input type="number" min="0" step="${step}" inputmode="${mode}" id="dv-${k}-${id}" ${a} data-k="${k}" value="${v(k)}" placeholder="${ph}" ${ro}>`;
-  if(!d)return`<form class="pldvr dvnew" data-dvadd="1"><div class="dvnewh"><b>＋ Nouveau devis</b><span class="sub">ou glissez la capture du chiffrage ici</span></div>
-   <div class="dvf">${F("Client, affaire",`<input type="text" id="dv-client-new" data-k="client" placeholder="ex. DUPONT – baie coulissante" ${ro}>`,"w2")}${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Chance",chance)}${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Pose souhaitée",`<select id="dv-periode-new" data-k="periode" ${ro}>${dvMois("")}</select>`)}<div class="acts"><button class="btn">Ajouter</button></div></div></form>`;
+  // nouveau devis (Steven, 23/11/2026 : tout saisir d'un coup, sans revenir sur la carte) : chiffrage complet + déplacement
+  if(!d)return`<form class="pldvr dvnew" data-dvadd="1"><div class="dvnewh"><b>＋ Nouveau devis</b><span class="sub">tout se remplit ici, ou glissez la capture du chiffrage</span></div>
+   <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">${F("Client, affaire",`<input type="text" id="dv-client-new" data-k="client" placeholder="ex. DUPONT – baie coulissante" ${ro}>`,"w2")}${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
+    ${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-new" data-k="periode" ${ro}>${dvMois("")}</select>`)}</div></div>
+   <div class="dvsec"><h4>Déplacement et livraison</h4><div class="dvf">${F("Lieu du chantier",`<input type="text" list="depVilles" data-k="lieu" placeholder="ville (vide = pas de déplacement)" ${ro}>`)}${F("Équipe (pers.)",`<input type="number" min="1" step="1" inputmode="numeric" data-k="pers" value="2" ${ro}>`)}
+    ${F("Retours à Orléans",`<select data-k="retours" ${ro}>${[["we","chaque week-end"],["0","aucun (reste sur place)"],...[1,2,3,4,5,6].map(n=>[String(n),n+" fois pendant le chantier"])].map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select>`)}
+    ${F("Livraison du matériel",`<select data-k="liv" ${ro}>${LIV_OPT.map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select>`,"w2")}
+    <label class="dvmet"><input type="checkbox" data-k="metre" ${ro}> Métré sur place à notre charge (1 personne)</label></div></div>
+   <div class="acts"><button class="btn">Ajouter le devis</button></div></form>`;
   const mj=dvMj(d),O=rtObj(),cls=dvCls(mj);
   return`<div class="pldvr dvcard ${cls}">
    <div class="dvhd"><input type="text" class="dvcli" id="dv-client-${id}" ${a} data-k="client" value="${v("client")}" aria-label="Client, affaire" ${ro}>
@@ -4971,6 +4978,9 @@ function dvDep(d){const id=esc(d.id),x=d.dep||{},ro=plW()?"":"disabled",r=dvDepR
    <label class="dvmet"><input type="checkbox" data-dvdep="metre" data-id="${id}" ${x.metre?"checked":""} ${ro}> Métré sur place à notre charge (1 personne)</label></div>
    ${x.lieu?`<details class="dvdepx"><summary>Corriger km, péage, temps</summary><label>Km aller<input type="number" min="0" data-dvdep="km" data-id="${id}" value="${esc(x.km??"")}" ${ro}></label><label>Péage aller (€ HT)<input type="number" min="0" data-dvdep="peage" data-id="${id}" value="${esc(x.peage??"")}" ${ro}></label><label>Route aller (h, camion)<input type="number" min="0" step="0.1" data-dvdep="h" data-id="${id}" value="${esc(x.h??"")}" ${ro}></label><label>Km depuis la Belgique<input type="number" min="0" data-dvdep="kmBe" data-id="${id}" value="${esc(x.kmBe??"")}" placeholder="${(()=>{const ll=x.lat!=null?[+x.lat,+x.lon]:DEP_LL[x.lieu];return ll?Math.round(livVol(LIV_BE,ll)*1.25)+" (estimés)":"à saisir"})()}" ${ro}></label><label>Zone d'hôtel<select data-dvdep="zone" data-id="${id}" ${ro}>${Object.entries(DEP_Z).map(([k,z])=>`<option value="${k}" ${k===(x.zone||"province")?"selected":""}>${z.n}</option>`).join("")}</select></label></details>`:""}
    <div class="dvdepr">${res}</div></div>`}
+async function depDuLieu(l,x){const v=depListe(l);
+  if(v)return Object.assign(x,{lieu:v[0],lat:(DEP_LL[v[0]]||[])[0],lon:(DEP_LL[v[0]]||[])[1],km:v[1],peage:Math.round(v[2]*DEP_T.peageKm),h:Math.round(v[3]*DEP_T.camion*10)/10,zone:v[4],src:"liste"});
+  let e=null;try{e=await depEstime(l)}catch(_){}return Object.assign(x,{lieu:l},e||{km:"",src:"saisi"})}
 async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=PLN.devis.get(id)||{},x={...(d.dep||{})};
   if(k==="lieu"){const l=t.value.trim();if(!l){await dvSave(id,{dep:{pers:x.pers||2}});dvKeep(planRender);return}
     const v=depListe(l);
@@ -5040,9 +5050,12 @@ document.addEventListener("keydown",e=>{const bar=e.target.matches&&e.target.mat
 document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.dv)return;const k=t.dataset.k,v=["montant","jp","ha","achats","mo"].includes(k)?(t.value===""?"":Math.max(0,+String(t.value).replace(",",".")||0)):t.value.trim();
   dvSave(t.dataset.dv,{[k]:v}).then(()=>dvKeep(planRender))});
 document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.dataset.dvadd)return;e.preventDefault();
-  const g=k=>f.querySelector(`[data-k="${k}"]`).value.trim(),client=g("client");if(!client){toast("Indiquez le client ou l'affaire.");return}
-  const num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0),id="DV"+Date.now().toString(36);
-  dvSave(id,{client,montant:num("montant"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),etat:"attente",cree:today(),par:me||""}).then(ok=>{dvKeep(planRender);if(ok)toast("Devis ajouté. Joignez la capture du chiffrage (📷) sur sa ligne.")})});
+  const q=k=>f.querySelector(`[data-k="${k}"]`),g=k=>{const x=q(k);return x?String(x.value).trim():""},client=g("client");if(!client){toast("Indiquez le client ou l'affaire.");return}
+  const num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0),id="DV"+Date.now().toString(36),btn=f.querySelector("button");if(btn)btn.disabled=true;
+  (async()=>{const dep={pers:Math.max(1,num("pers")||2),retours:g("retours")||"we",liv:g("liv"),metre:!!(q("metre")&&q("metre").checked)};
+    if(g("lieu"))await depDuLieu(g("lieu"),dep);
+    const ok=await dvSave(id,{client,montant:num("montant"),achats:num("achats"),mo:num("mo"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),dep,etat:"attente",cree:today(),par:me||""});
+    dvKeep(planRender);if(ok)toast(num("achats")!==""?"Devis ajouté : la marge jour est calculée.":"Devis ajouté. Saisissez les achats ou joignez la capture du chiffrage (📷).")})()});
 document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.dvchif)return;const f=t.files&&t.files[0],id=t.dataset.dvchif;t.value="";if(f)dvChifUp(id,f)});
 // une capture d'écran glissée sur la ligne d'un devis ; sur la ligne « Nouveau devis », elle crée le devis (Claude le remplit)
 document.addEventListener("dragover",e=>{const r=e.target.closest&&e.target.closest("#tab-planning .pldvr");if(!r||!plW())return;e.preventDefault();r.classList.add("dvover")});
