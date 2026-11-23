@@ -352,6 +352,7 @@ textarea{min-height:64px;resize:vertical}
 .rj.ok{background:var(--t-vert,#ddf0e2)}.rj.late{background:var(--t-rouge,#f8dada);color:var(--s-rouge,#b83a3a)}
 .plnoms{display:block;grid-column:2/-1;font-size:12.5px;color:var(--ink);margin-top:2px}.plobj{display:block;font-size:12px;color:var(--muted)}
 .afaire{border:2px solid var(--s-orange,#c96a2c);border-radius:12px;padding:10px 14px;margin:14px 0 4px;background:var(--surface)}
+.afaire.afy{border-color:var(--pose,#2a78d6)}.afaire li.late{background:var(--t-rouge,#F8DADA)}.afaire li.soon{background:var(--t-orange,#FBE3D3)}.afi{font-size:18px;text-align:center}
 .afaire summary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;cursor:pointer;font-size:17px}.afaire ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
 .afaire li{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;padding:8px;border-radius:8px;background:var(--sunk)}.afaire li.ok{opacity:.6}.afaire li.ok b{text-decoration:line-through}
 .afc input{width:22px;height:22px}.afb{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--s-rouge,#b83a3a);color:#fff;font:700 13px/1 sans-serif}.afr{color:var(--s-rouge,#b83a3a);font-weight:600}
@@ -373,7 +374,7 @@ textarea{min-height:64px;resize:vertical}
   <section id="tab-reglages" hidden aria-label="Réglages"></section>
   <section id="tab-heures" hidden aria-label="Mes heures"></section>
   <div id="tab-chantiers">
-  <div id="afaire"></div>
+  <div id="afaire"></div><div id="afaireY"></div>
   <div class="stats" id="stats"></div>
   <div class="tools">
     <div id="chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
@@ -803,7 +804,33 @@ function afTaches(){const R=window.REG||{},S=R.synchro||{},F=R.taches_marine||{}
     action:"Déposer dans les documents du chantier (type Devis) le PDF du devis exporté par le logiciel de devis, pas un scan. La tâche se ferme quand Claude arrive à le lire (12 h 27 ou 18 h 27)."}));
   T.forEach(t=>{const f=F[t.k],ps=t.pass!=null?t.pass:pass;t.fait=!!(f&&f.le&&(!ps||f.le>ps));t.faitLe=f&&f.le;t.rouvert=!!(f&&f.le&&ps&&f.le<=ps)});
   return T.sort((a,b)=>a.fait-b.fait||String(a.depuis).localeCompare(String(b.depuis)))}
-function afRender(){const el=$("afaire");if(!el)return;if(!canWrite||!window.mgdsProfil||mgdsProfil.role!=="editeur"){el.innerHTML="";return}
+// ---------- « À faire – Yannick » (Steven, 23/11/2026) ----------
+// Commandes à passer et ARC en retard, d'après le rétro-planning : entre le métré (ou l'acompte en neuf, ou la validation des
+// plans) et l'ARC validé, 5 jours ouvrés (réglage « délais »). Plus les locations / voirie / transports à commander.
+// Pas de case à cocher : une ligne disparaît dès que l'étape est cochée dans la fiche du chantier. Chantiers lancés
+// depuis moins de 90 jours seulement (les anciens n'ont pas toutes leurs étapes cochées). Visible par le profil terrain et le bureau.
+function ayTaches(){const T=[],t=today();
+  for(const[id,j]of jobs){if(done(j))continue;const R=retro(j);
+    if(R&&days(R.dep)<=90){const a=R.find(r=>r.k==="arc"),m=R.find(r=>r.k==="metre");
+      const pret=m?m.fait:j.plans?sd(j,"plansok"):R.dep;
+      if(a&&!a.fait&&pret){const n=a.due?-days(a.due):null,cmd=sd(j,"cmd")||sd(j,"cmdok");
+        T.push({id,j,quoi:!cmd?"Commande à passer":"ARC à faire valider",urg:n!=null&&n<0?2:n!=null&&n<=2?1:0,
+          detail:(m&&m.fait?"métré fait le "+fr(m.fait):j.plans?"plans validés le "+fr(pret):"acompte reçu le "+fr(R.dep))+(cmd?" · commande saisie le "+fr(cmd):""),
+          lim:a.due?(n<0?`ARC validé attendu le ${fr(a.due)} : ${-n} j de retard`:n===0?"ARC validé attendu aujourd'hui":`ARC validé attendu avant le ${fr(a.due)} (dans ${n} j)`):"",
+          action:!cmd?"Passer la commande au fournisseur, puis cocher « Commande saisie ».":"Relancer le fournisseur pour l'ARC, le contrôler, le ranger dans ARC VALIDÉ et cocher « ARC validé »."})}}
+    logiDue(j).forEach(x=>{const n=-days(logiPour(j,x));T.push({id,j,quoi:"À commander : "+(LOGI[x.type]?LOGI[x.type][0]:x.type),urg:n<0?2:n<=7?1:0,
+      detail:x.t||"",lim:n<0?"date dépassée":n===0?"à commander aujourd'hui":"besoin dans "+n+" j",action:"Commander, puis cocher « Commandé » dans la fiche du chantier."})})}
+  return T.sort((a,b)=>b.urg-a.urg||String(a.j.client).localeCompare(String(b.j.client)))}
+let ayOuvert=null;
+function ayRender(){const el=$("afaireY");if(!el)return;const P=window.mgdsProfil||{};if(!(P.role==="terrain"||(canWrite&&P.role==="editeur"))){el.innerHTML="";return}
+  const T=ayTaches(),ret=T.filter(t=>t.urg===2).length,yan=/yannick/i.test(P.nom||P.email||"");
+  if(!T.length){el.innerHTML="";return}
+  const ouvert=ayOuvert??(yan||ret>0);
+  el.innerHTML=`<details class="afaire afy" ${ouvert?"open":""}><summary><b>À faire – Yannick</b><span class="afb">${T.length}</span>${ret?`<span class="afr">${ret} en retard</span>`:""}<span class="sub">commandes à passer et ARC à faire valider (5 jours ouvrés après le métré)</span></summary>
+   <ul>${T.map(t=>`<li class="${t.urg===2?"late":t.urg===1?"soon":""}"><span class="afi">${t.urg===2?"⚠":t.urg===1?"⏳":"•"}</span><div><b>${esc(t.quoi)}</b> · <button class="lnk" data-open="${esc(t.id)}">${esc(String(t.j.client||t.id))}</button>${t.lim?` · <span class="${t.urg===2?"afr":""}">${esc(t.lim)}</span>`:""}
+     ${t.detail?`<br><span class="sub">${esc(t.detail)}</span>`:""}<br><span class="sub">➜ ${esc(t.action)}</span></div></li>`).join("")}</ul></details>`}
+document.addEventListener("toggle",e=>{if(e.target.classList&&e.target.classList.contains("afy"))ayOuvert=e.target.open},true);
+function afRender(){ayRender();const el=$("afaire");if(!el)return;if(!canWrite||!window.mgdsProfil||mgdsProfil.role!=="editeur"){el.innerHTML="";return}
   const T=afTaches(),ouv=T.filter(t=>!t.fait),marine=/marine/i.test(mgdsProfil.nom||mgdsProfil.email||"");
   const b=document.querySelector('#tabs [data-tab="chantiers"]');if(b)b.innerHTML="Chantiers"+(ouv.length?` <span class="afb" aria-label="${ouv.length} tâche${ouv.length>1?"s":""} pour Marine">${ouv.length}</span>`:"");
   if(!T.length){el.innerHTML="";return}
