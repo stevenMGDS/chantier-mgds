@@ -4038,7 +4038,7 @@ function atlRefresh(){atlRender();const s=$("asheet");
 function atlBuild(){
   const el=$("tab-atelier");if(atl.built)return;atl.built=true;
   el.innerHTML=`${atlRole()==="atelier"?`<p style="margin:0 0 12px"><button type="button" class="btn" data-tab="heures">🕒 Mes heures : remplir ma journée à l'atelier</button></p>`:""}<div class="stats" id="atlStats"></div>
-   <div class="tools"><div id="atlChips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input type="search" id="atlQ" placeholder="Chercher un client, un n° de commande ou de devis"><select id="atlTri" aria-label="Trier les commandes atelier" style="width:auto;flex:none"><option value="pose">Trier : pose la plus proche</option><option value="alertes">Trier : retards et alertes</option><option value="alpha">Trier : ordre alphabétique (A → Z)</option></select>${atlCanW()?`<button class="btn" id="atlNew">Nouvelle commande atelier</button>`:""}</div>
+   <div class="tools"><div id="atlChips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input type="search" id="atlQ" placeholder="Chercher un client, un n° de commande ou de devis"><select id="atlTri" aria-label="Trier les commandes atelier" style="width:auto;flex:none"><option value="pose">Trier : pose la plus proche</option><option value="alertes">Trier : retards et alertes</option><option value="alpha">Trier : ordre alphabétique (A → Z)</option></select><button class="btn ghost" data-apup>🪵 Pupitres</button>${atlCanW()?`<button class="btn" id="atlNew">Nouvelle commande atelier</button>`:""}</div>
    <div class="list" id="atlList"></div>
    <h3 class="atlh">Charge de l'atelier<span class="sub">temps de production réparti sur les jours prévus · ${ATL_H_SEM} h par semaine</span></h3><div id="atlLoad"></div>`;
   $("atlQ").addEventListener("input",e=>{atl.q=e.target.value.trim().toLowerCase();atlRender()});
@@ -4193,6 +4193,7 @@ function atlSheet(){
       ${H&&!V&&R<0?`<p class="sub" style="color:var(--s-rouge)">Dépassement de ${String(-R).replace(".",",")} h sur le temps vendu.</p>`:""}${atl.hr&&atl.hr.size===0&&!F.tot?`<p class="sub">Aucune heure notée pour l'instant.</p>`:""}`})()}
    ${atlRole()==="atelier"?`<p><button type="button" class="btn ghost" data-tab="heures">🕒 Noter mes heures</button></p>`:""}
    <details class="atldet"><summary>Fournisseurs, n° de commande et délais</summary><ul class="arcs" style="margin-top:8px">${cmds}</ul></details>
+   ${W?`<h3>Conditionnement<span class="sub" style="text-transform:none;letter-spacing:0">sur demande seulement · menuiseries Technal de l'atelier, rangées sur les pupitres</span></h3><p><button type="button" class="btn ghost" data-acond>📦 Préparer le conditionnement (pupitres)</button></p>`:""}
    <h3>ARC atelier<span class="sub" style="text-transform:none;letter-spacing:0">cotes validées après le métré</span></h3>
    <div class="fields"><label>N° d'ARC<input type="text" data-af="arcRef" value="${esc(a.arcRef||a.id)}" ${ro}></label><div class="sub" style="align-self:end">${arcInfo}</div></div>
    ${arcOk?`<p class="sub">ARC validé le ${fr(arcOk)} : les lignes ne se modifient plus (décochez « ARC validé » pour corriger).</p>`:""}
@@ -4358,12 +4359,14 @@ window.atlSection=cid=>{
 
 // ---- événements ----
 function atlClick(e){
-  const t=e.target.closest("[data-aopen],[data-anew],[data-afilter],[data-adest],#atlNew,[data-aclose],[data-astep],[data-acbox],[data-acmdon],[data-acmdoff],[data-adelg],[data-adoc],[data-ametre],[data-adeltk],[data-aprint],[data-adel]");
+  const t=e.target.closest("[data-aopen],[data-anew],[data-afilter],[data-adest],#atlNew,[data-aclose],[data-astep],[data-acbox],[data-acmdon],[data-acmdoff],[data-adelg],[data-adoc],[data-ametre],[data-adeltk],[data-aprint],[data-adel],[data-apup],[data-acond]");
   if(!t)return false;e.stopPropagation();
   const id=atl.open,a=id&&atl.rows.get(id)?{id,...atl.rows.get(id)}:null;
   if(t.dataset.aopen){if($("tab-atelier").hidden)showTab("atelier");atlOpen(t.dataset.aopen)}
   else if(t.dataset.anew!==undefined){atl.preset=t.dataset.anew;showTab("atelier");atlOpen("__new")}
   else if(t.id==="atlNew"){atl.preset="";atlOpen("__new")}
+  else if(t.dataset.apup!==undefined){if(window.pupOpen)pupOpen()}
+  else if(t.dataset.acond!==undefined){if(window.condOpen&&a)condOpen(a,atlJob(a))}
   else if(t.dataset.afilter){atl.filter=atl.filter===t.dataset.afilter&&t.dataset.afilter!=="encours"?"encours":t.dataset.afilter;atlRender()}
   else if(t.dataset.adest!==undefined){atl.dest=t.dataset.adest;atlRender()}
   else if(t.dataset.aclose!==undefined)atlClose();
@@ -4821,4 +4824,5 @@ window.planRender=planRender;window.PLN_OK=()=>PLN.ok;window.plLoad=plLoad;windo
   plLoad(true).then(()=>{try{atlRender();const s=$("asheet");if(s&&!s.hidden)atlSheet();if(!$("tab-planning").hidden)planRender()}catch(_){}})})(0);
 </script>
 <script src="metre.js"></script>
+<script src="cond.js"></script>
 </html>
