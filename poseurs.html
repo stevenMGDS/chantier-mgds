@@ -153,6 +153,9 @@ html.embed body{background:transparent}html.embed header.top,html.embed .who{dis
 .acamt{display:flex;gap:6px;overflow-x:auto;padding:6px 12px;min-height:8px}.acamt img{height:58px;border-radius:6px;border:2px solid #fff}
 .acamb{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;padding-bottom:max(14px,env(safe-area-inset-bottom))}
 .acamb .btn{min-width:110px}.acamb .shot{width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:#e8e8e8;cursor:pointer}
+.modal.mtview{align-items:stretch;background:var(--bg)}.modal.mtview>div{width:100%;max-width:1100px;max-height:none;height:100%;border-radius:0;padding:0 12px 24px}
+.mtvbar{position:sticky;top:0;z-index:2;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;background:var(--bg)}.mtvbar b{flex:1;text-align:center}
+@media print{body>*:not(.mtview){display:none!important}.mtview .mtvbar{display:none}.modal.mtview{position:static}}
 </style>
 <link rel="stylesheet" href="theme-mac.css">
 </head>
@@ -355,7 +358,7 @@ async function renderSheet(){
    <div class="links">${addr?`<a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}" target="_blank" rel="noopener">Itinéraire</a>`:""}
      ${tel?`<a class="btn ghost" href="tel:${esc(tel)}">Appeler le client</a>`:""}
      <button class="btn ghost" data-hadd="${today()}" data-hjob="${esc(id)}">Noter mes heures</button></div>
-   <div class="box"><h3>Fiches du chantier</h3>${docs.length?`<div class="docs">${docs.map(d=>`<div style="display:flex;gap:8px"><button class="btn ghost big" style="text-align:left;flex:1" data-doc="${esc(d.id)}">📄 ${esc(FICHE_L[d.type]||d.type)}${d.rempli?d.rempli.reste?` <span class="tag o">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:' <span class="tag">remplie</span>':""}</button>${FILL_ON&&FILLABLE[d.type]&&(role==="poseur"||role==="editeur")?`<button class="btn" data-fill="${esc(d.id)}">✏️ Remplir</button>`:""}</div>`).join("")}</div>`:`<p class="sub">Les fiches ne sont pas encore disponibles pour ce chantier.</p>`}</div>
+   <div class="box"><h3>Fiches du chantier</h3>${docs.length?`<div class="docs">${docs.map(d=>`<div style="display:flex;gap:8px"><button class="btn ghost big" style="text-align:left;flex:1" data-doc="${esc(d.id)}">${d.mt?"📐 Métré tablette : habillages, coloris et coupes":"📄 "+esc(FICHE_L[d.type]||d.type)}${d.mt?"":d.rempli?d.rempli.reste?` <span class="tag o">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:' <span class="tag">remplie</span>':""}</button>${!d.mt&&FILL_ON&&FILLABLE[d.type]&&(role==="poseur"||role==="editeur")?`<button class="btn" data-fill="${esc(d.id)}">✏️ Remplir</button>`:""}</div>`).join("")}</div>`:`<p class="sub">Les fiches ne sont pas encore disponibles pour ce chantier.</p>`}</div>
    ${CATS.map(([k,l,hint])=>{const list=ph.filter(p=>p.categorie===k);return`<div class="box"><h3>${l} ${list.length?`<span class="tag b">${list.length}</span>`:""}</h3><div class="sub">${hint}</div>
      ${list.length?`<div class="thumbs">${list.map(p=>`<button data-photo="${p.id}" aria-label="Voir la photo">${urls[p.chemin]?`<img src="${esc(urls[p.chemin])}" alt="" loading="lazy">`:""}<span class="cap">${esc(fmtTs(p.pris_le))}</span></button>`).join("")}</div>`:""}
      ${k.startsWith("conso")?`<label class="fld">Ce que vous ${k==="conso_sortie"?"prenez":"rapportez"} (facultatif)<input type="text" id="note-${k}" placeholder="ex. 4 silicones blanc, 2 mousses"></label>`:""}
@@ -370,7 +373,14 @@ async function signed(paths){
   return Object.fromEntries((data||[]).filter(x=>x.signedUrl).map(x=>[x.path,x.signedUrl]));
 }
 // ouvrir une fiche en lecture dans l'appli (certains ordinateurs téléchargeaient le PDF au lieu de l'afficher)
-document.addEventListener("click",e=>{const b=e.target.closest("[data-doc]");if(!b)return;openFill(b.dataset.doc,false)});
+document.addEventListener("click",e=>{const b=e.target.closest("[data-doc]");if(!b)return;
+  const j=chantiers.get(openId)||{},d=(j.docs||[]).find(x=>x.id===b.dataset.doc);if(d&&d.mt&&window.mtFicheHtml){lireMetre(d,j);return}
+  openFill(b.dataset.doc,false)});
+// métré fait sur la tablette (Yannick) : lecture seule pour les poseurs, avec les habillages par position, leurs coloris et les coupes annotées (Steven, 23/11/2026)
+function lireMetre(d,j){const m=document.createElement("div");m.className="modal mtview";
+  m.innerHTML=`<div><div class="mtvbar"><button class="btn ghost" data-mtx>◀ Retour</button><b>Métré · ${esc(jobName(openId))}</b><button class="btn ghost" data-mtp>🖨️ Imprimer</button></div><div class="mtlire">${mtFicheHtml(d.mt,j)}</div></div>`;
+  document.body.appendChild(m);history.pushState({mt:1},"");
+  m.querySelector("[data-mtx]").onclick=()=>history.back();m.querySelector("[data-mtp]").onclick=()=>window.print()}
 
 // photos : réduites avant l'envoi pour rester dans l'espace gratuit ; 3000 px et meilleure qualité depuis le 18/11/2026
 // (Steven : Claude doit lire les étiquettes et les quantités sur les photos de consommables)
@@ -1020,5 +1030,6 @@ document.addEventListener("click",e=>{const c=e.target.closest("[data-gcat]");if
   document.addEventListener("visibilitychange",async()=>{if(document.hidden)return;try{await loadChantiers()}catch(_){}if(openId)renderSheet();else render()});
 })();
 </script>
+<script src="metre.js"></script>
 </body>
 </html>

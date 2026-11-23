@@ -258,10 +258,12 @@ const GEO={he:{c:d=>`${118-d},${117-d} ${147-d},${117-d} ${147-d},142`,pl:d=>`11
  bi:{c:d=>`${202+d},${323+d} ${177+d},${323+d} ${177+d},298`,pl:d=>`174,${323+d} 206,${323+d}`,lx:208,ly:282,hx:190,hy:308},
  me:{c:d=>`${137-d},92 ${137-d},${125-d} 168,${125-d}`,pl:d=>`${137-d},88 ${137-d},128`,lx:180,ly:70,hx:122,hy:110},
  mi:{c:d=>`${137-d},206 ${137-d},${153+d} 168,${153+d}`,pl:d=>`${137-d},152 ${137-d},206`,lx:180,ly:205,hx:122,hy:178}};
+const habProf=h=>h.p==="Autre profil"?(h.pa||"profil à préciser"):(h.p||"profil ?"),habCol=h=>h.c==="Autre RAL"?(h.r||"RAL ?"):(h.c||"coloris ?");
 function trace(p,keys,plus){const par={};p.hab.forEach(h=>couvre(h.pos).forEach(sp=>{(par[sp]=par[sp]||[]).push(h)}));let o="";
   keys.forEach(sp=>{const G=GEO[sp],hs=par[sp]||[];
-    hs.forEach((h,n)=>{const d=n*6,pts=/^Plat/.test(h.p)?G.pl(d):G.c(d);o+=`<polyline points="${pts}" fill="none" stroke="#1f5fbf" stroke-width="4.5"/>`;
-      const t=(h.p||"profil ?").replace(/^Cornière |^Plat /,"")+" · "+(h.c==="Autre RAL"?(h.r||"RAL ?"):(h.c||"coloris ?"));o+=`<text x="${G.lx}" y="${G.ly+n*14}" font-size="10.5" font-weight="700" fill="#1f5fbf">${esc2(t)}</text>`});
+    hs.forEach((h,n)=>{const d=n*6,pts=/^Plat/.test(h.p)?G.pl(d):G.c(d),hk=p.hab.indexOf(h);
+      const t=habProf(h).replace(/^Cornière |^Plat /,"")+" · "+habCol(h);
+      o+=`<g class="hh"${plus?` tabindex="0" role="button" aria-label="Modifier l'habillage ${esc2(h.pos||"")}"`:""} data-hk="${hk}" data-sp="${sp}"><polyline points="${pts}" fill="none" stroke="#1f5fbf" stroke-width="4.5"/><polyline points="${pts}" fill="none" stroke="transparent" stroke-width="16"/><text x="${G.lx}" y="${G.ly+n*14}" font-size="10.5" font-weight="700" fill="#1f5fbf">${esc2(t)}</text></g>`});
     if(!hs.length&&plus)o+=`<g class="hs" tabindex="0" role="button" data-sp="${sp}" aria-label="Ajouter un habillage ${SPOT[sp]}"><circle cx="${G.hx}" cy="${G.hy}" r="11" fill="#fff" stroke="#9aa3b0" stroke-dasharray="3 2"/><text x="${G.hx}" y="${G.hy+5}" text-anchor="middle" font-size="16" fill="#566070">+</text></g>`});return o}
 const HACH=id=>`<defs><pattern id="${id}" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#9aa3b0" stroke-width="1.2"/></pattern></defs>`;
 function svgV(p,plus,u){const reno=/Réno/.test(p.v["Type de pose"]||p.v["Dormant"]||""),iso=+p.v["Épaisseur d'isolation (doublage)"]||0;
@@ -396,9 +398,26 @@ function coupeBloc(p){const g=document.createElement("section");g.className="grp
     if(a==="on"){annot=!annot;b.setAttribute("aria-pressed",annot);z.classList.toggle("on",annot)}
     else if(a==="undo"){p.ann.pop();paint();sched()}else if(a==="clr"){if(p.ann.length&&confirm("Effacer toutes les annotations de ce produit ?")){p.ann=[];paint();sched()}}
     else{crayon=b.dataset.c;tb.querySelectorAll(".pt").forEach(x=>x.setAttribute("aria-pressed",x===b));if(!annot){annot=true;tb.querySelector('[data-a="on"]').setAttribute("aria-pressed",true);z.classList.add("on")}}});
-  z.querySelectorAll(".hs").forEach(h=>{const add=()=>{p.hab.push({pos:SPOT[h.dataset.sp],p:"",c:"",r:""});sched();draw()};h.onclick=add;h.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();add()}}});
+  lierHab(z,p);
   g.append(tb,z);requestAnimationFrame(paint);if(window.ResizeObserver)new ResizeObserver(paint).observe(z);return g}
 
+// toucher un « + » ou un habillage dessiné ouvre une petite fenêtre : position, profil, coloris (ou case libre)
+function lierHab(z,p){if(ro())return;z.querySelectorAll(".hs,.hh").forEach(g=>{const go=e=>{if(annot)return;e.preventDefault();e.stopPropagation();habPop(z,p,g,e)};g.onclick=go;g.onkeydown=e=>{if(e.key==="Enter"||e.key===" ")go(e)}})}
+function habPop(z,p,g,e){z.querySelectorAll(".hpop").forEach(x=>x.remove());const hk=g.dataset.hk!=null?+g.dataset.hk:-1,h=hk>=0?{...p.hab[hk]}:{pos:SPOT[g.dataset.sp],p:"",c:"",r:"",pa:""};
+  const d=document.createElement("div");d.className="hpop";d.setAttribute("role","dialog");d.setAttribute("aria-label","Habillage");
+  const o=(L,v)=>L.map(x=>`<option ${x===v?"selected":""}>${esc2(x)}</option>`).join("");
+  d.innerHTML=`<b>Habillage</b><label>Position<select data-k="pos">${o(Object.keys(HAB_POS),h.pos)}</select></label>
+   <label>Profil<select data-k="p"><option value="">Choisir…</option>${o([...HAB_PROF,"Autre profil"],h.p)}</select></label><input type="text" data-k="pa" placeholder="Profil : ex. cornière 25×45" value="${esc2(h.pa||"")}" ${h.p==="Autre profil"?"":"hidden"}>
+   <label>Coloris<select data-k="c"><option value="">Choisir…</option>${o(HAB_COLS,h.c)}</select></label><input type="text" data-k="r" placeholder="RAL ou référence (ex. RAL 7022 sablé)" value="${esc2(h.r||"")}" ${h.c==="Autre RAL"?"":"hidden"}>
+   <div class="hpa">${hk>=0?`<button type="button" data-a="del" class="b2 rouge">Retirer</button>`:""}<button type="button" data-a="x" class="b2">Annuler</button><button type="button" data-a="ok" class="b1">OK</button></div>`;
+  const R=z.getBoundingClientRect(),x=(e.clientX||R.left+R.width/2)-R.left,y=(e.clientY||R.top+R.height/2)-R.top;
+  d.style.left=Math.max(4,Math.min(R.width-264,x-130))+"px";d.style.top=Math.max(4,Math.min(R.height-60,y+12))+"px";z.appendChild(d);
+  d.querySelectorAll("[data-k]").forEach(el=>el.oninput=el.onchange=()=>{h[el.dataset.k]=el.value;d.querySelector('[data-k="pa"]').hidden=h.p!=="Autre profil";d.querySelector('[data-k="r"]').hidden=h.c!=="Autre RAL"});
+  d.querySelector("[data-k=p]").focus();
+  d.onclick=ev=>{ev.stopPropagation();const a=ev.target.closest("[data-a]");if(!a)return;
+    if(a.dataset.a==="x"){d.remove();return}
+    if(a.dataset.a==="del"){p.hab.splice(hk,1)}else{if(hk>=0)p.hab[hk]=h;else p.hab.push(h)}
+    d.remove();sched();draw()}}
 // ---------- ajout d'un produit ----------
 function ajout(f){f.innerHTML=`<div class="ftete"><h2>Ajouter un produit</h2></div>${ro()?`<p class="sub">Lecture seule.</p>`:`<section class="grp"><div class="champs">
   <div class="ch large"><span>Quoi ?</span><div class="seg" id="mtaq">${[["Fenêtre","fen"],["Porte-fenêtre","fen"],["Coulissant","fen"],["Fixe","fen"],["Porte d'entrée","porte"],["Porte de garage","garage"],["Volet roulant","occ"],["Volet battant","occ"],["Store","occ"],["Portail","portail"],["Autre","fen"]].map(([l,f])=>`<button type="button" data-q="${esc2(l)}" data-f="${f}">${esc2(l)}</button>`).join("")}</div></div>
@@ -411,13 +430,13 @@ function ajout(f){f.innerHTML=`<div class="ftete"><h2>Ajouter un produit</h2></d
     {const np=newProd(r,d,$m("mtaf").value,$m("mtac").value.trim());np.fg=1;np.ajout=1;preRemplir(np);const q=($m("mtaq").querySelector("[aria-pressed=true]")||{}).dataset;if(q&&q.q){if(np.f==="fen"&&/Fenêtre|Porte-fenêtre|Coulissant|Fixe/.test(q.q))np.v["Type"]=np.v["Type"]||q.q;if(np.f==="occ")np.v["Produit"]=np.v["Produit"]||(q.q==="Store"?"":q.q)}S.mt.prod.push(np)}S.cur=S.mt.prod.length-1;sched();draw()}}
 
 // ---------- consommables du chantier (mêmes calculs que le métré PDF) ----------
-function totaux(){const sil={},comp={},hab={},vis={},manque=[];let mou=0;
-  S.mt.prod.forEach(p=>{const[L,H]=dims(p),per=2*(L+H),e=p.et;if(!ETF.includes(p.f))return;if(!L||!H){manque.push((p.r||"?")+" · "+p.d);return}
+function totaux(P=S.mt.prod){const sil={},comp={},hab={},vis={},manque=[];let mou=0;
+  P.forEach(p=>{const[L,H]=dims(p),per=2*(L+H),e=p.et;if(!ETF.includes(p.f))return;if(!L||!H){manque.push((p.r||"?")+" · "+p.d);return}
     if(e.silE)sil[e.silE+" (ext.)"]=(sil[e.silE+" (ext.)"]||0)+per;
     if(e.silI&&e.silI!=="Aucun"){const c=(e.silI==="Idem ext."?(e.silE||"teinte ?"):e.silI)+" (int.)";sil[c]=(sil[c]||0)+per}
     if(COMP[e.comp])comp[e.comp]=(comp[e.comp]||0)+per;if(e.mou&&e.mou!=="Aucune")mou++;
     p.hab.forEach(h=>{if(!h.p||!HAB_POS[h.pos]||h.p==="Fourni menuiserie")return;const k=(h.p==="Autre profil"?(h.pa||"Profil à préciser"):h.p)+" · "+(h.c==="Autre RAL"?(h.r||"RAL à préciser"):h.c||"coloris à choisir");hab[k]=(hab[k]||0)+HAB_POS[h.pos](L,H)})});
-  S.mt.prod.forEach(p=>p.fix.forEach(v=>{if(!v.t)return;const k=(v.t==="Autre"?(v.ta||"Autre fixation"):v.t)+(v.l&&v.l!=="—"?" "+v.l+" mm":"");vis[k]=(vis[k]||0)+(+v.q||0)}));
+  P.forEach(p=>p.fix.forEach(v=>{if(!v.t)return;const k=(v.t==="Autre"?(v.ta||"Autre fixation"):v.t)+(v.l&&v.l!=="—"?" "+v.l+" mm":"");vis[k]=(vis[k]||0)+(+v.q||0)}));
   const pl=(n,a,b)=>n+" "+(n>1?b:a);
   const rows=[...Object.entries(sil).map(([k,m])=>["Silicone "+k,pl(Math.ceil(m/1000/12),"cartouche","cartouches"),mlf(m)]),...Object.entries(comp).map(([k,m])=>["Compribande "+k,pl(Math.ceil(m/1000/COMP[k]),"rouleau","rouleaux"),mlf(m)]),
     ...(mou?[["Mousse PU","pour "+pl(mou,"produit","produits"),""]]:[]),...Object.entries(hab).map(([k,m])=>["Habillage "+k,mlf(m),""]),...Object.entries(vis).map(([k,n])=>[k,n+" u",""])];
@@ -428,17 +447,20 @@ function recap(f){const{rows,manque}=totaux();
    ${manque.length?`<div class="alerte">Pas encore compté (tableau à saisir) : ${manque.map(esc2).join(", ")}</div>`:""}`}
 
 // ---------- impression / PDF ----------
-function imprimer(){const j=jobs.get(S.jid)||{},P=S.mt.prod,{rows}=totaux();
+function ficheDoc(mt,j){const P=mt.prod||[],{rows}=totaux(P);
   const val=v=>Array.isArray(v)?v.join(", "):v;
-  const fiche=(p,k)=>{const ch=fields(p).filter(c=>fait(p,c)).map(c=>`<tr><th>${esc2(c.l)}</th><td>${esc2(val(p.v[c.l]))}${c.t==="mm"?" mm":""}</td></tr>`).join("");
-    const e=p.et,et=ETF.includes(p.f)?[["Compribande",e.comp],["Silicone ext.",e.silE],["Silicone int.",e.silI],["Mousse PU",e.mou],["Membrane",e.mem],["Options",(e.opt||[]).join(", ")+(e.sol?" ("+e.sol+" mm)":"")]].filter(x=>x[1]).map(x=>`<tr><th>${x[0]}</th><td>${esc2(x[1])}</td></tr>`).join(""):"";
-    const[L,H]=dims(p),hab=p.hab.filter(h=>h.p).map(h=>`<tr><th>${esc2(h.pos||"?")}</th><td>${esc2(h.p)} · ${esc2(h.c==="Autre RAL"?h.r:h.c)}${L&&H&&HAB_POS[h.pos]?" · "+mlf(HAB_POS[h.pos](L,H)):""}</td></tr>`).join("");
-    const fx=p.fix.filter(v=>v.t).map(v=>`${esc2(v.t)}${v.l&&v.l!=="—"?" "+v.l+" mm":""}${v.q?" : "+v.q:""}`).join(" · ");
-    return`<section class="pp"><h2>${k+1}. ${esc2(p.r)} <small>${esc2(p.d)} · ${esc2(FAM[p.f].n)}${p.cote?" · cote devis "+esc2(p.cote):""}</small></h2>
-     <div class="pg2"><table>${ch}${et}</table><div>${hab?`<table><tr><th colspan="2">Habillages</th></tr>${hab}</table>`:""}${fx?`<p><b>Fixations :</b> ${fx}</p>`:""}${p.v.rem?`<p><b>Remarque :</b> ${esc2(p.v.rem)}</p>`:""}${p.ph.length?`<p>${p.ph.length} photo${p.ph.length>1?"s":""} dans l'appli</p>`:""}</div></div>
+  const fiche=(p,k)=>{p.et=p.et||{};p.hab=p.hab||[];p.fix=p.fix||[];p.ann=p.ann||[];p.ph=p.ph||[];p.v=p.v||{};
+    const ch=fields(p).filter(c=>fait(p,c)).map(c=>`<tr><th>${esc2(c.l)}</th><td>${esc2(val(p.v[c.l]))}${c.t==="mm"?" mm":""}${p.v[c.l+" (autre)"]?" · "+esc2(p.v[c.l+" (autre)"]):""}</td></tr>`).join("");
+    const e=p.et,et=ETF.includes(p.f)?[["Compribande",e.comp],["Silicone ext.",e.silE],["Silicone int.",e.silI],["Mousse PU",e.mou],["Membrane",e.mem],["Options",[...(e.opt||[]),e.optA].filter(Boolean).join(", ")+(e.sol?" ("+e.sol+" mm)":"")]].filter(x=>x[1]).map(x=>`<tr><th>${x[0]}</th><td>${esc2(x[1])}</td></tr>`).join(""):"";
+    const[L,H]=dims(p),hab=p.hab.filter(h=>h.p).map(h=>`<tr><th>${esc2(h.pos||"?")}</th><td><b>${esc2(habProf(h))}</b> · ${esc2(habCol(h))}${L&&H&&HAB_POS[h.pos]?" · "+mlf(HAB_POS[h.pos](L,H)):""}</td></tr>`).join("");
+    const fx=p.fix.filter(v=>v.t).map(v=>`${esc2(v.t==="Autre"?(v.ta||"autre fixation"):v.t)}${v.l&&v.l!=="—"?" "+v.l+" mm":""}${v.q?" : "+v.q:""}`).join(" · ");
+    return`<section class="pp"><h2>${k+1}. ${esc2(p.r)} <small>${esc2(p.d)} · ${esc2(FAM[p.f].n)}${p.cote?" · cote devis "+esc2(p.cote):""}${p.ajout?" · ajouté au métré":""}</small></h2>
+     <div class="pg2"><table>${ch}${et}</table><div>${hab?`<table class="habt"><tr><th colspan="2">Habillages</th></tr>${hab}</table>`:""}${fx?`<p><b>Fixations :</b> ${fx}</p>`:""}${p.v.rem?`<p><b>Remarque :</b> ${esc2(p.v.rem)}</p>`:""}${p.ph.length?`<p>${p.ph.length} photo${p.ph.length>1?"s":""} dans l'appli</p>`:""}</div></div>
      <div class="cw">${coupesHtml(p,false,"p"+k).replace(/<\/div>$/,annSvg(p)+"</div>")}</div></section>`};
-  const box=$m("mtprint");box.innerHTML=`<header><b>MGDS · Métré</b><span>${esc2(j.client||"")}<br>${esc2([j.adresse,j.ville].filter(Boolean).join(", "))}</span><span>Jeu de pose ${S.mt.jeu.c} mm / côté, ${S.mt.jeu.t} mm en tête<br>Imprimé le ${new Date().toLocaleDateString("fr-FR")}</span></header>
-    ${P.map(fiche).join("")}<section class="pp"><h2>Consommables du chantier</h2><table>${rows.map(r=>`<tr><th>${esc2(r[0])}</th><td>${esc2(r[1])}</td><td>${esc2(r[2])}</td></tr>`).join("")}</table></section>`;
+  return`<header><b>MGDS · Métré</b><span>${esc2(j.client||"")}<br>${esc2([j.adresse,j.ville].filter(Boolean).join(", "))}</span><span>Jeu de pose ${(mt.jeu||{}).c??5} mm / côté, ${(mt.jeu||{}).t??5} mm en tête<br>${new Date().toLocaleDateString("fr-FR")}</span></header>
+    ${P.map(fiche).join("")}<section class="pp"><h2>Consommables du chantier</h2><table>${rows.map(r=>`<tr><th>${esc2(r[0])}</th><td>${esc2(r[1])}</td><td>${esc2(r[2])}</td></tr>`).join("")}</table></section>`}
+window.mtFicheHtml=(mt,j)=>ficheDoc(JSON.parse(JSON.stringify(mt||{prod:[]})),j||{});
+function imprimer(){const j=jobs.get(S.jid)||{};$m("mtprint").innerHTML=ficheDoc(S.mt,j);
   document.body.classList.add("mtprinting");const fin=()=>{document.body.classList.remove("mtprinting");removeEventListener("afterprint",fin)};addEventListener("afterprint",fin);setTimeout(()=>window.print(),50)}
 
 // redessin après une cote : attendu jusqu'à la fin du toucher en cours (sinon le bouton touché disparaît sous le doigt)
@@ -449,12 +471,12 @@ const lache=()=>setTimeout(()=>{doigt=false;if(aRedessiner&&S){aRedessiner=false
 addEventListener("click",lache,true);addEventListener("pointercancel",lache,true);addEventListener("pointerup",()=>setTimeout(lache,350),true);
 function majVisuels(){if(!S||!S.mt.prod[S.cur])return;const p=S.mt.prod[S.cur],f=$m("mtfiche");
   const z=f.querySelector(".coupes");if(z){const t=document.createElement("div");t.innerHTML=coupesHtml(p,!ro(),"e");const nv=t.querySelectorAll(".pan svg");z.querySelectorAll(".pan svg").forEach((o,k)=>{if(nv[k])o.replaceWith(nv[k])});
-    z.querySelectorAll(".hs").forEach(h=>{const add=()=>{p.hab.push({pos:SPOT[h.dataset.sp],p:"",c:"",r:""});sched();draw()};h.onclick=add})}
+    lierHab(z,p)}
   f.querySelectorAll("[data-cmdh]").forEach(h=>{const L=+p.v["Tableau L"],H=+p.v["Tableau H"],J=S.mt.jeu,prop=L&&H?`${L-2*J.c} × ${H-J.t}`:"";h.innerHTML=prop?`Calcul : tableau − ${J.c} mm par côté, − ${J.t} mm en tête = <b>${prop}</b> `:"Saisissez le tableau pour avoir le calcul";
     if(prop&&!ro()&&p.v["Cote de commande"]!==prop){const b=document.createElement("button");b.type="button";b.className="b2 mini";b.textContent="Reprendre";b.onclick=()=>{p.v["Cote de commande"]=prop;sched();draw()};h.appendChild(b)}});
   const[L,H]=dims(p);f.querySelectorAll(".hl .ml").forEach((m,k)=>{const h=p.hab[k];if(h)m.textContent=L&&H&&HAB_POS[h.pos]?mlf(HAB_POS[h.pos](L,H)):"–"})}
 // ---------- fenêtre ----------
-const css=`#mtov{position:fixed;inset:0;z-index:60;background:var(--bg,#f5f5f7);color:var(--ink,#1d1d1f);display:grid;grid-template-rows:auto 1fr;font-size:16px}
+const css=`#mtov[hidden]{display:none!important}#mtov{position:fixed;inset:0;z-index:60;background:var(--bg,#f5f5f7);color:var(--ink,#1d1d1f);display:grid;grid-template-rows:auto 1fr;font-size:16px}
 #mtov .mbar{background:#10407e;color:#fff;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
 #mtov .mbar b{font-size:19px}#mtov .mbar .s{font-size:13px;opacity:.85}#mtov .mbar .sp{margin-left:auto}
 #mtov .mbar label{font-size:13px;display:flex;align-items:center;gap:4px}#mtov .mbar input{width:46px;font:600 15px inherit;padding:5px;border-radius:7px;border:0;text-align:center}
@@ -498,6 +520,15 @@ const css=`#mtov{position:fixed;inset:0;z-index:60;background:var(--bg,#f5f5f7);
 #mtov table.rc{width:100%;border-collapse:collapse;font-size:15px}#mtov table.rc th,#mtov table.rc td{text-align:left;padding:8px;border-bottom:1px solid var(--line,#e3e3e8)}#mtov table.rc td.n{font-weight:700;color:#10407e}
 #mtov.ro .fiche input,#mtov.ro .fiche select,#mtov.ro .fiche textarea,#mtov.ro .fiche button{pointer-events:none}
 @media (max-width:760px){#mtov .corps{grid-template-columns:1fr;grid-template-rows:auto 1fr}#mtov .liste{grid-auto-flow:column;grid-auto-columns:200px;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line,#e3e3e8)}#mtov .hl{grid-template-columns:1fr 1fr}}
+.coupes .hh{cursor:pointer}.coupes .hh:hover polyline:first-child{stroke:#0952a1}
+.hpop{position:absolute;z-index:5;width:260px;background:#fff;color:#1d2633;border:1px solid #10407e;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:10px;display:grid;gap:7px;font-size:14px}
+.hpop label{display:grid;gap:3px;font-weight:600}.hpop select,.hpop input{font:15px inherit;padding:7px;border:1px solid #c9d1dc;border-radius:8px;width:100%;box-sizing:border-box}
+.hpop .hpa{display:flex;gap:6px;justify-content:flex-end}.hpop button{font:600 14px inherit;padding:7px 11px;border-radius:8px;cursor:pointer;border:1px solid #c9d1dc;background:#fff}.hpop .b1{background:#10407e;color:#fff;border-color:#10407e}.hpop .rouge{color:#b83a3a}
+.mtlire{color:#1d2633;background:#fff;font:14px/1.4 Helvetica,Arial,sans-serif;padding:4px}
+.mtlire header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;border-bottom:2px solid #10407e;padding-bottom:6px;margin-bottom:10px}.mtlire header b{font-size:18px;color:#10407e}
+.mtlire .pp{margin-bottom:22px}.mtlire h2{font-size:17px;color:#10407e;margin:8px 0}.mtlire h2 small{font-weight:400;color:#566070;font-size:13px}
+.mtlire .pg2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.mtlire table{border-collapse:collapse;width:100%}.mtlire th,.mtlire td{text-align:left;border-bottom:1px solid #e3e8ef;padding:4px 6px;vertical-align:top}.mtlire th{color:#566070;font-weight:600;width:42%}
+.mtlire .habt{border:2px solid #1f5fbf;border-radius:8px}.mtlire .habt th:first-child{color:#1f5fbf}.mtlire .cw{margin-top:8px;overflow-x:auto}.mtlire .cw .coupes{min-width:640px}
 #mtprint{display:none}
 @media print{body.mtprinting>*:not(#mtprint){display:none!important}body.mtprinting #mtprint{display:block;color:#1d2633;font:11px/1.35 Helvetica,Arial,sans-serif}
  #mtprint header{display:flex;justify-content:space-between;gap:10px;border-bottom:2px solid #10407e;padding-bottom:6px;margin-bottom:8px}#mtprint header b{font-size:18px;color:#10407e}
