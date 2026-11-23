@@ -4835,6 +4835,25 @@ function depCalc(p){const T=DEP_T,addD=(d,n)=>{const x=new Date(d);x.setDate(x.g
   const P={route:hRoute*p.pers*T.tarif/T.hJour,camion:camions*kmCamion*(T.conso/100*T.gazole+T.usure),peage:camions*2*ar*p.peage,
     logement:nuits.reduce((s,x)=>s+Z.b*Z.c[x.getMonth()]*p.pers,0)+(nuits.length?T.menage*ar:0),prime:nuits.length*p.pers*T.prime};
   return{org,ar,nuits:nuits.length,P,total:Object.values(P).reduce((a,b)=>a+b,0)}}
+// ---------- Livraison du matériel en semi complet (Steven, 23/11/2026) ----------
+// Trois choix : depuis l'atelier (Orléans), depuis la Belgique (Heusden-Zolder, départ des caisses Ceyssens), ou Belgique avec
+// arrêt à Orléans (le même camion charge nos pupitres) puis le chantier. Tarif du camion dédié de l'outil « Transport et
+// conditionnement », calé sur les factures de Marine (19/11/2026) : 590 € + 1,95 € par km. Distance routière = vol d'oiseau × 1,25.
+const LIV_T={forfait:590,km:1.95,beOrl:590},LIV_BE=[51.033,5.313],LIV_ORL=[47.9029,1.9093];
+const LIV_OPT=[["","pas de livraison à compter"],["atelier","depuis l'atelier (Orléans)"],["be","depuis la Belgique"],["beorl","Belgique, arrêt à Orléans, puis chantier"]];
+const DEP_LL={"Paris":[48.857,2.352],"Versailles":[48.804,2.13],"Tours":[47.394,.685],"Bourges":[47.081,2.399],"Le Mans":[48.006,.199],"Poitiers":[46.58,.34],
+ "Caen":[49.183,-.371],"Deauville":[49.357,.071],"Reims":[49.258,4.032],"Dijon":[47.322,5.041],"Clermont-Ferrand":[45.778,3.087],"Nantes":[47.218,-1.554],
+ "Rennes":[48.117,-1.678],"Lille":[50.629,3.057],"La Baule":[47.286,-2.391],"La Rochelle":[46.16,-1.151],"Le Touquet":[50.52,1.585],"Île de Ré":[46.2,-1.4],
+ "Saint-Malo":[48.649,-2.026],"Lyon":[45.764,4.836],"Bordeaux":[44.838,-.579],"Arcachon":[44.658,-1.168],"Quimper":[47.996,-4.102],"Toulouse":[43.605,1.444],
+ "Annecy":[45.899,6.129],"Strasbourg":[48.573,7.752],"Biarritz":[43.483,-1.559],"Megève":[45.857,6.618],"Chamonix":[45.924,6.87],"Courchevel":[45.415,6.634],
+ "Avignon":[43.949,4.806],"Montpellier":[43.611,3.877],"Aix-en-Provence":[43.529,5.447],"Marseille":[43.296,5.37],"Cannes":[43.552,7.017],
+ "Saint-Tropez":[43.273,6.64],"Nice":[43.71,7.262],"Monaco":[43.738,7.424]};
+const livVol=(a,b)=>{const r=x=>x*Math.PI/180,h=Math.sin(r(b[0]-a[0])/2)**2+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(r(b[1]-a[1])/2)**2;return 2*6371*Math.asin(Math.sqrt(h))};
+function dvLiv(d){const x=d.dep||{},o=x.liv;if(!o||!x.lieu)return null;const kmO=+x.km||0;
+  const ll=x.lat!=null&&x.lon!=null?[+x.lat,+x.lon]:DEP_LL[x.lieu]||null;
+  const kmB=x.kmBe!==""&&x.kmBe!=null?+x.kmBe:(ll?Math.round(livVol(LIV_BE,ll)*1.25):null);
+  const km=o==="atelier"?kmO:o==="be"?kmB:kmB==null?null:LIV_T.beOrl+kmO;if(km==null)return{o,km:null,cout:0,manque:true};
+  return{o,km,cout:LIV_T.forfait+LIV_T.km*km,lab:(LIV_OPT.find(z=>z[0]===o)||["",""])[1]}}
 const DEP_ORG={jour:"retour chaque soir",matin:"départ le matin",veille:"départ la veille",both:"départ la veille, retour le lendemain"};
 // début : 1er lundi du mois de pose souhaité (prix de l'hôtel selon la saison), sinon lundi prochain
 const depDebut=per=>{let d=per?new Date(per+"-01T12:00:00"):new Date(Date.now()+7*864e5);while(d.getDay()!==1)d.setDate(d.getDate()+1);return d.toISOString().slice(0,10)};
@@ -4853,6 +4872,7 @@ function dvDepRes(d){const x=d.dep;if(!x||!x.lieu||x.km===""||x.km==null||!(+d.j
   r.mj=0;r.mf=0;if(x.metre){const pj=(2*base.heures/DEP_T.camion+4)/PL_H,m=depCalc({...base,pers:1,jours:1});
     r.mj=pj;r.mn=base.heures>3.5?1:0;r.mf=m.P.camion+m.P.peage+(r.mn?(DEP_Z[base.zone]||DEP_Z.province).b*1.1+DEP_T.prime:0);r.total+=r.mf}
   // journées d'équipe de 2 (l'objectif de marge jour est par équipe de 2) : sur place et route × personnes ÷ 2, métré à 1 personne
+  r.liv=dvLiv(d);if(r.liv)r.total+=r.liv.cout;
   r.pers=Math.max(1,+x.pers||2);r.jt=(+d.jp+r.jr)*r.pers/2+r.mj/2;return r}
 
 // Option métré (Steven, 23/11/2026) : souvent non vendu dans le devis (supplément à facturer) ou fait par le maître
@@ -4874,27 +4894,29 @@ async function depEstime(lieu){
   const dep=String(pr.citycode||"").slice(0,2),pop=+pr.population||0;
   const zone=["75","77","78","91","92","93","94","95"].includes(dep)?"paris":["06","83","13","84"].includes(dep)?"azur":["73","74","05","38","65","66","09","04"].includes(dep)&&pop<50000?"montagne":
     ["14","17","22","29","33","35","40","44","50","56","62","64","76","80","85"].includes(dep)&&pop<100000?"atlantique":pop>=100000?"ville":"province";
-  return{lieu:pr.city||pr.name||lieu,km,peage:km>150?Math.round(km*.75*DEP_T.peageKm):km>60?Math.round(km*.4*DEP_T.peageKm):0,h:Math.round((km/95+.25)*DEP_T.camion*10)/10,zone,src:"estimé"}}
+  return{lieu:pr.city||pr.name||lieu,lat,lon,km,peage:km>150?Math.round(km*.75*DEP_T.peageKm):km>60?Math.round(km*.4*DEP_T.peageKm):0,h:Math.round((km/95+.25)*DEP_T.camion*10)/10,zone,src:"estimé"}}
 function dvDep(d){const id=esc(d.id),x=d.dep||{},ro=plW()?"":"disabled",r=dvDepRes(d),f=r?Math.round(r.total):0;
   const res=!x.lieu?`<span class="sub">Lieu du chantier à saisir : les frais de déplacement de l'équipe sont alors déduits de la marge.</span>`
    :x.km===""||x.km==null?`<span class="sub">${x.src==="cherche"?"Recherche de la distance…":"Distance inconnue : saisissez km, péage et temps de route."}</span>`
    :!r?`<span class="sub">Jours de pose à saisir pour calculer les frais.</span>`
-   :`<span><b>Temps total ${plNf(r.jt)} j d'équipe de 2</b> = (${plNf(+d.jp)} j sur place + ${plNf(r.jr)} j de route : ${r.org==="jour"?"retour chaque soir, trajet dans la journée":`${plNf(r.hr)} h de route réelles, ${r.ar} aller${r.ar>1?"s":""}-retour${r.ar>1?"s":""}, ${DEP_ORG[r.org]}, ${(x.retours??"we")==="we"?"retour chaque week-end":+x.retours?`${+x.retours} retour${+x.retours>1?"s":""} pendant le chantier`:"pas de retour avant la fin"}`})${r.pers!==2?` × ${r.pers} pers. ÷ 2`:""}${r.mj?` + métré ${plNf(r.mj)} j à 1 personne (${plNf(r.mj/2)} j d'équipe)`:""} : il divise la marge et remplit la charge.<br><b>Frais de déplacement ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers.${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} · camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}${r.mf?`, métré ${plEur(r.mf)}`:""}. Le salaire du trajet n'est pas recompté : il est dans le temps total.${dvMetOpt(d)}</span>`;
+   :`<span><b>Temps total ${plNf(r.jt)} j d'équipe de 2</b> = (${plNf(+d.jp)} j sur place + ${plNf(r.jr)} j de route : ${r.org==="jour"?"retour chaque soir, trajet dans la journée":`${plNf(r.hr)} h de route réelles, ${r.ar} aller${r.ar>1?"s":""}-retour${r.ar>1?"s":""}, ${DEP_ORG[r.org]}, ${(x.retours??"we")==="we"?"retour chaque week-end":+x.retours?`${+x.retours} retour${+x.retours>1?"s":""} pendant le chantier`:"pas de retour avant la fin"}`})${r.pers!==2?` × ${r.pers} pers. ÷ 2`:""}${r.mj?` + métré ${plNf(r.mj)} j à 1 personne (${plNf(r.mj/2)} j d'équipe)`:""} : il divise la marge et remplit la charge.<br><b>Frais de déplacement${r.liv&&r.liv.cout?" et de livraison":""} ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers.${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} · camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}${r.mf?`, métré ${plEur(r.mf)}`:""}${r.liv&&r.liv.cout?`, livraison ${plEur(r.liv.cout)}`:""}. Le salaire du trajet n'est pas recompté : il est dans le temps total.${r.liv?r.liv.manque?`<br><b class="dvmj r">Livraison depuis la Belgique : saisissez les km depuis la Belgique dans « km, péage, temps ».</b>`:`<br>Livraison du matériel en semi complet ${esc(r.liv.lab)} : ${Math.round(r.liv.km).toLocaleString("fr-FR")} km${r.liv.o==="beorl"?" (Belgique → Orléans "+LIV_T.beOrl+" km + Orléans → chantier)":""}, ${plEur(r.liv.cout)} HT (${LIV_T.forfait} € + ${String(LIV_T.km).replace(".",",")} € par km), déduite de la marge.`:""}${dvMetOpt(d)}</span>`;
   return`<div class="dvdep"><label>Lieu du chantier<input type="text" list="depVilles" data-dvdep="lieu" data-id="${id}" value="${esc(x.lieu||"")}" placeholder="ville" ${ro}></label>
    <label>Équipe (pers.)<input type="number" min="1" step="1" inputmode="numeric" data-dvdep="pers" data-id="${id}" value="${esc(x.pers||2)}" ${ro}></label>
    ${x.lieu?`<label>Retours à Orléans<select data-dvdep="retours" data-id="${id}" ${ro}>${[["we","chaque week-end"],["0","aucun (reste sur place)"],...[1,2,3,4,5,6].map(n=>[String(n),n+" fois pendant le chantier"])].map(([v,t])=>`<option value="${v}" ${String(x.retours??"we")===v?"selected":""}>${t}</option>`).join("")}</select></label>`:""}
+   ${x.lieu?`<label>Livraison du matériel<select data-dvdep="liv" data-id="${id}" ${ro}>${LIV_OPT.map(([v,t])=>`<option value="${v}" ${(x.liv||"")===v?"selected":""}>${t}</option>`).join("")}</select></label>`:""}
    <label class="dvmet"><input type="checkbox" data-dvdep="metre" data-id="${id}" ${x.metre?"checked":""} ${ro}> Métré sur place à notre charge (1 personne)</label>
-   ${x.lieu?`<details class="dvdepx"><summary>km, péage, temps</summary><label>Km aller<input type="number" min="0" data-dvdep="km" data-id="${id}" value="${esc(x.km??"")}" ${ro}></label><label>Péage aller (€ HT)<input type="number" min="0" data-dvdep="peage" data-id="${id}" value="${esc(x.peage??"")}" ${ro}></label><label>Route aller (h, camion)<input type="number" min="0" step="0.1" data-dvdep="h" data-id="${id}" value="${esc(x.h??"")}" ${ro}></label><label>Zone d'hôtel<select data-dvdep="zone" data-id="${id}" ${ro}>${Object.entries(DEP_Z).map(([k,z])=>`<option value="${k}" ${k===(x.zone||"province")?"selected":""}>${z.n}</option>`).join("")}</select></label></details>`:""}
+   ${x.lieu?`<details class="dvdepx"><summary>km, péage, temps</summary><label>Km aller<input type="number" min="0" data-dvdep="km" data-id="${id}" value="${esc(x.km??"")}" ${ro}></label><label>Péage aller (€ HT)<input type="number" min="0" data-dvdep="peage" data-id="${id}" value="${esc(x.peage??"")}" ${ro}></label><label>Route aller (h, camion)<input type="number" min="0" step="0.1" data-dvdep="h" data-id="${id}" value="${esc(x.h??"")}" ${ro}></label><label>Km depuis la Belgique<input type="number" min="0" data-dvdep="kmBe" data-id="${id}" value="${esc(x.kmBe??"")}" placeholder="${(()=>{const ll=x.lat!=null?[+x.lat,+x.lon]:DEP_LL[x.lieu];return ll?Math.round(livVol(LIV_BE,ll)*1.25)+" (estimés)":"à saisir"})()}" ${ro}></label><label>Zone d'hôtel<select data-dvdep="zone" data-id="${id}" ${ro}>${Object.entries(DEP_Z).map(([k,z])=>`<option value="${k}" ${k===(x.zone||"province")?"selected":""}>${z.n}</option>`).join("")}</select></label></details>`:""}
    <div class="dvdepr">${res}</div></div>`}
 async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=PLN.devis.get(id)||{},x={...(d.dep||{})};
   if(k==="lieu"){const l=t.value.trim();if(!l){await dvSave(id,{dep:{pers:x.pers||2}});dvKeep(planRender);return}
     const v=depListe(l);
-    if(v)Object.assign(x,{lieu:v[0],km:v[1],peage:Math.round(v[2]*DEP_T.peageKm),h:Math.round(v[3]*DEP_T.camion*10)/10,zone:v[4],src:"liste"});
+    if(v)Object.assign(x,{lieu:v[0],lat:(DEP_LL[v[0]]||[])[0],lon:(DEP_LL[v[0]]||[])[1],km:v[1],peage:Math.round(v[2]*DEP_T.peageKm),h:Math.round(v[3]*DEP_T.camion*10)/10,zone:v[4],src:"liste"});
     else{Object.assign(x,{lieu:l,km:"",src:"cherche"});await dvSave(id,{dep:x});dvKeep(planRender);
       let e=null;try{e=await depEstime(l)}catch(_){}
       const y={...((PLN.devis.get(id)||{}).dep||x)};if(e)Object.assign(y,e);else Object.assign(y,{src:"saisi"});await dvSave(id,{dep:y});dvKeep(planRender);return}}
   else if(k==="metre")x.metre=t.checked;
   else if(k==="retours")x.retours=t.value;
+  else if(k==="liv")x.liv=t.value;
   else{x[k]=k==="zone"?t.value:(t.value===""?"":Math.max(k==="pers"?1:0,+String(t.value).replace(",",".")||0));if(k!=="pers"&&k!=="zone")x.src="saisi"}
   await dvSave(id,{dep:x});dvKeep(planRender)}
 document.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.dvdep)dvDepChange(t)});
