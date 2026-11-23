@@ -186,7 +186,7 @@ textarea{min-height:64px;resize:vertical}
 .cpanel .qty{display:flex;align-items:center;gap:6px}.cpanel .qty .cin{width:80px;flex:none;min-width:0;text-align:center}.cpanel .qty .btn{min-width:44px;min-height:44px;font-size:20px;padding:4px}.cpanel .qty .small{font-size:14px}
 .cpanel .clab{font-size:14px;color:var(--muted)}
 .cpanel .vis{display:flex;flex-direction:column;gap:8px}.cpanel .vlist{display:flex;flex-direction:column;gap:6px}.cpanel .vrow{display:flex;gap:6px;align-items:center}.cpanel .vrow select.cin{min-width:0}.cpanel .vrow .vq{width:70px;flex:none;min-width:0;text-align:center}.cpanel .vrow .btn{min-width:44px;min-height:44px}
-.cam{position:fixed;inset:0;z-index:60;background:#000;display:flex;flex-direction:column}
+.cam{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;z-index:60;background:#000;display:flex;flex-direction:column}
 .cam video{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
 .cam .camb{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .cam .camb .btn{color:#fff;border-color:#888;min-height:48px}
@@ -337,11 +337,13 @@ textarea{min-height:64px;resize:vertical}
 #asheet input[type=number]{font:15px var(--f-body);border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--surface);color:var(--ink);min-width:0}#asheet .sem input{width:4.2em}#asheet .sem input[data-wk="y"]{width:5.6em}
 .invrow{display:grid;grid-template-columns:1fr 84px 72px;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding:4px 0}.invrow .cin{min-width:0;text-align:center}
 @media (prefers-reduced-motion:no-preference){.row,.stat,.box{transition:border-color .15s,background .15s}}
-.acam{position:fixed;inset:0;z-index:90;background:#000;display:grid;grid-template-rows:auto 1fr auto auto;color:#fff}
-.acam video{width:100%;height:100%;object-fit:contain;min-height:0;background:#000}.acam.flash video{opacity:.4}
-.acamh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top))}.acamh b{font-size:17px}
-.acamt{display:flex;gap:6px;overflow-x:auto;padding:6px 12px;min-height:8px}.acamt img{height:58px;border-radius:6px;border:2px solid #fff}
-.acamb{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;padding-bottom:max(14px,env(safe-area-inset-bottom))}
+/* appareil photo (23/11/2026) : sur iPhone / iPad, la vidéo haute définition poussait la barre du déclencheur hors de l'écran ;
+   la vidéo est maintenant en fond et les barres posées par-dessus, hauteur = partie visible de l'écran (dvh) */
+.acam{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;z-index:90;background:#000;color:#fff;overflow:hidden}
+.acam video{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;background:#000}.acam.flash video{opacity:.4}
+.acamh{position:absolute;left:0;right:0;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));background:linear-gradient(rgba(0,0,0,.65),rgba(0,0,0,0))}.acamh b{font-size:17px}
+.acamt{position:absolute;left:0;right:0;bottom:calc(104px + env(safe-area-inset-bottom,0px));z-index:2;display:flex;gap:6px;overflow-x:auto;padding:6px 12px}.acamt img{height:58px;border-radius:6px;border:2px solid #fff}
+.acamb{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;padding-bottom:max(14px,env(safe-area-inset-bottom));background:rgba(0,0,0,.55)}
 .acamb .btn{min-width:110px}.acamb .shot{width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:#e8e8e8;cursor:pointer}
 .docact{display:flex;gap:6px;align-items:center}
 .retro{grid-column:1/-1}.rjal{display:flex;flex-wrap:wrap;gap:6px}.rj{display:grid;padding:5px 9px;border-radius:8px;background:var(--sunk);font-size:13px}.rj b{font-size:12px}
