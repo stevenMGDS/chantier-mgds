@@ -341,6 +341,10 @@ textarea{min-height:64px;resize:vertical}
 .retro{grid-column:1/-1}.rjal{display:flex;flex-wrap:wrap;gap:6px}.rj{display:grid;padding:5px 9px;border-radius:8px;background:var(--sunk);font-size:13px}.rj b{font-size:12px}
 .rj.ok{background:var(--t-vert,#ddf0e2)}.rj.late{background:var(--t-rouge,#f8dada);color:var(--s-rouge,#b83a3a)}
 .plnoms{display:block;grid-column:2/-1;font-size:12.5px;color:var(--ink);margin-top:2px}.plobj{display:block;font-size:12px;color:var(--muted)}
+.afaire{border:2px solid var(--s-orange,#c96a2c);border-radius:12px;padding:10px 14px;margin:14px 0 4px;background:var(--surface)}
+.afaire summary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;cursor:pointer;font-size:17px}.afaire ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.afaire li{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;padding:8px;border-radius:8px;background:var(--sunk)}.afaire li.ok{opacity:.6}.afaire li.ok b{text-decoration:line-through}
+.afc input{width:22px;height:22px}.afb{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--s-rouge,#b83a3a);color:#fff;font:700 13px/1 sans-serif}.afr{color:var(--s-rouge,#b83a3a);font-weight:600}
 </style>
 <link rel="stylesheet" href="theme-mac.css">
 
@@ -357,6 +361,7 @@ textarea{min-height:64px;resize:vertical}
   <section id="tab-reglages" hidden aria-label="Réglages"></section>
   <section id="tab-heures" hidden aria-label="Mes heures"></section>
   <div id="tab-chantiers">
+  <div id="afaire"></div>
   <div class="stats" id="stats"></div>
   <div class="tools">
     <div id="chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
@@ -739,7 +744,34 @@ function newDocs(j){return (j.docs||[]).filter(d=>!d.traite).length}
 function done(j){return curStep(j)===null}
 const ORDER=Object.fromEntries(STEPS.map((s,i)=>[s.k,i]));
 // ---------- liste ----------
+// ---------- « À faire – Marine » (Steven, 23/11/2026) ----------
+// Tâches créées automatiquement : devis signé manquant (alerte posée par la synchro de l'iMac, retirée quand le devis arrive)
+// et fichier d'OFFRE MGDS qui bloque la synchro (liste écrite par la synchro dans reglages « synchro » à chaque passage).
+// Marine coche « fait » (reglages « taches_marine ») ; si le problème est toujours là au passage suivant de la synchro, la tâche se rouvre.
+function afTaches(){const R=window.REG||{},S=R.synchro||{},F=R.taches_marine||{},pass=S.le||"",T=[];
+  for(const[id,j]of jobs){if(!j.devis_manquant)continue;const d0=j.devis_manquant_le||j.cree||"",ref=((j.client||"").match(/D\d{9}[a-z]?/i)||[id])[0];
+    T.push({k:"devis:"+id,id,quoi:"Devis signé manquant",nom:String(j.client||id).replace(/\s*-\s*D\d{9}[a-z]?\s*$/i,""),ref,depuis:d0,
+      action:"Déposer le devis signé dans OFFRE MGDS. La tâche se ferme toute seule quand la synchro le trouve."})}
+  (S.bloquants||[]).forEach(b=>T.push({k:"fichier:"+(b.fichier||""),id:b.chantier&&jobs.has(b.chantier)?b.chantier:"",quoi:"Fichier à corriger",nom:b.fichier||"fichier ?",ref:b.dossier||"OFFRE MGDS",depuis:b.depuis||"",
+    detail:b.raison||"",action:b.action||"Renommer le fichier (sans accents ni caractères spéciaux), au même endroit dans OFFRE MGDS."}));
+  T.forEach(t=>{const f=F[t.k];t.fait=!!(f&&f.le&&(!pass||f.le>pass));t.faitLe=f&&f.le;t.rouvert=!!(f&&f.le&&pass&&f.le<=pass)});
+  return T.sort((a,b)=>a.fait-b.fait||String(a.depuis).localeCompare(String(b.depuis)))}
+function afRender(){const el=$("afaire");if(!el)return;if(!canWrite||!window.mgdsProfil||mgdsProfil.role!=="editeur"){el.innerHTML="";return}
+  const T=afTaches(),ouv=T.filter(t=>!t.fait),marine=/marine/i.test(mgdsProfil.nom||mgdsProfil.email||"");
+  const b=document.querySelector('#tabs [data-tab="chantiers"]');if(b)b.innerHTML="Chantiers"+(ouv.length?` <span class="afb" aria-label="${ouv.length} tâche${ouv.length>1?"s":""} pour Marine">${ouv.length}</span>`:"");
+  if(!T.length){el.innerHTML="";return}
+  const S=(window.REG||{}).synchro||{},ouvert=afOuvert??(marine||ouv.length>0);
+  el.innerHTML=`<details class="afaire" ${ouvert?"open":""}><summary><b>À faire – Marine</b>${ouv.length?`<span class="afb">${ouv.length}</span>`:`<span class="sub">tout est fait</span>`}<span class="sub">${S.le?"dernier passage de la synchro : "+new Date(S.le).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(" "," à "):""}</span></summary>
+   <ul>${T.map(t=>{const n=t.depuis?days(t.depuis):null;return`<li class="${t.fait?"ok":""}"><label class="afc"><input type="checkbox" data-afk="${esc(t.k)}" ${t.fait?"checked":""} aria-label="Marquer fait : ${esc(t.quoi)} ${esc(t.nom)}"></label>
+     <div><b>${esc(t.quoi)}</b> · ${t.id?`<button class="lnk" data-open="${esc(t.id)}">${esc(t.nom)}</button>`:esc(t.nom)} <span class="mono">${esc(t.ref)}</span>${n!=null?` · <span class="${n>=3&&!t.fait?"afr":""}">${n>0?"depuis "+n+" jour"+(n>1?"s":""):"depuis aujourd'hui"}</span>`:""}${t.rouvert&&!t.fait?` · <span class="afr">rouverte : toujours là au dernier passage</span>`:""}
+     ${t.detail?`<br><span class="sub">${esc(t.detail)}</span>`:""}<br><span class="sub">➜ ${esc(t.action)}</span>${t.fait?`<br><span class="sub">fait le ${fr(String(t.faitLe).slice(0,10))} : vérifié au prochain passage de la synchro</span>`:""}</div></li>`}).join("")}</ul></details>`}
+let afOuvert=null;
+document.addEventListener("toggle",e=>{if(e.target.classList&&e.target.classList.contains("afaire"))afOuvert=e.target.open},true);
+document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||t.dataset.afk===undefined)return;const k=t.dataset.afk;
+  regSave("taches_marine",{[k]:t.checked?{le:new Date().toISOString(),by:me||""}:null}).then(()=>{afRender();toast(t.checked?"Noté comme fait. Si le problème est toujours là au prochain passage de la synchro, la tâche se rouvrira.":"Tâche rouverte.")})});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&window.sbClient&&typeof regLoad==="function")regLoad()});
 function render(){
+  afRender();
   const all=[...jobs.entries()].map(([id,j])=>({id,...j}));
   const live=all.filter(j=>!done(j));
   const cnt={encours:live.length,bloque:live.filter(j=>j.bloque).length,retard:live.filter(j=>late(j)).length,mails:live.filter(j=>mailsDue(j)).length,logi:live.filter(j=>logiDue(j).length).length,termines:all.length-live.length};
