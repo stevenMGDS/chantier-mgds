@@ -9,21 +9,28 @@
 const $m=id=>document.getElementById(id);
 const C=(l,o,x={})=>({l,t:"c",o,...x}),M=(l,x={})=>({l,t:"mm",...x}),T=(l,x={})=>({l,t:"t",...x}),N=(l,x={})=>({l,t:"n",...x}),MU=(l,o,x={})=>({l,t:"m",o,...x}),CMD={l:"Cote de commande",t:"cmd"};
 const TRI=(l,sub,x={})=>({l,t:"tri",sub,...x});
+// seuil et sol (Steven, 23/11/2026) : habillage, rejingot, sol à déduire, futur carrelage
+const futur=v=>/Futur|Chape/.test(v["Sol intérieur"]||"");
+const SEUIL=()=>[C("Seuil",["Standard","Extra-plat PMR","Encastré","Sur rejingot"]),C("Sol intérieur",["Fini (existant)","Futur carrelage / parquet","Chape à venir"]),
+  M("Épaisseur du futur sol",{w:futur}),C("Sol à déduire de la hauteur",["Oui","Non"],{w:futur}),C("Rejingot / appui extérieur",["Existant","À créer","Aucun"]),
+  C("Habillage du seuil",["Aucun","Cornière","Plat","Tôle pliée"],{opt:1}),M("Hauteur du seuil fini",{opt:1})];
+const porteF=v=>/Porte-fenêtre|Coulissant/.test(v["Type"]||"");
 const tv=v=>v["Type de volet roulant"]||"",vr=v=>v["Produit"]==="Volet roulant",kit=v=>vr(v)&&/^Kit/.test(tv(v)),bat=v=>/battant|Persienne/.test(v["Produit"]||""),
   zip=v=>/zip/.test(v["Produit"]||""),bso=v=>v["Produit"]==="BSO",banne=v=>v["Produit"]==="Store banne";
 const FAM={
  fen:{n:"Fenêtres et portes-fenêtres",g:[
   ["Produit",[C("Type",["Fenêtre","Porte-fenêtre","Coulissant","Fixe","Soufflet"]),C("Matière",["PVC","PVC/alu","Alu","Bois"]),N("Vantaux"),C("Sens (vue int.)",["TD","TG","Fixe"]),T("Coloris int. / ext.")]],
-  ["Pose",[C("Type de pose",["Neuf applique","Réno","Dépose totale","Tunnel"]),M("Épaisseur du dormant existant",{opt:1}),M("Épaisseur d'isolation (doublage)"),C("Habillage int.",["Aucun","Cornières","Tôle pliée","Autre"],{opt:1}),C("Habillage ext.",["Aucun","Cornières","Tôle pliée","Autre"],{opt:1})]],
-  ["Dimensions",[M("Tableau L"),M("Tableau H"),M("Hors tout L",{opt:1}),M("Hors tout H",{opt:1}),M("Hauteur d'allège",{opt:1}),CMD]],
-  ["Vitrage et options",[C("Vitrage",["Double","Triple","Feuilleté","Phonique","Granité"]),C("Petits bois",["Non","Incorporés","Collés"],{opt:1}),C("Appui / seuil",["Appui","Seuil alu","Seuil PMR"]),C("Ventilation",["Aucune","Grille"]),C("Occultation",["Aucune","Volet roulant","Store zip","BSO"],{opt:1})]],
+  ["Pose",[C("Type de pose",["Neuf applique","Réno","Dépose totale","Tunnel"]),M("Épaisseur du dormant existant",{opt:1}),M("Épaisseur d'isolation (doublage)")]],
+  ["Dimensions",[M("Tableau L"),M("Tableau H"),M("Hors tout L",{opt:1}),M("Hors tout H",{opt:1}),M("Hauteur d'allège",{opt:1,w:v=>!porteF(v)}),CMD]],
+  ["Seuil et sol",SEUIL(),porteF],
+  ["Vitrage et options",[C("Vitrage",["Double","Triple","Feuilleté","Phonique","Granité"]),C("Petits bois",["Non","Incorporés","Collés"],{opt:1}),C("Appui",["Appui existant","Appui alu","Bavette"],{opt:1,w:v=>!porteF(v)}),C("Ventilation",["Aucune","Grille"]),C("Occultation",["Aucune","Volet roulant","Store zip","BSO"],{opt:1})]],
   ["Volet roulant intégré",[C("Coffre",["Bloc-baie (sur la menuiserie)","Coffre tunnel","Coffre rénovation"]),C("Taille du coffre",["125","137","150","165","180","205"],{opt:1}),
     C("Manœuvre",["Sangle","Treuil + manivelle","Moteur filaire","Radio RTS","Radio io","Solaire"]),C("Côté de manœuvre (vue int.)",["Gauche","Droite"]),
     C("Alimentation électrique",["Présente à gauche","Présente à droite","À créer","Sans objet"],{w:v=>!/Sangle|Treuil/.test(v["Manœuvre"]||"")}),T("Coloris du tablier")],v=>v["Occultation"]==="Volet roulant"]]},
  porte:{n:"Porte d'entrée",g:[
-  ["Produit",[C("Matière",["Alu","PVC","Bois","Acier"]),T("Modèle",{opt:1}),T("Coloris int. / ext. (RAL)"),C("Sens (vue int.)",["Poussant gauche","Poussant droit"]),N("Vantaux")]],
+  ["Produit",[C("Matière",["Alu","PVC","PVC/alu","Bois","Acier"]),T("Modèle",{opt:1}),T("Coloris int. / ext. (RAL)"),C("Sens (vue int.)",["TD","TG","Poussant gauche","Poussant droit"]),N("Vantaux"),C("Vitrage",["Sans","Double","Triple","Feuilleté","Granité"],{opt:1})]],
   ["Pose et dimensions",[C("Dormant",["Réno + habillages","Neuf"]),M("Épaisseur d'isolation (doublage)",{opt:1}),M("Tableau L"),M("Tableau H"),M("Hors tout L",{opt:1}),M("Hors tout H",{opt:1}),M("Épaisseur du bâti existant",{opt:1}),M("Largeur du vantail principal",{opt:1}),CMD]],
-  ["Seuil et imposte",[C("Seuil",["Standard","Extra-plat PMR","Encastré"]),C("Imposte / fixe latéral",["Aucun","Rectangulaire","Cintre","Plein cintre"])]],
+  ["Seuil et sol",SEUIL()],["Imposte",[C("Imposte / fixe latéral",["Aucun","Rectangulaire","Cintre","Plein cintre"])]],
   ["Quincaillerie",[C("Serrure",["3 points","5 points","Automatique","Connectée"]),C("Tirage",["Béquille","Barre de tirage"]),MU("Options",["Ferme-porte","Gâche électrique","Judas","Boîte aux lettres"],{opt:1}),T("Arrivée électrique",{opt:1})]]]},
  garage:{n:"Porte de garage",g:[
   ["Produit",[C("Type",["Sectionnelle","Basculante","Enroulable","Battante"]),T("Coloris int. / ext."),MU("Options",["Hublots","Portillon intégré"],{opt:1})]],
@@ -67,7 +74,7 @@ const HAB_PROF=["Cornière C20x20","Cornière C30x30","Cornière C40x40","Corni�
 const HAB_COLS=["Blanc RAL 9016","Noir RAL 9005","Gris anthracite RAL 7016","Gris clair RAL 7035","Alu anodisé","Autre RAL"];
 const SIL=["Blanc","Gris clair","Gris alu","Gris 7016","Ton pierre","Bronze","Noir","Transparent"];
 const COMP={"3x7x15":8,"3x7x20":8,"4x11":5.6,"5x14":4.3,"9x20 ISO-BLOCO":12};
-const VIS={"SFS blanche":[72,92,112,132,152,182,212],"SFS noire":[72,92,112,132,152,182,212],"Vis béton":[60,80,100,120,150],"Vis bois":[30,40,50,60,70,80,100,120],"Pattes de fixation":["—"]};
+const VIS={"SFS blanche":[72,92,112,132,152,182,212],"SFS noire":[72,92,112,132,152,182,212],"Vis béton":[60,80,100,120,150],"Vis bois":[30,40,50,60,70,80,100,120],"Pattes de fixation":["—"],"Autre":["—"]};
 const ETF=["fen","porte"],COUL={Rouge:"#c0392b",Bleu:"#1f5fbf",Noir:"#1d2633"};
 const SPOT={he:"Haut ext.",be:"Bas ext.",hi:"Haut int.",bi:"Bas int.",me:"Montants ext.",mi:"Montants int."};
 const esc2=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -84,6 +91,9 @@ function preRemplir(p){const s=(p.r+" "+p.d).toLowerCase(),v=p.v,put=(k,x)=>{if(
     if(pr==="Volet roulant")put("Type de volet roulant",/kit motor/.test(s)?"Kit motorisation sur VR existant":/r[ée]no/.test(s)?"Rénovation (coffre extérieur)":/tradi/.test(s)?"Traditionnel (coffre intérieur)":/termo|enduire|monobloc/.test(s)?"Coffre à enduire (Termo, Rapido)":/bloc.?baie/.test(s)?"Bloc-baie (sur la menuiserie)":"");
     put("Manœuvre",man);if(/battant|persienne/.test(s)){put("Matière",/alu/.test(s)?"Alu":/pvc/.test(s)?"PVC":/bois/.test(s)?"Bois":"");if(n)put("Vantaux",+n)}
     const gm=/(roma|neolite|reveau|bubendorff|profalux|franciaflex|somfy|kl-fp)[^,]*/i.exec(p.d);if(gm)put("Gamme / fabricant",gm[0].trim())}
+  const mat=/\bkf\s?\d|\bkv\s?\d|internorm kf/.test(s)?"PVC/alu":/\bhf\s?\d/.test(s)?"Bois/alu":/\bks\s?\d|\bpvc\b/.test(s)?"PVC":/technal|k-?line|keller|reveau|schuco|sch[üu]co|\balu\b/.test(s)?"Alu":/\bbois\b/.test(s)?"Bois":"";
+  if((p.f==="fen"||p.f==="porte")&&mat){put("Matière",mat);p.src=p.src||{};if(p.v["Matière"]===mat)p.src["Matière"]=mat}
+  if(p.f==="fen"&&!p.v["Petits bois"]&&!/petits? bois/.test(s)){p.v["Petits bois"]="Non";p.src=p.src||{};p.src["Petits bois"]="Non"}
   if(p.f==="fen"){if(/\+\s*(vr|volet)/.test(s)){put("Occultation","Volet roulant");put("Manœuvre",man)}
     put("Type",/coulis/.test(s)?"Coulissant":/\bpf\b|porte.fen/.test(s)?"Porte-fenêtre":/\bf\b|fen/.test(s)?"Fenêtre":/fixe/.test(s)?"Fixe":"");if(n)put("Vantaux",+n)}}
 
@@ -110,19 +120,44 @@ async function save(){if(!S||!S.dirty||S.saving)return;S.saving=true;S.dirty=fal
   finally{if(S)S.saving=false;if(S&&S.dirty&&!S.t)sched()}}
 
 // ---------- création, reprise des lignes du métré PDF ----------
+// lecture du métré PDF pré-rempli (et éventuellement déjà rempli) : une ligne par menuiserie, puis les cases du bloc de chaque
+// menuiserie (isolation, coloris, vitrage, allège, type de pose, sens, ventilation) et le jeu de pose (Steven, 23/11/2026)
 async function lignesPdf(j){
-  const d=(j.docs||[]).find(d=>d.type==="Métré"&&!d.mt&&/\.pdf$/i.test(d.name||""));if(!d||!window.PDFLib)return[];
-  try{const r=await fetch("/_blob/"+d.id);if(!r.ok)return[];const doc=await PDFLib.PDFDocument.load(await r.arrayBuffer(),{ignoreEncryption:true});
-    const F=doc.getForm().getFields().map(f=>{const n=f.getName(),m=/^cellule_(\d+)_(\d+)$/.exec(n);let v="";try{v=f.getText?f.getText()||"":""}catch(_){}return m?{p:+m[1],i:+m[2],v:v.trim()}:null}).filter(Boolean).sort((a,b)=>a.p-b.p||a.i-b.i);
-    const out=[];for(let k=0;k<F.length-1;k++){const a=F[k],b=F[k+1];if(a.v&&!/^\d/.test(a.v)&&/^\d+\s*[×x*]\s*\d+$/.test(b.v)){
-      const m=coupeRep(a.v),p=newProd(m.r,m.d,null,b.v.replace(/\s*[x*]\s*/," × "));p.fg=1;
-      const g=n=>(F[k+n]&&F[k+n].p===a.p?F[k+n].v:"");if(/^\d+$/.test(g(2)))p.v["Tableau L"]=g(2);if(/^\d+$/.test(g(3)))p.v["Tableau H"]=g(3);
-      if(/^\d+$/.test(g(4)))p.v["Hors tout L"]=g(4);if(/^\d+$/.test(g(5)))p.v["Hors tout H"]=g(5);if(g(6))p.v["Cote de commande"]=g(6).replace(/\s*[x*]\s*/," × ");
-      preRemplir(p);out.push(p);k++}}
-    return out}catch(_){return[]}}
+  const d=(j.docs||[]).find(d=>d.type==="Métré"&&!d.mt&&/\.pdf$/i.test(d.name||""));if(!d||!window.PDFLib)return{prod:[],jeu:null};
+  try{const r=await fetch("/_blob/"+d.id);if(!r.ok)return{prod:[],jeu:null};const doc=await PDFLib.PDFDocument.load(await r.arrayBuffer(),{ignoreEncryption:true});
+    const pages=doc.getPages(),pIx=ref=>pages.findIndex(pg=>pg.ref===ref);
+    const F=doc.getForm().getFields().map(f=>{const n=f.getName(),m=/^(cellule|ligne|case|posex)_(\d+)_(\d+)$/.exec(n);if(!m)return null;let v="",on=false,y=0,top=0,pi=+m[2];
+      try{if(f.getText)v=(f.getText()||"").trim();if(f.isChecked)on=f.isChecked()}catch(_){}
+      try{const w=f.acroField.getWidgets()[0],R=w.getRectangle();y=R.y+R.height/2;top=R.y+R.height;const P=w.P();if(P){const k=pIx(P);if(k>=0)pi=k}}catch(_){}
+      return{k:m[1],p:pi,i:+m[3],v,on,y,top}}).filter(Boolean);
+    const cel=F.filter(x=>x.k==="cellule").sort((a,b)=>a.p-b.p||a.i-b.i),rows=[];
+    for(let k=0;k<cel.length-1;k++){const a=cel[k],b=cel[k+1];if(a.v&&!/^\d/.test(a.v)&&/^\d+\s*[×x*]\s*\d+$/.test(b.v)){rows.push({a,k});k++}}
+    const prod=rows.map(({a,k},n)=>{const m=coupeRep(a.v),p=newProd(m.r,m.d,null,cel[k+1].v.replace(/\s*[x*]\s*/," × "));p.fg=1;p.src={};
+      const g=q=>(cel[k+q]&&cel[k+q].p===a.p?cel[k+q].v:""),put=(key,val)=>{if(val!==""&&val!=null){p.v[key]=val;p.src[key]=val}};
+      if(/^\d+$/.test(g(2)))put("Tableau L",g(2));if(/^\d+$/.test(g(3)))put("Tableau H",g(3));if(/^\d+$/.test(g(4)))put("Hors tout L",g(4));if(/^\d+$/.test(g(5)))put("Hors tout H",g(5));
+      if(g(6))put("Cote de commande",g(6).replace(/\s*[x*]\s*/," × "));
+      // bloc de la menuiserie : entre sa ligne et la suivante sur la même page
+      const nx=rows[n+1]&&rows[n+1].a.p===a.p?rows[n+1].a.top:-1,band=F.filter(x=>x.p===a.p&&x.y<a.top+2&&x.y>nx+2&&x.k!=="cellule");
+      const L=band.filter(x=>x.k==="ligne").sort((x,y)=>x.i-y.i),Cs=band.filter(x=>x.k==="case").sort((x,y)=>x.i-y.i),tun=band.some(x=>x.k==="posex"&&x.on);
+      if(L.length>=5){const V=L.map(x=>x.v),[iso,col,vit,,all]=L.length>=6?[V[0],V[2],V[3],V[4],V[5]]:V;put("Épaisseur d'isolation (doublage)",/^\d+$/.test(iso)?iso:"");
+        if(col)put(p.f==="porte"?"Coloris int. / ext. (RAL)":"Coloris int. / ext.",col.replace(/^Bl\.?(?=\s*\/|$)/i,"Blanc").replace(/\s*\/\s*/," / "));
+        if(vit)put("Vitrage",["Double","Triple","Feuilleté","Phonique","Granité"].find(o=>o.toLowerCase()===vit.toLowerCase())||vit);
+        if(+all>0)put("Hauteur d'allège",all)}
+      if(Cs.length>=8){const on=Cs.map(x=>x.on);const pose=tun?"Tunnel":on[2]?"Dépose totale":on[1]?"Réno":on[0]?"Neuf applique":"";if(pose&&p.f==="fen")put("Type de pose",pose);
+        const sens=on[3]?"TD":on[4]?"TG":on[5]?"Fixe":"";if(sens)put("Sens (vue int.)",sens);if(on[6])put("Ventilation","Aucune");if(on[7])put("Ventilation","Grille")}
+      else if(tun&&p.f==="fen")put("Type de pose","Tunnel");
+      preRemplir(p);return p});
+    const jl=F.filter(x=>x.k==="ligne"&&x.p===0).sort((a,b)=>a.i-b.i),jc=jl[0]&&/^\d+$/.test(jl[0].v)&&+jl[0].v<30?{c:+jl[0].v,t:+(jl[1]&&jl[1].v)||+jl[0].v}:null;
+    return{prod,jeu:jc}}catch(_){return{prod:[],jeu:null}}}
+// métré tablette déjà créé : on complète les cases vides avec le métré PDF (sans rien écraser), une seule fois par produit
+async function completePdf(){if(!S||ro())return;const j=jobs.get(S.jid);if(!j)return;const P=S.mt.prod.filter(p=>!p.pdf);if(!P.length)return;
+  const{prod}=await lignesPdf(j);if(!S||!prod.length)return;let n=0;
+  S.mt.prod.forEach((p,k)=>{if(p.pdf)return;const q=prod.find(x=>x.d===p.d&&x.cote===p.cote)||prod.find(x=>x.d===p.d)||(prod.length===S.mt.prod.length?prod[k]:null);p.pdf=1;if(!q)return;
+    p.src=p.src||{};for(const[k2,v]of Object.entries(q.v)){if(p.v[k2]===undefined||p.v[k2]===""){p.v[k2]=v;p.src[k2]=v;n++}}});
+  sched();draw();if(n)toast(n+" informations reprises du métré PDF (coloris, vitrage, allège…) : à vérifier")}
 window.mtNew=async jid=>{const j=jobs.get(jid);if(!j)return;
-  const prod=await lignesPdf(j);
-  const doc={id:"mt-"+Math.random().toString(36).slice(2,12),type:"Métré",name:"Métré tablette",at:today(),by:me||"",size:0,traite:true,mt:{jeu:{c:5,t:5},prod,cree:today()},rempli:{le:today(),reste:1,total:1}};
+  const{prod,jeu}=await lignesPdf(j);prod.forEach(p=>p.pdf=1);
+  const doc={id:"mt-"+Math.random().toString(36).slice(2,12),type:"Métré",name:"Métré tablette",at:today(),by:me||"",size:0,traite:true,mt:{jeu:jeu||{c:5,t:5},prod,cree:today()},rempli:{le:today(),reste:1,total:1}};
   try{await db.doc("chantiers/"+jid).update({docs:[...(j.docs||[]),doc]});j.docs=[...(j.docs||[]),doc];mtOpen(jid,doc.id);
     toast(prod.length?prod.length+" produit"+(prod.length>1?"s repris":" repris")+" du métré PDF":"Métré créé : ajoutez les produits")}
   catch(_){toast("Création impossible : vérifiez la connexion ou vos droits.")}};
@@ -134,7 +169,7 @@ window.mtOpen=(jid,did)=>{const j=jobs.get(jid),d=j&&(j.docs||[]).find(d=>d.id==
     if(f!==p.f&&Object.keys(p.v).every(k=>/^(Tableau|Hors tout|Cote de commande|Type|Vantaux)/.test(k))){p.f=f;p.r=c.r;p.d=c.d;rep++}preRemplir(p);p.fg=1});
   if(!S.mt.prod.length)S.cur=-2;
   $m("mttitre").textContent="Métré · "+(j.client||"");$m("mtsous").textContent=[j.adresse,j.ville].filter(Boolean).join(", ");
-  $m("mtov").hidden=false;$m("mtov").classList.toggle("ro",ro());document.body.style.overflow="hidden";draw();if(rep){sched();toast(rep+" produit"+(rep>1?"s reclassés":" reclassé")+" d'après le devis (volets, stores…)")}};
+  $m("mtov").hidden=false;$m("mtov").classList.toggle("ro",ro());document.body.style.overflow="hidden";draw();if(rep){sched();toast(rep+" produit"+(rep>1?"s reclassés":" reclassé")+" d'après le devis (volets, stores…)")}completePdf()};
 window.mtClose=async()=>{if(!S)return;if(S.dirty){await save()}S=null;$m("mtov").hidden=true;document.body.style.overflow=""};
 
 // ---------- affichage ----------
@@ -157,7 +192,7 @@ function draw(){liste();const f=$m("mtfiche");f.innerHTML="";$m("mtjc").value=S.
     z.querySelector('[data-a="dup"]').onclick=()=>{const c=JSON.parse(JSON.stringify(p));c.k=Math.random().toString(36).slice(2,9);c.ann=[];c.ph=[];c.r=p.r+" (copie)";S.mt.prod.splice(S.cur+1,0,c);S.cur++;sched();draw();$m("mtfiche").scrollTop=0};
     z.querySelector('[data-a="del"]').onclick=()=>{if(!confirm("Supprimer « "+(p.r||p.d)+" » du métré ?"))return;S.mt.prod.splice(S.cur,1);S.cur=Math.min(S.cur,S.mt.prod.length-1);if(S.cur<0)S.cur=-2;sched();draw()};f.appendChild(z)}}
 function champ(p,c){const w=document.createElement("div");w.className="ch"+(c.t==="t"&&/^Accès|Façade|Pignons/.test(c.l)?" large":"")+(!c.opt&&!fait(p,c)?" vide":"");w.innerHTML=`<span>${esc2(c.l)}${c.opt?' <small>(si besoin)</small>':""}</span>`;
-  const set=v=>{p.v[c.l]=v;sched();liste()};
+  const set=v=>{p.v[c.l]=v;if(p.src)delete p.src[c.l];w.classList.remove("prop");sched();liste()};
   if(c.t==="mm"){const d=document.createElement("div");d.className="mm";const i=document.createElement("input");i.type="text";i.inputMode="numeric";i.value=p.v[c.l]||"";i.setAttribute("aria-label",c.l);
     i.oninput=()=>{set(i.value.replace(/\D/g,""));i.value=p.v[c.l];w.classList.toggle("vide",!c.opt&&!i.value)};i.onchange=()=>redraw();d.append(i,Object.assign(document.createElement("em"),{textContent:"mm"}));w.appendChild(d)}
   if(c.t==="tri"){const k=c.l+" · mesures",arr=(p.v[k]||["","",""]).slice(),d=document.createElement("div");d.className="tri";
@@ -172,27 +207,36 @@ function champ(p,c){const w=document.createElement("div");w.className="ch"+(c.t=
     if(prop&&!ro()&&p.v[c.l]!==prop){const b=document.createElement("button");b.type="button";b.className="b2 mini";b.textContent="Reprendre";b.onclick=()=>{set(prop);draw()};h.appendChild(b)}w.append(i,h)}
   if(c.t==="n"){const d=document.createElement("div");d.className="pas";const v=()=>+p.v[c.l]||0;d.innerHTML=`<button type="button" aria-label="moins">−</button><b>${v()||"–"}</b><button type="button" aria-label="plus">+</button>`;const[m,,pl]=d.children;m.onclick=()=>{set(Math.max(0,v()-1)||"");draw()};pl.onclick=()=>{set(v()+1);draw()};w.appendChild(d)}
   if(c.t==="c"||c.t==="m"){const d=document.createElement("div");d.className="seg";c.o.forEach(o=>{const b=document.createElement("button");b.type="button";b.textContent=o;const on=c.t==="m"?(p.v[c.l]||[]).includes(o):p.v[c.l]===o;b.setAttribute("aria-pressed",on);
-    b.onclick=()=>{if(c.t==="m"){const a=new Set(p.v[c.l]||[]);a.has(o)?a.delete(o):a.add(o);set([...a])}else set(p.v[c.l]===o?"":o);draw()};d.appendChild(b)});w.appendChild(d)}
+    b.onclick=()=>{if(c.t==="m"){const a=new Set(p.v[c.l]||[]);a.has(o)?a.delete(o):a.add(o);set([...a])}else set(p.v[c.l]===o?"":o);draw()};d.appendChild(b)});w.appendChild(d);
+    if(c.t==="c")autre(w,d,c.o,()=>p.v[c.l]||"",v=>set(v));else autreM(w,()=>p.v[c.l+" (autre)"]||"",v=>{p.v[c.l+" (autre)"]=v;sched()})}
+  if(p.src&&p.src[c.l]!==undefined&&JSON.stringify(p.src[c.l])===JSON.stringify(p.v[c.l]))w.classList.add("prop");
   return w}
+// bouton « Autre… » : une case pour écrire soi-même (RAL, référence, produit non répertorié) ; la valeur tapée remplace le choix
+function autre(w,d,opts,get,set){const v=get(),perso=v&&!opts.includes(v),b=document.createElement("button");b.type="button";b.textContent=perso?"Autre : "+v:"Autre…";b.setAttribute("aria-pressed",!!perso);d.appendChild(b);
+  const i=document.createElement("input");i.type="text";i.placeholder="Écrire (RAL, référence, autre choix…)";i.value=perso?v:"";i.hidden=!perso;i.className="autre";w.appendChild(i);
+  b.onclick=()=>{i.hidden=false;i.focus()};i.oninput=()=>{set(i.value.trim());b.textContent=i.value.trim()?"Autre : "+i.value.trim():"Autre…";b.setAttribute("aria-pressed",!!i.value.trim());d.querySelectorAll("button").forEach(x=>{if(x!==b)x.setAttribute("aria-pressed","false")})}}
+function autreM(w,get,set){const i=document.createElement("input");i.type="text";i.className="autre";i.placeholder="Autre (écrire)…";i.value=get();i.oninput=()=>set(i.value.trim());w.appendChild(i)}
 function sel(opts,val,lab,on){const e=document.createElement("select");e.className="sel";e.setAttribute("aria-label",lab);e.innerHTML=`<option value="">${esc2(lab)}…</option>`+opts.map(o=>`<option ${o===val?"selected":""}>${esc2(o)}</option>`).join("");e.onchange=()=>on(e.value);return e}
-function segIn(lab,opts,get,setv,multi){const w=document.createElement("div");w.className="ch";w.innerHTML=`<span>${esc2(lab)}</span>`;const d=document.createElement("div");d.className="seg";
-  opts.forEach(o=>{const b=document.createElement("button");b.type="button";b.textContent=o;const v=get()||(multi?[]:"");b.setAttribute("aria-pressed",multi?v.includes(o):v===o);b.onclick=()=>{if(multi){const a=new Set(get()||[]);a.has(o)?a.delete(o):a.add(o);setv([...a])}else setv(get()===o?"":o);sched();draw()};d.appendChild(b)});w.appendChild(d);return w}
+function segIn(lab,opts,get,setv,multi,getA,setA){const w=document.createElement("div");w.className="ch";w.innerHTML=`<span>${esc2(lab)}</span>`;const d=document.createElement("div");d.className="seg";
+  opts.forEach(o=>{const b=document.createElement("button");b.type="button";b.textContent=o;const v=get()||(multi?[]:"");b.setAttribute("aria-pressed",multi?v.includes(o):v===o);b.onclick=()=>{if(multi){const a=new Set(get()||[]);a.has(o)?a.delete(o):a.add(o);setv([...a])}else setv(get()===o?"":o);sched();draw()};d.appendChild(b)});w.appendChild(d);
+  if(!multi)autre(w,d,opts,()=>get()||"",v=>{setv(v);sched()});else if(getA)autreM(w,getA,v=>{setA(v);sched()});return w}
 function habBloc(p){const g=document.createElement("section");g.className="grp";g.innerHTML=`<h3>Habillages</h3><p class="sub">Autant de lignes que nécessaire : plats et cornières de dimensions et de coloris différents. La longueur est calculée sur le tableau.</p>`;
   const[L,H]=dims(p);
   p.hab.forEach((h,k)=>{const r=document.createElement("div");r.className="hl";const ml=L&&H&&HAB_POS[h.pos]?HAB_POS[h.pos](L,H):0;
-    r.append(sel(Object.keys(HAB_POS),h.pos,"Position",v=>{h.pos=v;sched();draw()}),sel(HAB_PROF,h.p,"Profil",v=>{h.p=v;sched();draw()}),sel(HAB_COLS,h.c,"Coloris",v=>{h.c=v;sched();draw()}));
+    r.append(sel(Object.keys(HAB_POS),h.pos,"Position",v=>{h.pos=v;sched();draw()}),sel([...HAB_PROF,"Autre profil"],h.p,"Profil",v=>{h.p=v;sched();draw()}),sel(HAB_COLS,h.c,"Coloris",v=>{h.c=v;sched();draw()}));
     const m=document.createElement("span");m.className="ml";m.textContent=ml?mlf(ml):"–";const x=document.createElement("button");x.type="button";x.className="x";x.textContent="×";x.setAttribute("aria-label","Retirer cet habillage");x.onclick=()=>{p.hab.splice(k,1);sched();draw()};r.append(m,x);g.appendChild(r);
-    if(h.c==="Autre RAL"){const i=document.createElement("input");i.type="text";i.placeholder="RAL ou référence du coloris";i.value=h.r||"";i.oninput=()=>{h.r=i.value;sched()};g.appendChild(i)}});
+    if(h.p==="Autre profil"){const i=document.createElement("input");i.type="text";i.className="autre";i.placeholder="Profil : ex. cornière 25×45, plat 120, tôle pliée en Z…";i.value=h.pa||"";i.oninput=()=>{h.pa=i.value;sched()};g.appendChild(i)}
+    if(h.c==="Autre RAL"){const i=document.createElement("input");i.type="text";i.className="autre";i.placeholder="RAL ou référence du coloris (ex. RAL 7022 sablé, HM819)";i.value=h.r||"";i.oninput=()=>{h.r=i.value;sched()};g.appendChild(i)}});
   const a=document.createElement("button");a.type="button";a.className="plus";a.textContent="+ Ajouter un habillage";a.onclick=()=>{p.hab.push({pos:"",p:"",c:"",r:""});sched();draw()};g.appendChild(a);return g}
 function etBloc(p){const e=p.et,g=document.createElement("section");g.className="grp";g.innerHTML=`<h3>Étanchéité et options de pose</h3>`;const d=document.createElement("div");d.className="champs";
   d.append(segIn("Compribande",[...Object.keys(COMP),"Aucune"],()=>e.comp,v=>e.comp=v),segIn("Silicone extérieur : teinte",SIL,()=>e.silE,v=>e.silE=v),segIn("Silicone intérieur",["Blanc","Idem ext.","Aucun"],()=>e.silI,v=>e.silI=v),
     segIn("Mousse PU",["Normale","Coupe-feu","Aucune"],()=>e.mou,v=>e.mou=v),segIn("Membrane",["Aucune","ME111","ME220","Techpro intérieure"],()=>e.mem,v=>e.mem=v),
-    segIn("Options",["Création de rejingot","Délignage des cochonnets","Modification du sol intérieur"],()=>e.opt,v=>e.opt=v,true));
+    segIn("Options",["Création de rejingot","Délignage des cochonnets","Modification du sol intérieur"],()=>e.opt,v=>e.opt=v,true,()=>e.optA||"",v=>e.optA=v));
   g.appendChild(d);
   if((e.opt||[]).includes("Modification du sol intérieur")){const w=document.createElement("div");w.className="ch";w.innerHTML="<span>Hauteur de modification du sol</span>";const m=document.createElement("div");m.className="mm";const i=document.createElement("input");i.type="text";i.inputMode="numeric";i.value=e.sol||"";i.oninput=()=>{e.sol=i.value.replace(/\D/g,"");i.value=e.sol;sched()};m.append(i,Object.assign(document.createElement("em"),{textContent:"mm"}));w.appendChild(m);g.appendChild(w)}
   return g}
 function fixBloc(p){const g=document.createElement("section");g.className="grp";g.innerHTML=`<h3>Fixations</h3>`;
-  p.fix.forEach((v,k)=>{const r=document.createElement("div");r.className="hl";const q=document.createElement("input");q.type="text";q.inputMode="numeric";q.placeholder="Qté";q.value=v.q||"";q.setAttribute("aria-label","Quantité");q.oninput=()=>{v.q=q.value.replace(/\D/g,"");q.value=v.q;sched()};
+  p.fix.forEach((v,k)=>{const r=document.createElement("div");r.className="hl";if(v.t==="Autre")setTimeout(()=>{const i=document.createElement("input");i.type="text";i.className="autre";i.placeholder="Quelle fixation ? (référence, longueur)";i.value=v.ta||"";i.oninput=()=>{v.ta=i.value;sched()};r.after(i)});const q=document.createElement("input");q.type="text";q.inputMode="numeric";q.placeholder="Qté";q.value=v.q||"";q.setAttribute("aria-label","Quantité");q.oninput=()=>{v.q=q.value.replace(/\D/g,"");q.value=v.q;sched()};
     const x=document.createElement("button");x.type="button";x.className="x";x.textContent="×";x.setAttribute("aria-label","Retirer");x.onclick=()=>{p.fix.splice(k,1);sched();draw()};
     r.append(sel(Object.keys(VIS),v.t,"Type",t=>{v.t=t;v.l=String((VIS[t]||[""])[0]);sched();draw()}),sel((VIS[v.t]||[]).map(n=>n==="—"?"—":n+" mm"),v.l==="—"?"—":v.l+" mm","Longueur",l=>{v.l=l.replace(" mm","");sched()}),q,document.createElement("span"),x);g.appendChild(r)});
   const a=document.createElement("button");a.type="button";a.className="plus";a.textContent="+ Ajouter une fixation";a.onclick=()=>{p.fix.push({t:"Vis béton",l:"80",q:""});sched();draw()};g.appendChild(a);return g}
@@ -221,11 +265,24 @@ function trace(p,keys,plus){const par={};p.hab.forEach(h=>couvre(h.pos).forEach(
     if(!hs.length&&plus)o+=`<g class="hs" tabindex="0" role="button" data-sp="${sp}" aria-label="Ajouter un habillage ${SPOT[sp]}"><circle cx="${G.hx}" cy="${G.hy}" r="11" fill="#fff" stroke="#9aa3b0" stroke-dasharray="3 2"/><text x="${G.hx}" y="${G.hy+5}" text-anchor="middle" font-size="16" fill="#566070">+</text></g>`});return o}
 const HACH=id=>`<defs><pattern id="${id}" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#9aa3b0" stroke-width="1.2"/></pattern></defs>`;
 function svgV(p,plus,u){const reno=/Réno/.test(p.v["Type de pose"]||p.v["Dormant"]||""),iso=+p.v["Épaisseur d'isolation (doublage)"]||0;
+  if(p.f==="porte"||porteF(p.v))return svgVPorte(p,plus,u,reno,iso);
   return`<svg viewBox="0 0 320 440" role="img" aria-label="Coupe verticale">${HACH("hv"+u)}<text x="14" y="18" font-size="11" font-weight="700" fill="#566070">EXT.</text><text x="280" y="18" font-size="11" font-weight="700" fill="#566070">INT.</text>
   <rect x="40" y="26" width="130" height="90" fill="url(#hv${u})" stroke="#10407e"/>${iso?`<rect x="170" y="26" width="28" height="90" fill="#f3e6a6" stroke="#10407e"/><text x="184" y="70" font-size="9" text-anchor="middle" fill="#566070" transform="rotate(-90 184 70)">doublage ${iso}</text>`:""}
   ${reno?`<rect x="143" y="116" width="9" height="208" fill="#d9c7a5" stroke="#8a7350"/>`:""}<rect x="${reno?152:148}" y="116" width="22" height="208" fill="#7d8794"/><line x1="${reno?163:159}" y1="132" x2="${reno?163:159}" y2="308" stroke="#7fb0e0" stroke-width="3"/>
   <rect x="40" y="324" width="130" height="100" fill="url(#hv${u})" stroke="#10407e"/>${iso?`<rect x="170" y="324" width="28" height="100" fill="#f3e6a6" stroke="#10407e"/>`:""}<polygon points="10,330 40,324 40,334 10,338" fill="#c9d1dc"/>
   ${reno?`<text x="60" y="436" font-size="9" fill="#8a7350">beige : ancien dormant conservé (réno)</text>`:""}${trace(p,["he","be","hi","bi"],plus)}</svg>`}
+// porte d'entrée, porte-fenêtre, coulissant : la menuiserie descend jusqu'au sol, seuil, rejingot, futur sol à déduire
+function svgVPorte(p,plus,u,reno,iso){const v=p.v,fs=futur(v),ep=+v["Épaisseur du futur sol"]||0,rej=v["Rejingot / appui extérieur"],hab=v["Habillage du seuil"],seuil=v["Seuil"]||"seuil ?";
+  const yS=fs?312:324,x0=reno?152:148;
+  return`<svg viewBox="0 0 320 440" role="img" aria-label="Coupe verticale">${HACH("hv"+u)}<text x="14" y="18" font-size="11" font-weight="700" fill="#566070">EXT.</text><text x="280" y="18" font-size="11" font-weight="700" fill="#566070">INT.</text>
+  <rect x="40" y="26" width="130" height="90" fill="url(#hv${u})" stroke="#10407e"/>${iso?`<rect x="170" y="26" width="28" height="90" fill="#f3e6a6" stroke="#10407e"/><text x="184" y="70" font-size="9" text-anchor="middle" fill="#566070" transform="rotate(-90 184 70)">doublage ${iso}</text>`:""}
+  ${reno?`<rect x="143" y="116" width="9" height="${yS-122}" fill="#d9c7a5" stroke="#8a7350"/>`:""}<rect x="${x0}" y="116" width="22" height="${yS-122}" fill="#7d8794"/><line x1="${x0+11}" y1="132" x2="${x0+11}" y2="${yS-16}" stroke="#7fb0e0" stroke-width="3"/>
+  <rect x="${x0-4}" y="${yS-6}" width="30" height="6" fill="#566070"/>${T_(x0-6,yS-12,"seuil : "+(seuil).toLowerCase(),'text-anchor="end" font-weight="700"')}
+  <rect x="10" y="330" width="300" height="94" fill="url(#hv${u})" stroke="#10407e"/>${T_(180,414,"dalle")}
+  <rect x="170" y="324" width="140" height="6" fill="#c9d1dc"/>${fs?`<rect x="170" y="${324-Math.max(8,Math.min(24,ep/4))}" width="140" height="${Math.max(8,Math.min(24,ep/4))}" fill="#f6e7c8" stroke="#c96a2c" stroke-dasharray="4 3"/>${T_(200,306,"futur sol "+(ep?ep+" mm":"?")+(v["Sol à déduire de la hauteur"]==="Oui"?" · à déduire":""),'fill="#c96a2c" font-weight="700"')}`:T_(200,320,"sol fini int.")}
+  <rect x="10" y="${rej==="À créer"?316:324}" width="${x0-14}" height="${rej==="À créer"?14:6}" fill="${rej==="À créer"?"#fbe3d3":"#c9d1dc"}" stroke="${rej==="À créer"?"#c96a2c":"none"}" ${rej==="À créer"?'stroke-dasharray="4 3"':""}/>${T_(14,rej==="À créer"?310:318,rej==="À créer"?"rejingot à créer":rej==="Existant"?"rejingot existant":"sol ext.")}
+  ${hab&&hab!=="Aucun"?`<polyline points="${x0-18},${yS+1} ${x0-2},${yS+1} ${x0-2},${yS-14}" fill="none" stroke="#1f5fbf" stroke-width="4.5"/>${T_(16,yS+22,"habillage seuil : "+hab.toLowerCase(),'fill="#1f5fbf" font-weight="700"')}`:""}
+  ${reno?`<text x="60" y="436" font-size="9" fill="#8a7350">beige : ancien dormant conservé (réno)</text>`:""}${trace(p,["he","hi"],plus)}</svg>`}
 function svgH(p,plus,u){const reno=/Réno/.test(p.v["Type de pose"]||p.v["Dormant"]||""),iso=+p.v["Épaisseur d'isolation (doublage)"]||0;
   return`<svg viewBox="0 0 320 300" role="img" aria-label="Coupe horizontale">${HACH("hh"+u)}<text x="280" y="22" font-size="11" font-weight="700" fill="#566070">EXT.</text><text x="280" y="290" font-size="11" font-weight="700" fill="#566070">INT.</text>
   <rect x="20" y="40" width="120" height="${iso?110:150}" fill="url(#hh${u})" stroke="#10407e"/>${iso?`<rect x="20" y="150" width="120" height="50" fill="#f3e6a6" stroke="#10407e"/><text x="80" y="180" font-size="9" text-anchor="middle" fill="#566070">doublage ${iso}</text>`:""}
@@ -359,8 +416,8 @@ function totaux(){const sil={},comp={},hab={},vis={},manque=[];let mou=0;
     if(e.silE)sil[e.silE+" (ext.)"]=(sil[e.silE+" (ext.)"]||0)+per;
     if(e.silI&&e.silI!=="Aucun"){const c=(e.silI==="Idem ext."?(e.silE||"teinte ?"):e.silI)+" (int.)";sil[c]=(sil[c]||0)+per}
     if(COMP[e.comp])comp[e.comp]=(comp[e.comp]||0)+per;if(e.mou&&e.mou!=="Aucune")mou++;
-    p.hab.forEach(h=>{if(!h.p||!HAB_POS[h.pos]||h.p==="Fourni menuiserie")return;const k=h.p+" · "+(h.c==="Autre RAL"?(h.r||"RAL à préciser"):h.c||"coloris à choisir");hab[k]=(hab[k]||0)+HAB_POS[h.pos](L,H)})});
-  S.mt.prod.forEach(p=>p.fix.forEach(v=>{if(!v.t)return;const k=v.t+(v.l&&v.l!=="—"?" "+v.l+" mm":"");vis[k]=(vis[k]||0)+(+v.q||0)}));
+    p.hab.forEach(h=>{if(!h.p||!HAB_POS[h.pos]||h.p==="Fourni menuiserie")return;const k=(h.p==="Autre profil"?(h.pa||"Profil à préciser"):h.p)+" · "+(h.c==="Autre RAL"?(h.r||"RAL à préciser"):h.c||"coloris à choisir");hab[k]=(hab[k]||0)+HAB_POS[h.pos](L,H)})});
+  S.mt.prod.forEach(p=>p.fix.forEach(v=>{if(!v.t)return;const k=(v.t==="Autre"?(v.ta||"Autre fixation"):v.t)+(v.l&&v.l!=="—"?" "+v.l+" mm":"");vis[k]=(vis[k]||0)+(+v.q||0)}));
   const pl=(n,a,b)=>n+" "+(n>1?b:a);
   const rows=[...Object.entries(sil).map(([k,m])=>["Silicone "+k,pl(Math.ceil(m/1000/12),"cartouche","cartouches"),mlf(m)]),...Object.entries(comp).map(([k,m])=>["Compribande "+k,pl(Math.ceil(m/1000/COMP[k]),"rouleau","rouleaux"),mlf(m)]),
     ...(mou?[["Mousse PU","pour "+pl(mou,"produit","produits"),""]]:[]),...Object.entries(hab).map(([k,m])=>["Habillage "+k,mlf(m),""]),...Object.entries(vis).map(([k,n])=>[k,n+" u",""])];
@@ -415,7 +472,7 @@ const css=`#mtov{position:fixed;inset:0;z-index:60;background:var(--bg,#f5f5f7);
 #mtov .grp h3{font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:#10407e;margin:0}#mtov .sub{font-size:13px;color:var(--muted,#6e6e73);margin:0}
 #mtov .champs{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px}
 #mtov .ch{display:grid;gap:5px;align-content:start;min-width:0}#mtov .ch>span{font-size:14px;font-weight:600}#mtov .ch small{font-weight:400;color:var(--muted,#6e6e73)}#mtov .ch.large{grid-column:1/-1}
-#mtov .tri{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}#mtov .tri label{display:grid;gap:3px}#mtov .ch.vide>span::after{content:" •";color:#c96a2c}
+#mtov .tri{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}#mtov .tri label{display:grid;gap:3px}#mtov input.autre{margin-top:4px;border-style:dashed}#mtov .ch.prop .seg button[aria-pressed="true"]{background:#5b84b8;border-color:#5b84b8}#mtov .ch.prop>span::after{content:" · repris du métré";font-weight:400;font-size:12px;color:#5b84b8}#mtov .ch.prop input{background:#eef4fb}#mtov .ch.vide>span::after{content:" •";color:#c96a2c}
 #mtov .mm{display:flex;align-items:center;border:1px solid var(--line,#d3dae4);border-radius:10px;background:var(--surface,#fff);overflow:hidden}
 #mtov .mm input{border:0;font:600 19px inherit;padding:8px 10px;width:100%;min-width:0;background:none;color:inherit}#mtov .mm em{font-style:normal;color:var(--muted,#6e6e73);padding:0 10px;font-size:14px}
 #mtov input[type=text],#mtov textarea,#mtov .sel{font:400 16px inherit;width:100%;box-sizing:border-box;border:1px solid var(--line,#d3dae4);border-radius:10px;padding:9px 10px;background:var(--surface,#fff);color:inherit;min-width:0}
