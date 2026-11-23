@@ -4,6 +4,8 @@
   python3 -I chiffrage.py note <devis> <json> écrit ce que Claude a lu : {"client", "montant", "achats", "mo", "marge", "jp", "ha", "alerte"}
                                               (seules les clés données sont écrites ; lu = vrai ; le client seulement
                                               pour un devis créé depuis une capture, « Devis à lire (capture) »)
+  python3 -I chiffrage.py controle            devis en attente à compléter (jours, achats, mois, lieu, trajet à estimer)
+  python3 -I chiffrage.py trajet <devis> <json> trajet estimé par Claude : {"km", "peage" (€ HT aller, classe 2), "h" (camion), "zone"}
   python3 -I chiffrage.py chantier <chantier> <doc_id> <json>
                                               capture déposée dans les documents d'un chantier (type « Chiffrage ») :
                                               achats, mo, marge -> direction/prev_<chantier> ; jp -> chantier.jp s'il est vide
@@ -54,6 +56,7 @@ def note(devis, valeurs):
     r = req("GET", "/rest/v1/devis?select=id,data&id=eq." + urllib.parse.quote(devis))
     if not r: sys.exit("devis introuvable : " + devis)
     d = r[0]["data"]
+    ecarts = []   # saisie directe dans l'appli (23/11/2026) différente de la capture : la capture fait foi, l'écart est signalé
     for k, v in valeurs.items():
         if k == "montant" and d.get("montant") not in (None, "") and abs(float(d["montant"]) - float(v)) > 1:
             d["alerte"] = f"montant de la capture {v:,.0f} € différent de la ligne".replace(",", " ")
@@ -61,12 +64,45 @@ def note(devis, valeurs):
         if k == "client":
             if str(d.get("client", "")).startswith("Devis à lire") and v: d["client"] = v
             continue
+        if k in ("achats", "mo") and d.get(k) not in (None, "") and v not in (None, "") and abs(float(d[k]) - float(v)) > max(20, 0.02 * float(v)):
+            ecarts.append(f"{'achats' if k == 'achats' else 'pose'} saisis {float(d[k]):,.0f} €, capture {float(v):,.0f} €".replace(",", " "))
         if k in ("montant", "achats", "mo", "marge", "jp", "ha", "alerte") and v not in (None, ""):
             if k in ("jp", "ha") and d.get(k) not in (None, ""): continue   # ce que l'équipe a saisi reste
             d[k] = v
+    if ecarts: d["alerte"] = "; ".join(x for x in [d.get("alerte"), "écart avec la saisie : " + ", ".join(ecarts)] if x)
     d["lu"] = True
     req("POST", "/rest/v1/devis", {"id": devis, "data": d}, {"Prefer": "resolution=merge-duplicates"})
     print(devis, "noté :", {k: d.get(k) for k in ("montant", "achats", "mo", "marge", "jp", "ha", "alerte")})
+
+
+def controle():
+    """Devis en attente à compléter (rappel de chaque passage, Steven 23/11/2026)."""
+    n = 0
+    for r in req("GET", "/rest/v1/devis?select=id,data"):
+        d = r["data"]
+        if (d.get("etat") or "attente") != "attente": continue
+        dep, manque = d.get("dep") or {}, []
+        if not d.get("jp"): manque.append("jours de pose sur place")
+        if not d.get("achats") and not d.get("chif"): manque.append("achats (ou capture du chiffrage)")
+        if not d.get("periode"): manque.append("mois de pose souhaité")
+        if not dep.get("lieu"): manque.append("lieu du chantier (frais de déplacement)")
+        elif dep.get("km") in (None, ""): manque.append("TRAJET À ESTIMER (km, péage, heures, zone) pour " + dep["lieu"])
+        if "frais de déplacement" in (d.get("alerte") or "") and not dep.get("lieu"): manque.append("remise négative = déplacement : lieu à saisir")
+        if manque:
+            n += 1
+            print(f"{r['id']} | {d.get('client','')} | à compléter : {', '.join(manque)}")
+    print(n, "devis à compléter")
+
+
+def trajet(devis, valeurs):
+    """Trajet estimé par Claude quand l'appli n'a pas trouvé la commune : {"km", "peage", "h", "zone"}."""
+    r = req("GET", "/rest/v1/devis?select=id,data&id=eq." + urllib.parse.quote(devis))
+    if not r: sys.exit("devis introuvable : " + devis)
+    d = r[0]["data"]
+    dep = {**(d.get("dep") or {}), **{k: valeurs[k] for k in ("km", "peage", "h", "zone") if k in valeurs}, "src": "estimé"}
+    d["dep"] = dep
+    req("POST", "/rest/v1/devis", {"id": devis, "data": d}, {"Prefer": "resolution=merge-duplicates"})
+    print(devis, "trajet noté :", dep)
 
 
 def chantier(cid, doc_id, valeurs):
@@ -89,3 +125,5 @@ if __name__ == "__main__":
     if sys.argv[1] == "liste": liste(sys.argv[2])
     elif sys.argv[1] == "note": note(sys.argv[2], json.loads(sys.argv[3]))
     elif sys.argv[1] == "chantier": chantier(sys.argv[2], sys.argv[3], json.loads(sys.argv[4]))
+    elif sys.argv[1] == "controle": controle()
+    elif sys.argv[1] == "trajet": trajet(sys.argv[2], json.loads(sys.argv[3]))
