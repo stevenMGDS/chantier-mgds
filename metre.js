@@ -31,7 +31,7 @@ const FAM={
   ["Produit",[C("Matière",["Alu","PVC","PVC/alu","Bois","Acier"]),T("Modèle",{opt:1}),T("Coloris int. / ext. (RAL)"),C("Sens d'ouverture (vue int.)",["Tirant droit","Tirant gauche","Poussant droit","Poussant gauche"],{h:"Tirant : ouvre vers l'intérieur (à la française). Poussant : vers l'extérieur (à l'anglaise)."}),C("Porte tiercée",["Non","Oui"],{opt:1}),N("Vantaux"),C("Vitrage",["Sans","Double","Triple","Feuilleté","Granité"],{opt:1})]],
   ["Pose et dimensions",[C("Dormant",["Réno + habillages","Neuf"]),M("Épaisseur d'isolation (doublage)",{opt:1}),M("Tableau L"),M("Tableau H"),M("Hors tout L",{opt:1}),M("Hors tout H",{opt:1}),M("Épaisseur du bâti existant",{opt:1}),M("Largeur du vantail principal",{opt:1}),CMD]],
   ["Seuil et sol",SEUIL()],["Imposte",[C("Imposte / fixe latéral",["Aucun","Rectangulaire","Cintre","Plein cintre"])]],
-  ["Quincaillerie",[C("Serrure",["3 points","5 points","Automatique","Connectée"]),C("Tirage",["Béquille","Barre de tirage"]),MU("Options",["Ferme-porte","Gâche électrique","Judas","Boîte aux lettres"],{opt:1}),T("Arrivée électrique",{opt:1})]]]},
+  ["Quincaillerie",[C("Serrure",["3 points","5 points","Automatique","Connectée"]),C("Tirage",["Béquille","Barre de tirage"],{opt:1}),MU("Options",["Ferme-porte","Gâche électrique","Judas","Boîte aux lettres"],{opt:1}),T("Arrivée électrique",{opt:1})]]]},
  garage:{n:"Porte de garage",g:[
   ["Produit",[C("Type",["Sectionnelle","Basculante","Enroulable","Battante"]),T("Coloris int. / ext."),MU("Options",["Hublots","Portillon intégré"],{opt:1})]],
   ["Dimensions",[M("Tableau L"),M("Tableau H"),M("Retombée de linteau"),M("Écoinçon gauche"),M("Écoinçon droit"),M("Profondeur dégagée"),M("Hauteur sous plafond",{opt:1})]],
@@ -99,6 +99,23 @@ function preRemplir(p){const s=(p.r+" "+p.d).toLowerCase(),v=p.v,put=(k,x)=>{if(
 
 const newProd=(r,d,f,cote)=>({k:Math.random().toString(36).slice(2,9),r:r||"",d:d||"",f:f||famGuess(d),cote:cote||"",v:{},hab:[],et:{comp:"",silE:"",silI:"",mem:"",mou:"",opt:[],sol:""},fix:[],ann:[],ph:[]});
 
+// ce que dit le devis pour chaque produit, gardé à la création du métré : on compare la commande à ces valeurs
+const K_DEVIS=["Type","Matière","Vantaux","Sens (vue int.)","Sens d'ouverture (vue int.)","Coloris int. / ext.","Coloris int. / ext. (RAL)","Vitrage","Occultation","Produit","Type de volet roulant","Manœuvre"];
+const devisDe=(p,v)=>({f:p.f,d:p.d,cote:p.cote,v:Object.fromEntries(K_DEVIS.filter(k=>v&&v[k]!==undefined&&v[k]!=="").map(k=>[k,v[k]]))});
+const nb2=t=>(String(t||"").match(/\d{3,5}/g)||[]).map(Number);
+function ecarts(mt){const out=[],norm=x=>String(x??"").toLowerCase().replace(/\s+/g," ").trim();
+  (mt.prod||[]).forEach(p=>{const D=p.devis,it=[];
+    if(p.ajout||!D){if(p.ajout)it.push({k:"ajout",l:"Produit ajouté au métré",av:"absent du devis",ap:p.d})}
+    else{if(D.f!==p.f)it.push({k:"ch",l:"Famille",av:FAM[D.f]?FAM[D.f].n:D.f,ap:FAM[p.f].n});
+      if(norm(D.d)!==norm(p.d))it.push({k:"ch",l:"Désignation",av:D.d,ap:p.d});
+      for(const[k,v]of Object.entries(D.v||{})){const n=p.v[k];if(n!==undefined&&n!==""&&norm(n)!==norm(v))it.push({k:"ch",l:k,av:Array.isArray(v)?v.join(", "):v,ap:Array.isArray(n)?n.join(", "):n})}
+      const a=nb2(D.cote),c=nb2(p.v["Cote de commande"]);if(a.length>=2&&c.length>=2&&(Math.abs(a[0]-c[0])>80||Math.abs(a[1]-c[1])>80))it.push({k:"dim",l:"Dimensions",av:a[0]+" × "+a[1],ap:c[0]+" × "+c[1]+" (commande)"})}
+    if(it.length)out.push({r:p.r,d:p.d,items:it})});
+  (mt.retires||[]).forEach(x=>out.push({r:x.r,d:x.d,items:[{k:"retire",l:"Produit retiré au métré",av:x.d+(x.cote?" · "+x.cote:""),ap:"supprimé"}]}));
+  return out}
+const nEcarts=mt=>ecarts(mt).reduce((n,x)=>n+x.items.length,0);
+window.mtEcarts=mt=>mt?nEcarts(mt):0;
+const ecartsHtml=(E,titre)=>E.length?`<section class="pp ecarts"><h2>${titre}</h2><table><thead><tr><th>Produit</th><th>Ce qui change</th><th>Devis</th><th>Métré / commande</th></tr></thead><tbody>${E.map(x=>x.items.map((i,n)=>`<tr class="e-${i.k}"><td>${n?"":`<b>${esc2(x.r||"")}</b> ${esc2(x.d||"")}`}</td><td>${esc2(i.l)}</td><td>${esc2(i.av)}</td><td><b>${esc2(i.ap)}</b></td></tr>`).join("")).join("")}</tbody></table></section>`:"";
 let S=null,annot=false,crayon="Rouge";const urls=new Map();window.mtEtat=()=>S;
 const ro=()=>!(canWrite||canFill);
 const grps=p=>FAM[p.f].g.filter(g=>!g[2]||g[2](p.v)).map(g=>[g[0],g[1].filter(c=>!c.w||c.w(p.v))]);
@@ -146,14 +163,15 @@ async function lignesPdf(j){
       if(Cs.length>=8){const on=Cs.map(x=>x.on);const pose=tun?"Tunnel":on[2]?"Dépose totale":on[1]?"Réno":on[0]?"Neuf applique":"";if(pose&&p.f==="fen")put("Type de pose",pose);
         const sens=on[3]?"TD":on[4]?"TG":on[5]?"Fixe":"";if(sens){if(p.f==="porte")put("Sens d'ouverture (vue int.)",sens==="TD"?"Tirant droit":sens==="TG"?"Tirant gauche":sens);else put("Sens (vue int.)",sens)}if(on[6])put("Ventilation","Aucune");if(on[7])put("Ventilation","Grille")}
       else if(tun&&p.f==="fen")put("Type de pose","Tunnel");
-      preRemplir(p);return p});
+      preRemplir(p);p.devis=devisDe(p,p.v);return p});
     const jl=F.filter(x=>x.k==="ligne"&&x.p===0).sort((a,b)=>a.i-b.i),jc=jl[0]&&/^\d+$/.test(jl[0].v)&&+jl[0].v<30?{c:+jl[0].v,t:+(jl[1]&&jl[1].v)||+jl[0].v}:null;
     return{prod,jeu:jc}}catch(_){return{prod:[],jeu:null}}}
 // métré tablette déjà créé : on complète les cases vides avec le métré PDF (sans rien écraser), une seule fois par produit
 async function completePdf(){if(!S||ro())return;const j=jobs.get(S.jid);if(!j)return;const P=S.mt.prod.filter(p=>!p.pdf);if(!P.length)return;
   const{prod}=await lignesPdf(j);if(!S||!prod.length)return;let n=0;
   S.mt.prod.forEach((p,k)=>{if(p.pdf)return;const q=prod.find(x=>x.d===p.d&&x.cote===p.cote)||prod.find(x=>x.d===p.d)||(prod.length===S.mt.prod.length?prod[k]:null);p.pdf=1;if(!q)return;
-    p.src=p.src||{};for(const[k2,v]of Object.entries(q.v)){if(p.v[k2]===undefined||p.v[k2]===""){p.v[k2]=v;p.src[k2]=v;n++}}});
+    p.src=p.src||{};for(const[k2,v]of Object.entries(q.v)){if(p.v[k2]===undefined||p.v[k2]===""){p.v[k2]=v;p.src[k2]=v;n++}}
+    p.devis={...q.devis,v:{...(p.devis&&p.devis.v||{}),...(q.devis&&q.devis.v||{})}}});
   sched();draw();if(n)toast(n+" informations reprises du métré PDF (coloris, vitrage, allège…) : à vérifier")}
 window.mtNew=async jid=>{const j=jobs.get(jid);if(!j)return;
   const{prod,jeu}=await lignesPdf(j);prod.forEach(p=>p.pdf=1);
@@ -167,6 +185,7 @@ window.mtOpen=(jid,did)=>{const j=jobs.get(jid),d=j&&(j.docs||[]).find(d=>d.id==
   S={jid,did,mt:JSON.parse(JSON.stringify(d.mt||{jeu:{c:5,t:5},prod:[]})),cur:0,dirty:false};S.mt.prod.forEach(p=>{p.et=p.et||{opt:[]};p.et.opt=p.et.opt||[];p.hab=p.hab||[];p.fix=p.fix||[];p.ann=p.ann||[];p.ph=p.ph||[];p.v=p.v||{}});
   let rep=0;if(!ro())S.mt.prod.forEach(p=>{if(p.fg)return;const c=coupeRep(p.r+" "+p.d),f=famGuess(c.d);
     if(f!==p.f&&Object.keys(p.v).every(k=>/^(Tableau|Hors tout|Cote de commande|Type|Vantaux)/.test(k))){p.f=f;p.r=c.r;p.d=c.d;rep++}preRemplir(p);p.fg=1});
+  S.mt.prod.forEach(p=>{if(!p.devis&&!p.ajout){p.devis=devisDe(p,{...(p.src||{})});S.conv=1}});
   S.mt.prod.forEach(p=>{if(p.f!=="porte")return;const o=p.v["Sens (vue int.)"];if(o&&!p.v["Sens d'ouverture (vue int.)"]){const n={TD:"Tirant droit",TG:"Tirant gauche"}[o]||o;p.v["Sens d'ouverture (vue int.)"]=n;if(p.src&&p.src["Sens (vue int.)"]){p.src["Sens d'ouverture (vue int.)"]=n}delete p.v["Sens (vue int.)"];S.conv=1}});if(S.conv&&!ro()){delete S.conv;setTimeout(sched,0)}
   if(!S.mt.prod.length)S.cur=-2;
   $m("mttitre").textContent="Métré · "+(j.client||"");$m("mtsous").textContent=[j.adresse,j.ville].filter(Boolean).join(", ");
@@ -175,23 +194,25 @@ window.mtClose=async()=>{if(!S)return;if(S.dirty){await save()}S=null;$m("mtov")
 
 // ---------- affichage ----------
 function liste(){const L=$m("mtliste");const P=S.mt.prod;
-  L.innerHTML=(ro()?"":`<button type="button" class="ajout haut" data-k="-2">＋ Ajouter un élément oublié</button>`)+P.map((p,k)=>{const[a,b]=prog(p);return`<button type="button" class="it" data-k="${k}" aria-current="${k===S.cur}"><b>${esc2(p.r||"Repère à saisir")}</b><small>${esc2(FAM[p.f].n)}${p.ajout?" · ajouté":""}</small><small>${esc2(p.d)}</small><span class="jauge"><i style="width:${Math.round(100*a/Math.max(1,b))}%"></i></span><small>${a}/${b} points</small></button>`}).join("")
-   +`<button type="button" class="it recap" data-k="-1" aria-current="${S.cur===-1}"><b>Consommables du chantier</b><small>Totaux calculés</small></button>`+(ro()?"":`<button type="button" class="ajout" data-k="-2">+ Ajouter un produit</button>`);
+  L.innerHTML=(ro()?"":`<button type="button" class="ajout haut" data-k="-2">＋ Ajouter un élément oublié</button>`)+P.map((p,k)=>{const[a,b]=prog(p);return`<button type="button" class="it" data-k="${k}" aria-current="${k===S.cur}"><b>${esc2(p.r||"Repère à saisir")}</b><small>${esc2(FAM[p.f].n)}${p.ajout?" · ajouté":""}${(()=>{const e=ecarts({prod:[p]});return e.length&&!p.ajout?` · <b class="ecn">${e[0].items.length} écart${e[0].items.length>1?"s":""}</b>`:""})()}</small><small>${esc2(p.d)}</small><span class="jauge"><i style="width:${Math.round(100*a/Math.max(1,b))}%"></i></span><small>${a}/${b} points</small></button>`}).join("")
+   +(()=>{const n=nEcarts(S.mt);return`<button type="button" class="it recap ${n?"ecart":""}" data-k="-3" aria-current="${S.cur===-3}"><b>${n?"⚠ ":""}Écarts avec le devis${n?" ("+n+")":""}</b><small>${n?"à reporter sur la commande":"aucun pour l'instant"}</small></button>`})()+`<button type="button" class="it recap" data-k="-1" aria-current="${S.cur===-1}"><b>Consommables du chantier</b><small>Totaux calculés</small></button>`+(ro()?"":`<button type="button" class="ajout" data-k="-2">+ Ajouter un produit</button>`);
   L.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{S.cur=+b.dataset.k;draw();$m("mtfiche").scrollTop=0});
   const t=P.reduce((s,p)=>{const[a,b]=prog(p);return[s[0]+a,s[1]+b]},[0,0]);$m("mtglob").textContent=`${t[0]}/${t[1]} points relevés`}
 function draw(){liste();const f=$m("mtfiche");f.innerHTML="";$m("mtjc").value=S.mt.jeu.c;$m("mtjt").value=S.mt.jeu.t;
+  if(S.cur===-3){const E=ecarts(S.mt);f.innerHTML=`<div class="ftete"><h2>Écarts avec le devis</h2></div><p class="sub">Tout ce que le métré change par rapport au devis : à reporter sur la commande avant de valider l'ARC. Les dimensions ne sont signalées qu'au-delà de 80 mm d'écart entre la cote du devis et la cote de commande.</p>${E.length?`<div class="mtlire">${ecartsHtml(E,"")}</div>`:`<p class="sub">Aucun écart pour l'instant.</p>`}`;return}
   if(S.cur===-1){recap(f);return}if(S.cur===-2||!S.mt.prod[S.cur]){ajout(f);return}
   const p=S.mt.prod[S.cur];
   const t=document.createElement("div");t.className="ftete";
   t.innerHTML=`<label class="ch"><span>Repère</span><input type="text" data-x="r" value="${esc2(p.r)}"></label><label class="ch"><span>Désignation</span><input type="text" data-x="d" value="${esc2(p.d)}"></label><label class="ch"><span>Famille</span><select class="sel" data-x="f">${Object.entries(FAM).map(([k,F])=>`<option value="${k}" ${k===p.f?"selected":""}>${esc2(F.n)}</option>`).join("")}</select></label><label class="ch"><span>Cote devis</span><input type="text" data-x="cote" value="${esc2(p.cote)}"></label>`;
   t.querySelectorAll("[data-x]").forEach(e=>{const k=e.dataset.x;e.oninput=e.onchange=()=>{p[k]=e.value;sched();if(k==="f")draw();else liste()}});f.appendChild(t);
+  {const E=ecarts({prod:[p]});if(E.length){const b=document.createElement("div");b.className="alerte";b.innerHTML="<b>Différent du devis :</b> "+E[0].items.map(i=>esc2(i.l)+" : "+esc2(i.av)+" → <b>"+esc2(i.ap)+"</b>").join(" · ");f.appendChild(b)}}
   grps(p).forEach(([titre,cs])=>{const g=document.createElement("section");g.className="grp";g.innerHTML=`<h3>${esc2(titre)}</h3>`;const d=document.createElement("div");d.className="champs";cs.forEach(c=>d.appendChild(champ(p,c)));g.appendChild(d);f.appendChild(g)});
   if(ETF.includes(p.f)){f.appendChild(habBloc(p));f.appendChild(coupeBloc(p));f.appendChild(etBloc(p))}
   f.appendChild(fixBloc(p));if(!ETF.includes(p.f))f.appendChild(coupeBloc(p));
   f.appendChild(photoBloc(p));
   if(!ro()){const z=document.createElement("div");z.className="acts";z.innerHTML=`<button type="button" class="b2" data-a="dup">Dupliquer ce produit</button><button type="button" class="b2 rouge" data-a="del">Supprimer ce produit</button>`;
     z.querySelector('[data-a="dup"]').onclick=()=>{const c=JSON.parse(JSON.stringify(p));c.k=Math.random().toString(36).slice(2,9);c.ann=[];c.ph=[];c.r=p.r+" (copie)";S.mt.prod.splice(S.cur+1,0,c);S.cur++;sched();draw();$m("mtfiche").scrollTop=0};
-    z.querySelector('[data-a="del"]').onclick=()=>{if(!confirm("Supprimer « "+(p.r||p.d)+" » du métré ?"))return;S.mt.prod.splice(S.cur,1);S.cur=Math.min(S.cur,S.mt.prod.length-1);if(S.cur<0)S.cur=-2;sched();draw()};f.appendChild(z)}}
+    z.querySelector('[data-a="del"]').onclick=()=>{if(!confirm("Supprimer « "+(p.r||p.d)+" » du métré ?"))return;if(!p.ajout)(S.mt.retires=S.mt.retires||[]).push({r:p.r,d:p.d,cote:p.cote,le:today()});S.mt.prod.splice(S.cur,1);S.cur=Math.min(S.cur,S.mt.prod.length-1);if(S.cur<0)S.cur=-2;sched();draw()};f.appendChild(z)}}
 function champ(p,c){const w=document.createElement("div");w.className="ch"+(c.t==="t"&&/^Accès|Façade|Pignons/.test(c.l)?" large":"")+(!c.opt&&!fait(p,c)?" vide":"");w.innerHTML=`<span>${esc2(c.l)}${c.opt?' <small>(si besoin)</small>':""}</span>${c.h?`<small class="sub">${esc2(c.h)}</small>`:""}`;
   const set=v=>{p.v[c.l]=v;if(p.src)delete p.src[c.l];w.classList.remove("prop");sched();liste()};
   if(c.t==="mm"){const d=document.createElement("div");d.className="mm";const i=document.createElement("input");i.type="text";i.inputMode="numeric";i.value=p.v[c.l]||"";i.setAttribute("aria-label",c.l);
@@ -459,7 +480,7 @@ function ficheDoc(mt,j){const P=mt.prod||[],{rows}=totaux(P);
      <div class="pg2"><table>${ch}${et}</table><div>${hab?`<table class="habt"><tr><th colspan="2">Habillages</th></tr>${hab}</table>`:""}${fx?`<p><b>Fixations :</b> ${fx}</p>`:""}${p.v.rem?`<p><b>Remarque :</b> ${esc2(p.v.rem)}</p>`:""}${p.ph.length?`<p>${p.ph.length} photo${p.ph.length>1?"s":""} dans l'appli</p>`:""}</div></div>
      <div class="cw">${coupesHtml(p,false,"p"+k).replace(/<\/div>$/,annSvg(p)+"</div>")}</div></section>`};
   return`<header><b>MGDS · Métré</b><span>${esc2(j.client||"")}<br>${esc2([j.adresse,j.ville].filter(Boolean).join(", "))}</span><span>Jeu de pose ${(mt.jeu||{}).c??5} mm / côté, ${(mt.jeu||{}).t??5} mm en tête<br>${new Date().toLocaleDateString("fr-FR")}</span></header>
-    ${P.map(fiche).join("")}<section class="pp"><h2>Consommables du chantier</h2><table>${rows.map(r=>`<tr><th>${esc2(r[0])}</th><td>${esc2(r[1])}</td><td>${esc2(r[2])}</td></tr>`).join("")}</table></section>`}
+    ${ecartsHtml(ecarts(mt),"⚠ Écarts avec le devis : à reporter sur la commande")}${P.map(fiche).join("")}<section class="pp"><h2>Consommables du chantier</h2><table>${rows.map(r=>`<tr><th>${esc2(r[0])}</th><td>${esc2(r[1])}</td><td>${esc2(r[2])}</td></tr>`).join("")}</table></section>`}
 window.mtFicheHtml=(mt,j)=>ficheDoc(JSON.parse(JSON.stringify(mt||{prod:[]})),j||{});
 // feuille de pose (Steven, 23/11/2026) : les poseurs ont tout sur la feuille de préparation : consommables, habillages par position
 // et coloris, seuils et sol, options à prévoir, remarques, croquis annotés ; pas les dimensions (elles restent sur le métré)
@@ -546,6 +567,7 @@ const css=`#mtov[hidden]{display:none!important}#mtov{position:fixed;inset:0;z-i
 .mtlire header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;border-bottom:2px solid #10407e;padding-bottom:6px;margin-bottom:10px}.mtlire header b{font-size:18px;color:#10407e}
 .mtlire .pp{margin-bottom:22px}.mtlire h2{font-size:17px;color:#10407e;margin:8px 0}.mtlire h2 small{font-weight:400;color:#566070;font-size:13px}
 .mtlire .pg2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.mtlire table{border-collapse:collapse;width:100%}.mtlire th,.mtlire td{text-align:left;border-bottom:1px solid #e3e8ef;padding:4px 6px;vertical-align:top}.mtlire th{color:#566070;font-weight:600;width:42%}
+.ecarts table{border:2px solid #c96a2c}.ecarts th{color:#c96a2c}.ecarts tr.e-ajout td,.ecarts tr.e-retire td{background:#fbe3d3}#mtov .it.ecart{background:#fbe3d3!important;border-color:#c96a2c}#mtov .ecn{color:#c96a2c}
 .mtlire .prev{border-left:4px solid #c96a2c;background:#fbe3d3;padding:6px 10px;border-radius:0 8px 8px 0;margin:4px 0;font-weight:600}
 .mtlire .habt{border:2px solid #1f5fbf;border-radius:8px}.mtlire .habt th:first-child{color:#1f5fbf}.mtlire .cw{margin-top:8px;overflow-x:auto}.mtlire .cw .coupes{min-width:640px}
 #mtprint{display:none}
