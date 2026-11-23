@@ -109,7 +109,7 @@ function ecarts(mt){const out=[],norm=x=>String(x??"").toLowerCase().replace(/\s
     else{if(D.f!==p.f)it.push({k:"ch",l:"Famille",av:FAM[D.f]?FAM[D.f].n:D.f,ap:FAM[p.f].n});
       if(norm(D.d)!==norm(p.d))it.push({k:"ch",l:"Désignation",av:D.d,ap:p.d});
       for(const[k,v]of Object.entries(D.v||{})){const n=p.v[k];if(n!==undefined&&n!==""&&norm(n)!==norm(v))it.push({k:"ch",l:k,av:Array.isArray(v)?v.join(", "):v,ap:Array.isArray(n)?n.join(", "):n})}
-      const a=nb2(D.cote),c=nb2(p.v["Cote de commande"]);if(a.length>=2&&c.length>=2&&(Math.abs(a[0]-c[0])>80||Math.abs(a[1]-c[1])>80))it.push({k:"dim",l:"Dimensions",av:a[0]+" × "+a[1],ap:c[0]+" × "+c[1]+" (commande)"})}
+      const a=nb2(D.cote),c=nb2(p.v["Cote de commande"]);if(a.length>=2&&c.length>=2&&(a[0]!==c[0]||a[1]!==c[1]))it.push({k:"dim",l:"Dimensions",av:a[0]+" × "+a[1],ap:c[0]+" × "+c[1]+" (commande)"})}
     if(it.length)out.push({r:p.r,d:p.d,items:it})});
   (mt.retires||[]).forEach(x=>out.push({r:x.r,d:x.d,items:[{k:"retire",l:"Produit retiré au métré",av:x.d+(x.cote?" · "+x.cote:""),ap:"supprimé"}]}));
   return out}
@@ -199,7 +199,7 @@ function liste(){const L=$m("mtliste");const P=S.mt.prod;
   L.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{S.cur=+b.dataset.k;draw();$m("mtfiche").scrollTop=0});
   const t=P.reduce((s,p)=>{const[a,b]=prog(p);return[s[0]+a,s[1]+b]},[0,0]);$m("mtglob").textContent=`${t[0]}/${t[1]} points relevés`}
 function draw(){liste();const f=$m("mtfiche");f.innerHTML="";$m("mtjc").value=S.mt.jeu.c;$m("mtjt").value=S.mt.jeu.t;
-  if(S.cur===-3){const E=ecarts(S.mt);f.innerHTML=`<div class="ftete"><h2>Écarts avec le devis</h2></div><p class="sub">Tout ce que le métré change par rapport au devis : à reporter sur la commande avant de valider l'ARC. Les dimensions ne sont signalées qu'au-delà de 80 mm d'écart entre la cote du devis et la cote de commande.</p>${E.length?`<div class="mtlire">${ecartsHtml(E,"")}</div>`:`<p class="sub">Aucun écart pour l'instant.</p>`}`;return}
+  if(S.cur===-3){const E=ecarts(S.mt);f.innerHTML=`<div class="ftete"><h2>Écarts avec le devis</h2></div><p class="sub">Tout ce que le métré change par rapport au devis : à reporter sur la commande avant de valider l'ARC. Toute différence de dimension entre la cote du devis et la cote de commande est signalée, même d'un millimètre.</p>${E.length?`<div class="mtlire">${ecartsHtml(E,"")}</div>`:`<p class="sub">Aucun écart pour l'instant.</p>`}`;return}
   if(S.cur===-1){recap(f);return}if(S.cur===-2||!S.mt.prod[S.cur]){ajout(f);return}
   const p=S.mt.prod[S.cur];
   const t=document.createElement("div");t.className="ftete";
