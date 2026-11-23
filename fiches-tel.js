@@ -53,12 +53,42 @@ async function prepTel(d,j){const id=openId;
     ${addr?`<p>📍 ${esc(addr)}</p>`:""}<div class="ftacts">${addr?`<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}" target="_blank" rel="noopener">Itinéraire</a>`:""}${tel?`<a class="btn ghost" href="tel:${esc(tel)}">Appeler le client</a>`:""}</div>
     <p><b>Pose prévue :</b> ${jours.length?jours.map(frD).join(", "):"pas encore au planning"}${qui.length?` · ${esc(qui.join(", "))}`:""}${+j.jp?` · ${String(j.jp).replace(".",",")} jour${+j.jp>1?"s":""} prévu${+j.jp>1?"s":""} (équipe de 2)`:""}</p>
     ${j.commercial?`<p class="sub">Contact MGDS : ${esc(j.commercial)}</p>`:""}</section>`;
-  if(R&&R.size){for(const[r,L]of R){const notes=L.filter(o=>o.note),vals=L.filter(o=>!o.note&&!o.c&&o.l),coch=L.filter(o=>o.c);if(!notes.length&&!vals.length&&!coch.length)continue;
+  h+=`<section class="ftc" id="ftstock"><h3>🧰 À prendre au stock</h3><p class="sub">Chargement du stock…</p></section>`;
+  if(R&&R.size){for(const[r,L]of R){if(/^consommables/i.test(r))continue;const notes=L.filter(o=>o.note),vals=L.filter(o=>!o.note&&!o.c&&o.l),coch=L.filter(o=>o.c);if(!notes.length&&!vals.length&&!coch.length)continue;
       h+=`<section class="ftc"><h3>${esc(r===r.toUpperCase()?r.charAt(0)+r.slice(1).toLowerCase():r)}</h3>${vals.map(o=>`<p><b>${esc(o.l)}</b> : ${esc(o.v)}</p>`).join("")}${coch.length?`<p class="ftchk">${coch.map(o=>`<span>☑ ${esc(o.l)}</span>`).join("")}</p>`:""}${notes.map(o=>`<p class="ftnote">⚠ ${esc(o.note)}</p>`).join("")}</section>`}}
   else h+=`<section class="ftc"><p class="sub">${err||"La fiche de préparation n'a pas encore été remplie par le bureau."}</p></section>`;
   if(mt&&window.mtPoseHtml)h+=`<section class="ftc ftmt"><div class="mtlire">${mtPoseHtml(mt.mt,j)}</div></section>`;
   else h+=`<section class="ftc"><p class="sub">Pas de métré tablette sur ce chantier : les habillages et croquis sont sur la fiche de métré.</p></section>`;
-  corps.innerHTML=h}
+  corps.innerHTML=h;aPrendre(corps.querySelector("#ftstock"),d,j,id,mt)}
+// consommables à charger : liste de la fiche de préparation (cochés « chargé » par l'équipe) et du métré tablette, avec
+// l'article du stock correspondant, la quantité disponible et son emplacement s'il est noté (Steven, 23/11/2026)
+const nrmS=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+const FAMS=[[/vis|cheville|ancrage/,/vis|cheville/],[/silicone|mastic/,/silicone|mastic/],[/compri|mousse impr|membrane|etanch/,/etanch|compri|membrane/],[/mousse pu/,/mousse/],[/cale/,/cale/],[/adhesif|scotch|ruban/,/adhes/],[/bache|protection|film|carton/,/protection/],[/nettoy|chiffon|alcool/,/nettoy|entretien/]];
+// strict : une dimension écrite (80 mm, 5x14, 3x7x20) doit se retrouver dans l'article ; sinon « pas trouvé » plutôt qu'un mauvais article
+function trouve(lab,A){const t=nrmS(lab).replace(/×/g,"x"),F=FAMS.find(([re])=>re.test(t));if(!F)return null;
+  const cols=(t.match(/blanc|gris|noir|beige|pierre|bronze|transparent|translucide|anthracite/g)||[]).slice(0,1),dims=(t.match(/\d+(?:x\d+)+|\d+(?=\s*mm)/g)||[]),mots=(t.match(/[a-z]{4,}/g)||[]).filter(m=>!/^(coloris|choisir|chevilles?|mastic|mousse|impregnee|ext|int)$/.test(m));
+  const L=A.filter(a=>F[1].test(nrmS(a.famille+" "+a.nom))&&!/graisse|pistolet|nettoyant/.test(nrmS(a.nom))).map(a=>{const n=nrmS(a.nom+" "+(a.coloris||"")).replace(/×/g,"x").replace(/mm/g,"");
+      return{a,ok:dims.every(d=>n.includes(d))&&cols.every(c=>n.includes(c)),sc:mots.filter(m=>n.includes(m)).length}}).filter(x=>x.ok&&x.sc>0).sort((x,y)=>y.sc-x.sc);
+  return L.slice(0,2).map(x=>x.a)}
+async function aPrendre(el,d,j,id,mt){if(!el)return;let A=[],N=new Map();
+  try{const[a,n]=await Promise.all([sb.from("stock_articles").select("id,nom,famille,coloris,unite,emplacement").eq("stock","pose").neq("actif",false),sb.from("stock_niveaux").select("id,niveau")]);A=a.data||[];(n.data||[]).forEach(x=>N.set(x.id,+x.niveau||0))}catch(_){}
+  const B=(d.besoins||[]),M=mt&&window.mtTotaux?mtTotaux(mt.mt):[];
+  const art=lab=>{const L=trouve(lab,A);if(L===null)return"";if(!L.length)return`<span class="ftart" style="color:#c96a2c">pas trouvé dans le stock : à demander au bureau</span>`;return L.length?L.map(a=>`<span class="ftart">${esc(a.nom)}${a.coloris?" · "+esc(a.coloris):""} · ${(N.get(a.id)||0)>0?`<b>${String(Math.round((N.get(a.id)||0)*10)/10).replace(".",",")} ${esc(a.unite||"")}</b> en stock`:`<b style="color:#b83a3a">plus en stock</b> (à signaler au bureau)`}${a.emplacement?` · 📍 <b>${esc(a.emplacement)}</b>`:""}</span>`).join(""):""};
+  const sansEmp=A.length&&!A.some(a=>a.emplacement);
+  el.innerHTML=`<h3>🧰 À prendre au stock</h3>${!B.length&&!M.length?`<p class="sub">Aucun consommable préparé pour ce chantier.</p>`:""}
+   ${B.map((b,k)=>`<label class="ftcons ${b.c?"ok":""}"><input type="checkbox" data-bk="${k}" ${b.c?"checked":""}><span><b>${esc(b.l)}</b> : ${esc(b.q||"")}${b.r?` <span class="sub">(${esc(b.r)})</span>`:""}${art(b.l+" "+(b.q||"")+" "+(b.r||""))}${b.c?`<span class="sub">chargé${typeof b.c==="object"&&b.c.le?" le "+frD(b.c.le):""}</span>`:""}</span></label>`).join("")}
+   ${M.length?`<p class="sub" style="margin-top:6px">D'après le métré tablette :</p>${M.map(r=>`<div class="ftcons"><span></span><span><b>${esc(r[0])}</b> : ${esc(r[1])}${art(r[0])}</span></div>`).join("")}`:""}
+   ${sansEmp?`<p class="ftnote" style="font-weight:400">Les emplacements des articles ne sont pas encore notés dans le stock : l'étagère s'affichera ici dès qu'ils le seront.</p>`:""}
+   <p class="sub"><a href="plan-stock.html">🗺️ Ouvrir le plan du stock</a></p>`;
+  el.querySelectorAll("[data-bk]").forEach(cb=>cb.onchange=async()=>{const k=+cb.dataset.bk,v=cb.checked?{le:new Date().toISOString(),par:me}:false;cb.disabled=true;
+    try{let ok=false;for(let n=0;n<6&&!ok;n++){const{data:row,error:e1}=await sb.from("chantiers").select("data,version").eq("id",id).single();if(e1)throw e1;
+        const data=row.data||{},docs=(data.docs||[]).map(x=>({...x})),i=docs.findIndex(x=>x.id===d.id);if(i<0)throw new Error("fiche introuvable");
+        const bes=(docs[i].besoins||[]).map(x=>({...x}));if(!bes[k])throw new Error("ligne introuvable");bes[k].c=v;docs[i]={...docs[i],besoins:bes};
+        const{data:upd,error:e2}=await sb.from("chantiers").update({data:{...data,docs}}).eq("id",id).eq("version",row.version).select("id");if(e2)throw e2;ok=!!(upd&&upd.length);
+        if(ok){chantiers.set(id,{...data,docs});d.besoins=bes}}
+      if(!ok)throw new Error("conflit");cb.closest(".ftcons").classList.toggle("ok",!!v)}
+    catch(e){cb.checked=!cb.checked;toast(/row-level|violates|autoris/i.test(String(e&&e.message))?"Enregistrement refusé : la base doit autoriser les poseurs (outil/poseurs-fiches.sql).":"Pas enregistré (réseau ?) : réessayez.")}
+    finally{cb.disabled=false}})}
 
 // ---------- RÉCEPTION ----------
 const COMMUNS=["Chantier propre, protections et films retirés","Déposes et emballages évacués","Photos prises de chaque produit posé","Notices et garanties remises au client"];
@@ -194,8 +224,8 @@ async function recepPdf(R,j,id){const{PDFDocument,StandardFonts,rgb}=PDFLib,doc=
 window.ficheTel=(d,j)=>d.type==="Préparation"?prepTel(d,j):d.type==="Réception"?recepTel(d,j):null;
 const st=document.createElement("style");st.textContent=`.modal.ftel{align-items:stretch;background:var(--bg)}.modal.ftel>div{width:100%;max-width:720px;max-height:none;height:100%;border-radius:0;padding:0;display:flex;flex-direction:column}
 .ftbar{position:sticky;top:0;z-index:2;display:flex;gap:8px;align-items:center;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));background:var(--bg);border-bottom:1px solid var(--line)}.ftbar b{flex:1;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ftcorps{flex:1;overflow:auto;padding:12px;display:grid;gap:12px;align-content:start;-webkit-overflow-scrolling:touch}
-.ftc{background:var(--surface,#fff);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:8px}.ftc h2{margin:0;font-size:22px}.ftc h3{margin:0;font-size:17px}.ftc p{margin:0}
+.ftcorps{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px;display:grid;gap:12px;align-content:start;-webkit-overflow-scrolling:touch}
+.ftc{min-width:0;background:var(--surface,#fff);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:8px}.ftc h2{margin:0;font-size:22px}.ftc h3{margin:0;font-size:17px}.ftc p{margin:0}
 .ftc.ok{border-color:#2f7d4a;background:#e8f5ec}.ftc.ko{border-color:#c96a2c;background:#fdf0e6}
 .ftacts{display:flex;gap:8px;flex-wrap:wrap}.ftchk{display:flex;flex-wrap:wrap;gap:6px}.ftchk span{background:#e8eff8;border-radius:8px;padding:3px 8px;font-size:14px}
 .ftnote{border-left:4px solid #c96a2c;background:#fbe3d3;color:#1d2633;padding:6px 10px;border-radius:0 8px 8px 0;font-weight:600}
@@ -207,6 +237,7 @@ const st=document.createElement("style");st.textContent=`.modal.ftel{align-items
 .ftchips{display:grid;gap:6px}.ftchips button[aria-pressed="true"]{background:#2f7d4a;border-color:#2f7d4a;color:#fff}.ftfam{font:600 11px inherit;letter-spacing:.04em;text-transform:uppercase;color:#10407e;background:#e8eff8;border-radius:6px;padding:2px 8px;justify-self:start}
 .ftl{display:grid;gap:4px;font-weight:600}.ftl input,.ftl select,.ftc textarea,.ftc input[type=text]{font:16px inherit;padding:10px;border:1px solid var(--line);border-radius:10px;width:100%;box-sizing:border-box;background:var(--surface,#fff);color:inherit}.ftc textarea{min-height:70px}
 .ftph{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.ftph img{width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--line)}
+.ftcons{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;padding:8px;border-radius:10px;background:var(--bg)}.ftcons.ok{background:#e8f5ec}.ftcons input{width:24px;height:24px}.ftcons>span{display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}.ftart{font-size:13px;color:#10407e}
 .ftmic{font-size:18px;padding:14px}.ftmic.rec{background:#b83a3a;border-color:#b83a3a}.ftlive{color:var(--muted);font-style:italic;min-height:1em}
 .ftsig{width:100%;height:180px;border:1.5px dashed #9aa3b0;border-radius:12px;background:#fff;touch-action:none}`;
 document.head.appendChild(st);

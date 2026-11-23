@@ -498,6 +498,7 @@ function poseDoc(mt,j){const P=(mt.prod||[]).map(p=>({et:{},hab:[],fix:[],ann:[]
   return`<header><b>Pose · habillages, seuils et croquis</b><span>${esc2(j.client||"")}<br>${esc2([j.adresse,j.ville].filter(Boolean).join(", "))}</span><span>D'après le métré tablette${mt.cree?" du "+new Date(mt.cree).toLocaleDateString("fr-FR"):""}<br>Les dimensions sont sur le métré.</span></header>
    ${rows.length?`<section class="pp"><h2>Consommables du métré</h2><table>${rows.map(r=>`<tr><th>${esc2(r[0])}</th><td>${esc2(r[1])}</td><td>${esc2(r[2])}</td></tr>`).join("")}</table></section>`:""}
    ${P.map(fiche).join("")}`}
+window.mtTotaux=mt=>{try{return totaux(JSON.parse(JSON.stringify(mt.prod||[])).map(p=>({et:{},hab:[],fix:[],ann:[],ph:[],v:{},...p}))).rows}catch(_){return[]}};
 window.mtPoseHtml=(mt,j)=>poseDoc(JSON.parse(JSON.stringify(mt||{prod:[]})),j||{});
 function imprimer(){const j=jobs.get(S.jid)||{};$m("mtprint").innerHTML=ficheDoc(S.mt,j);
   document.body.classList.add("mtprinting");const fin=()=>{document.body.classList.remove("mtprinting");removeEventListener("afterprint",fin)};addEventListener("afterprint",fin);setTimeout(()=>window.print(),50)}
