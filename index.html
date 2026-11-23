@@ -4531,7 +4531,7 @@ button.plc{cursor:pointer}
 .pldvr label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);min-width:0}
 .pldvr input,.pldvr select{font:14px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
 .pldvr .acts{display:flex;gap:6px}
-.dvdep{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end;font-size:13px}.dvdep>label{width:auto;flex:0 1 170px}.dvdep>label:nth-child(2){flex-basis:90px}.dvdepx{flex:1 1 100%}.dvdepx summary{cursor:pointer;color:var(--muted);font-size:12.5px}.dvdepx[open]{display:flex;flex-wrap:wrap;gap:6px 10px}.dvdepx label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 150px}.dvdepr{flex:1 1 100%;color:var(--muted)}.dvdepr b{color:var(--ink)}
+.dvdep{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end;font-size:13px}.dvdep>label{width:auto;flex:0 1 170px}.dvdep>label:nth-child(2){flex-basis:90px}.dvdepx{flex:1 1 100%}.dvdepx summary{cursor:pointer;color:var(--muted);font-size:12.5px}.dvdepx[open]{display:flex;flex-wrap:wrap;gap:6px 10px}.dvdepx label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 150px}.dvmet{display:flex!important;align-items:center;gap:6px;font-size:13px;color:var(--ink);flex:0 1 auto!important}.dvmet input{width:auto}.dvdepr{flex:1 1 100%;color:var(--muted)}.dvdepr b{color:var(--ink)}
 .dvch{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}.dvch.warn{color:var(--s-orange,#E08A52);font-weight:600}
 .dvup{cursor:pointer;font-size:13px}.dvups{display:flex;gap:6px;flex-wrap:wrap}.pldvr.dvover{outline:2px dashed var(--accent);outline-offset:2px;border-radius:6px}.dvmj.ok{color:var(--s-vert,#2f7d4a)}.dvmj.o{color:var(--s-orange,#E08A52)}.dvmj.r{color:var(--s-rouge,#CC4141)}
 .dvobj{display:grid;gap:4px;border-left:4px solid var(--accent);background:var(--surface-2,rgba(9,82,161,.06));padding:10px 12px;border-radius:0 8px 8px 0;margin:6px 0 10px;font-size:14px}.dvobj span{color:var(--muted);font-size:13px}
@@ -4684,7 +4684,7 @@ function plCharge(n){
   dvLive().forEach(d=>{const pr=(DV_CH[d.chance]||DV_CH.moyenne)[1];if(!d.periode)return;
     const mp=d.periode<cur?cur:d.periode,ma=prevM(mp)<cur?cur:prevM(mp),Ip=byM.get(mp),Ia=byM.get(ma);
     const lab=(d.client||"Devis")+" (devis, chance "+Math.round(pr*100)+" %)";
-    if(Ip)Ip.forEach(i=>{const v=(+d.jp||0)*PL_EQ*pr/Ip.length;if(v>0){W[i].P.d+=v;W[i].P.it.push({lab,k:"d",h:v})}});
+    if(Ip)Ip.forEach(i=>{const v=dvJT(d)*PL_EQ*pr/Ip.length;if(v>0){W[i].P.d+=v;W[i].P.it.push({lab,k:"d",h:v})}});
     if(Ia)Ia.forEach(i=>{const v=(+d.ha||0)*pr/Ia.length;if(v>0){W[i].A.d+=v;W[i].A.it.push({lab,k:"d",h:v})}})});
   return W}
 
@@ -4768,7 +4768,7 @@ function plYearShow(id,i){const {M,key,nom}=plYear.d[id],o=M[i][key],el=$(id);if
 function plYearBind(){for(const id in plYear.d)if($(id))plYearShow(id,Math.min(1,plYear.d[id].M.length-1))}
 function plChgHtml(){
   const W=plCharge(57),M=plMonths(W),DV=dvLive(),pr=d=>(DV_CH[d.chance]||DV_CH.moyenne)[1];
-  const tot=DV.reduce((s,d)=>s+(+d.montant||0),0),prob=DV.reduce((s,d)=>s+(+d.montant||0)*pr(d),0),jp=DV.reduce((s,d)=>s+(+d.jp||0)*pr(d),0),ha=DV.reduce((s,d)=>s+(+d.ha||0)*pr(d),0);
+  const tot=DV.reduce((s,d)=>s+(+d.montant||0),0),prob=DV.reduce((s,d)=>s+(+d.montant||0)*pr(d),0),jp=DV.reduce((s,d)=>s+dvJT(d)*pr(d),0),ha=DV.reduce((s,d)=>s+(+d.ha||0)*pr(d),0);
   let h=`<div class="pltiles"><div class="pltile"><b>${plEur(tot)}</b><span>chiffrés, en attente de signature (${DV.length} devis)</span></div><div class="pltile"><b>${plEur(prob)}</b><span>probables, selon la chance de signature</span></div><div class="pltile"><b>${plNf(jp)} j</b><span>de pose probables pour une équipe</span></div><div class="pltile"><b>${plNf(ha)} h</b><span>d'atelier probables</span></div></div>
    <div class="leg"><span><i class="sw pk1"></i>Confirmé</span><span><i class="sw pk2"></i>Prévu</span><span><i class="sw pk3"></i>Estimé</span><span><i class="sw pk5"></i>Atelier en retard sur la pose</span><span><i class="sw pk4"></i>Devis en attente (probables)</span><span><i class="sw" style="width:2px;background:var(--ink)"></i>Heures disponibles</span></div>
    <div class="plw"><header><b>Pose sur 12 mois</b><span>heures par mois</span></header>${plYear("plyP",M,"P","confirmé")}</div>
@@ -4787,14 +4787,14 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
    <label>Client, affaire<input type="text" id="dv-client-${id}" ${a} data-k="client" value="${v("client")}" placeholder="${d?"":"Nouveau devis : client, affaire"}" ${ro}></label>
    <label>Montant HT (€)<input type="number" min="0" step="100" inputmode="numeric" id="dv-montant-${id}" ${a} data-k="montant" value="${v("montant")}" ${ro}></label>
    <label>Chance<select id="dv-chance-${id}" ${a} data-k="chance" ${ro}>${Object.entries(DV_CH).map(([k,[l]])=>`<option value="${k}" ${k===((d&&d.chance)||"moyenne")?"selected":""}>${l}</option>`).join("")}</select></label>
-   <label>Pose (jours)<input type="number" min="0" step="0.5" inputmode="decimal" id="dv-jp-${id}" ${a} data-k="jp" value="${v("jp")}" ${ro}></label>
+   <label>Pose sur place (j)<input type="number" min="0" step="0.5" inputmode="decimal" id="dv-jp-${id}" ${a} data-k="jp" value="${v("jp")}" ${ro}></label>
    <label>Atelier (h)<input type="number" min="0" step="1" inputmode="numeric" id="dv-ha-${id}" ${a} data-k="ha" value="${v("ha")}" ${ro}></label>
    <label>Pose souhaitée<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d?d.periode||"":"")}</select></label>
    <div class="acts">${!plW()?"":d?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:`<button class="btn">Ajouter</button>`}</div>${d?dvChif(d)+dvSug(d)+dvDep(d):""}</${d?"div":"form"}>`}
 // Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
 // (outil/chiffrage.py) qui remplit achats, main-d'œuvre, marge prévue et jours de pose. Marge jour prévue =
 // (montant HT − achats) ÷ (jours de pose + heures d'atelier ÷ 17,5), face à l'objectif de la page Direction > Rentabilité.
-const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,h=+d.ha||0,j=(+d.jp||0)+h/PL_EQ;return m&&a&&j?(m-a-dvFrais(d)+h*rtObj().tauxAtl)/j:null};
+const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,h=+d.ha||0,j=dvJT(d)+h/PL_EQ;return m&&a&&j?(m-a-dvFrais(d)+h*rtObj().tauxAtl)/j:null};
 // ---------- Frais de déplacement par devis (Steven, 23/11/2026) ----------
 // Repris de l'artefact « Frais de déplacement MGDS » : départ Orléans, camion type Crafter, organisation automatique
 // selon le temps de route (retour chaque soir ≤ 1 h, départ le matin, la veille, ou la veille + retour le lendemain ≥ 4 h),
@@ -4831,16 +4831,21 @@ function depCalc(p){const T=DEP_T,addD=(d,n)=>{const x=new Date(d);x.setDate(x.g
 const DEP_ORG={jour:"retour chaque soir",matin:"départ le matin",veille:"départ la veille",both:"départ la veille, retour le lendemain"};
 // début : 1er lundi du mois de pose souhaité (prix de l'hôtel selon la saison), sinon lundi prochain
 const depDebut=per=>{let d=per?new Date(per+"-01T12:00:00"):new Date(Date.now()+7*864e5);while(d.getDay()!==1)d.setDate(d.getDate()+1);return d.toISOString().slice(0,10)};
-// Le temps de route est déjà compris dans les jours de pose saisis (Steven, 23/11/2026 : « sur Masquin, 3 jours sur place et
-// 2 jours de déplacement dans les 5 jours ») : on retire les jours de route des jours de pose pour trouver les jours sur place,
-// et la main-d'œuvre du trajet n'est pas comptée une deuxième fois. Jours de route par aller-retour : départ la veille et
-// retour le lendemain 2 j, départ la veille 1 j, départ le matin 0,5 j, retour chaque soir 0 (le trajet est dans la journée).
+// Jours (Steven, 23/11/2026) : « Pose (jours) » d'un devis = jours de travail SUR PLACE. L'appli ajoute les jours de route
+// de l'équipe (par aller-retour : départ la veille et retour le lendemain 2 j, départ la veille 1 j, départ le matin ½ j,
+// retour chaque soir 0) et, si la case est cochée, le déplacement du métré (toujours une personne seule, en voiture : heures de route
+// aller-retour ÷ 8 + ½ j de métré, arrondi à la demi-journée, compté pour moitié en journées d'équipe de 2).
+// Temps total = sur place + route + métré : c'est lui qui divise la marge (l'équipe sur la route doit aussi produire de la
+// marge) et qui remplit la charge (planning réaliste). Le salaire du trajet n'est pas ajouté aux frais : il est dans le temps total.
 const DEP_JR={both:2,veille:1,matin:.5,jour:0};
 function dvDepRes(d){const x=d.dep;if(!x||!x.lieu||x.km===""||x.km==null||!(+d.jp>0))return null;
-  const jp=+d.jp,base={km:+x.km||0,peage:+x.peage||0,heures:+x.h||0,zone:x.zone||"province",pers:Math.max(1,+x.pers||2),debut:depDebut(d.periode)};
-  let sur=Math.max(1,Math.ceil(jp)),r=null;
-  for(let i=0;i<5;i++){r=depCalc({...base,jours:sur});const n=Math.max(1,Math.ceil(jp-r.ar*DEP_JR[r.org]));if(n===sur)break;sur=n}
-  r.sur=sur;r.jr=r.ar*DEP_JR[r.org];r.court=r.jr+sur>jp+.01;r.total-=r.P.route;r.P.route=0;return r}
+  const base={km:+x.km||0,peage:+x.peage||0,heures:+x.h||0,zone:x.zone||"province",debut:depDebut(d.periode)};
+  const r=depCalc({...base,pers:Math.max(1,+x.pers||2),jours:Math.max(1,Math.ceil(+d.jp))});r.jr=r.ar*DEP_JR[r.org];r.total-=r.P.route;r.P.route=0;
+  r.mj=0;r.mf=0;if(x.metre){const pj=Math.max(1,Math.ceil((2*base.heures/DEP_T.camion/8+.5)*2)/2),m=depCalc({...base,pers:1,jours:1});
+    r.mj=pj;r.mn=base.heures>3.5?1:0;r.mf=m.P.camion+m.P.peage+(r.mn?(DEP_Z[base.zone]||DEP_Z.province).b*1.1+DEP_T.prime:0);r.total+=r.mf}
+  r.jt=+d.jp+r.jr+r.mj/2;return r}
+// temps total d'un devis en journées d'équipe de 2 (sur place + route + métré)
+function dvJT(d){const r=dvDepRes(d);return r?r.jt:(+d.jp||0)}
 function dvFrais(d){const r=dvDepRes(d);return r?r.total:0}
 // lieu hors de la liste : commune trouvée par la Base adresse nationale (api-adresse.data.gouv.fr, seul le nom de la commune
 // est envoyé), distance à vol d'oiseau depuis Orléans × 1,25, temps et péage estimés : à corriger à la main si besoin
@@ -4851,14 +4856,15 @@ async function depEstime(lieu){
   const dep=String(pr.citycode||"").slice(0,2),pop=+pr.population||0;
   const zone=["75","77","78","91","92","93","94","95"].includes(dep)?"paris":["06","83","13","84"].includes(dep)?"azur":["73","74","05","38","65","66","09","04"].includes(dep)&&pop<50000?"montagne":
     ["14","17","22","29","33","35","40","44","50","56","62","64","76","80","85"].includes(dep)&&pop<100000?"atlantique":pop>=100000?"ville":"province";
-  return{lieu:pr.city||pr.name||lieu,km,peage:km>150?Math.round(km*.75*DEP_T.peageKm):km>60?Math.round(km*.4*DEP_T.peageKm):0,h:Math.round((km/85+.25)*DEP_T.camion*10)/10,zone,src:"estimé"}}
+  return{lieu:pr.city||pr.name||lieu,km,peage:km>150?Math.round(km*.75*DEP_T.peageKm):km>60?Math.round(km*.4*DEP_T.peageKm):0,h:Math.round((km/95+.25)*DEP_T.camion*10)/10,zone,src:"estimé"}}
 function dvDep(d){const id=esc(d.id),x=d.dep||{},ro=plW()?"":"disabled",r=dvDepRes(d),f=r?Math.round(r.total):0;
   const res=!x.lieu?`<span class="sub">Lieu du chantier à saisir : les frais de déplacement de l'équipe sont alors déduits de la marge.</span>`
    :x.km===""||x.km==null?`<span class="sub">${x.src==="cherche"?"Recherche de la distance…":"Distance inconnue : saisissez km, péage et temps de route."}</span>`
    :!r?`<span class="sub">Jours de pose à saisir pour calculer les frais.</span>`
-   :`<span><b>Frais de déplacement ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers. · ${plNf(+d.jp)} j de pose dont ${plNf(r.jr)} j de route (${DEP_ORG[r.org]}) : <b>${r.sur} j sur place</b>${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} · camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}. Le temps de route est déjà payé dans les jours de pose : il n'est pas compté ici.${r.court?` <b class="dvmj r">Les ${plNf(+d.jp)} j de pose ne couvrent pas ${plNf(r.jr)} j de route + 1 j sur place.</b>`:""}</span>`;
+   :`<span><b>Temps total ${plNf(r.jt)} j</b> = ${plNf(+d.jp)} j sur place + ${plNf(r.jr)} j de route (${DEP_ORG[r.org]})${r.mj?` + métré ${plNf(r.mj)} j à 1 personne (${plNf(r.mj/2)} j d'équipe)`:""} : il divise la marge et remplit la charge.<br><b>Frais de déplacement ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers.${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} · camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}${r.mf?`, métré ${plEur(r.mf)}`:""}. Le salaire du trajet n'est pas recompté : il est dans le temps total.</span>`;
   return`<div class="dvdep"><label>Lieu du chantier<input type="text" list="depVilles" data-dvdep="lieu" data-id="${id}" value="${esc(x.lieu||"")}" placeholder="ville" ${ro}></label>
    <label>Équipe (pers.)<input type="number" min="1" step="1" inputmode="numeric" data-dvdep="pers" data-id="${id}" value="${esc(x.pers||2)}" ${ro}></label>
+   <label class="dvmet"><input type="checkbox" data-dvdep="metre" data-id="${id}" ${x.metre?"checked":""} ${ro}> Métré sur place (1 personne)</label>
    ${x.lieu?`<details class="dvdepx"><summary>km, péage, temps</summary><label>Km aller<input type="number" min="0" data-dvdep="km" data-id="${id}" value="${esc(x.km??"")}" ${ro}></label><label>Péage aller (€ HT)<input type="number" min="0" data-dvdep="peage" data-id="${id}" value="${esc(x.peage??"")}" ${ro}></label><label>Route aller (h, camion)<input type="number" min="0" step="0.1" data-dvdep="h" data-id="${id}" value="${esc(x.h??"")}" ${ro}></label><label>Zone d'hôtel<select data-dvdep="zone" data-id="${id}" ${ro}>${Object.entries(DEP_Z).map(([k,z])=>`<option value="${k}" ${k===(x.zone||"province")?"selected":""}>${z.n}</option>`).join("")}</select></label></details>`:""}
    <div class="dvdepr">${res}</div></div>`}
 async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=PLN.devis.get(id)||{},x={...(d.dep||{})};
@@ -4868,6 +4874,7 @@ async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=PLN.devi
     else{Object.assign(x,{lieu:l,km:"",src:"cherche"});await dvSave(id,{dep:x});dvKeep(planRender);
       let e=null;try{e=await depEstime(l)}catch(_){}
       const y={...((PLN.devis.get(id)||{}).dep||x)};if(e)Object.assign(y,e);else Object.assign(y,{src:"saisi"});await dvSave(id,{dep:y});dvKeep(planRender);return}}
+  else if(k==="metre")x.metre=t.checked;
   else{x[k]=k==="zone"?t.value:(t.value===""?"":Math.max(k==="pers"?1:0,+String(t.value).replace(",",".")||0));if(k!=="pers"&&k!=="zone")x.src="saisi"}
   await dvSave(id,{dep:x});dvKeep(planRender)}
 document.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.dvdep)dvDepChange(t)});
@@ -4900,7 +4907,7 @@ function dvHtml(DV){
   const O=rtObj(),mjs=L.map(d=>[dvMj(d),+d.montant||0]).filter(x=>x[0]!=null),tm=mjs.reduce((s,x)=>s+x[1],0);
   return `<div class="plcard"><h3>Devis en attente</h3>
    <div class="dvobj"><p style="margin:0"><b>Objectif : ${plEur(O.obj)} de marge par journée d'équipe de 2</b>, soit ${plEur(O.taux)} par heure de production, en pose comme à l'atelier.</p>
-    <span>Marge jour d'un devis = (prix de vente HT − achats − frais de déplacement + heures d'atelier × ${plEur(O.tauxAtl)}) ÷ (jours de pose + heures d'atelier ÷ ${plNf(PL_EQ)}). La main-d'œuvre d'atelier comprise dans le prix de Christophe est rajoutée à la marge, comme la pose : elle est déjà payée par nos charges. Jours de pose = main-d'œuvre de pose ÷ ${plEur(O.moJour)} environ par jour d'équipe. Une heure d'atelier se vend au moins ${plEur(O.taux)}, comme une heure de pose. À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
+    <span>Marge jour d'un devis = (prix de vente HT − achats − frais de déplacement + heures d'atelier × ${plEur(O.tauxAtl)}) ÷ (temps total : jours sur place + jours de route + métré lointain, + heures d'atelier ÷ ${plNf(PL_EQ)}). La main-d'œuvre d'atelier comprise dans le prix de Christophe est rajoutée à la marge, comme la pose : elle est déjà payée par nos charges. Jours de pose = main-d'œuvre de pose ÷ ${plEur(O.moJour)} environ par jour d'équipe. Une heure d'atelier se vend au moins ${plEur(O.taux)}, comme une heure de pose. À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
    <p class="plnote">Astuce : glissez la capture d'écran du chiffrage sur la ligne « Nouveau devis » : le devis est créé et Claude remplit client, montant, jours et heures. Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
    <datalist id="depVilles">${DEP_V.map(v=>`<option value="${esc(v[0])}">`).join("")}</datalist><div class="pldv">${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
 async function dvSave(id,patch){const sb=window.sbClient,d={...(PLN.devis.get(id)||{}),...patch};PLN.devis.set(id,d);
