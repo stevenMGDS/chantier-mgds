@@ -796,7 +796,12 @@ function afTaches(){const R=window.REG||{},S=R.synchro||{},F=R.taches_marine||{}
       action:"Déposer le devis signé dans OFFRE MGDS. La tâche se ferme toute seule quand la synchro le trouve."})}
   (S.bloquants||[]).forEach(b=>T.push({k:"fichier:"+(b.fichier||""),id:b.chantier&&jobs.has(b.chantier)?b.chantier:"",quoi:"Fichier à corriger",nom:b.fichier||"fichier ?",ref:b.dossier||"OFFRE MGDS",depuis:b.depuis||"",
     detail:b.raison||"",action:b.action||"Renommer le fichier (sans accents ni caractères spéciaux), au même endroit dans OFFRE MGDS."}));
-  T.forEach(t=>{const f=F[t.k];t.fait=!!(f&&f.le&&(!pass||f.le>pass));t.faitLe=f&&f.le;t.rouvert=!!(f&&f.le&&pass&&f.le<=pass)});
+  // devis signé scanné (Steven, 23/11/2026) : la Direction ne peut pas lire son total ; Marine dépose la version PDF du logiciel
+  // de devis (reglages « devis_illisibles », réécrit par Claude à chaque passage de 12 h 27 et 18 h 27)
+  const DI=R.devis_illisibles||{};(DI.items||[]).forEach(x=>T.push({k:"illisible:"+x.chantier,id:jobs.has(x.chantier)?x.chantier:"",pass:DI.le||"",quoi:"Devis signé scanné : illisible",
+    nom:String(x.client||x.chantier).replace(/\s*-\s*D\d{9}[a-z]?\s*$/i,""),ref:x.chantier,depuis:"",detail:(x.fichiers||[]).join(", ")+(x.partiel?" (un autre devis du chantier est lu)":""),
+    action:"Déposer dans les documents du chantier (type Devis) le PDF du devis exporté par le logiciel de devis, pas un scan. La tâche se ferme quand Claude arrive à le lire (12 h 27 ou 18 h 27)."}));
+  T.forEach(t=>{const f=F[t.k],ps=t.pass!=null?t.pass:pass;t.fait=!!(f&&f.le&&(!ps||f.le>ps));t.faitLe=f&&f.le;t.rouvert=!!(f&&f.le&&ps&&f.le<=ps)});
   return T.sort((a,b)=>a.fait-b.fait||String(a.depuis).localeCompare(String(b.depuis)))}
 function afRender(){const el=$("afaire");if(!el)return;if(!canWrite||!window.mgdsProfil||mgdsProfil.role!=="editeur"){el.innerHTML="";return}
   const T=afTaches(),ouv=T.filter(t=>!t.fait),marine=/marine/i.test(mgdsProfil.nom||mgdsProfil.email||"");

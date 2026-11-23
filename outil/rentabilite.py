@@ -62,6 +62,7 @@ def num_devis(nom):
 def main(essai):
     direction = {r["id"]: r["data"] for r in req("GET", "/rest/v1/direction?select=id,data")}
     le = datetime.date.today().isoformat()
+    illis = []   # devis signés scannés (illisibles) : tâche pour Marine (consigne de Steven du 23/11/2026), sans aucun montant
     for r in req("GET", "/rest/v1/chantiers?select=id,data&order=id"):
         docs = r["data"].get("docs") or []
         # devis : un par numéro (la dernière version déposée), additionnés
@@ -82,14 +83,23 @@ def main(essai):
             arcs.append({"doc": d.get("name") or d["id"], "ht": None if v is None else round(v, 2)})
         print(f"{r['id']:<22} vente {vente:>12,.2f}  ({len(srcs)} devis{', illisible : ' + ', '.join(rates) if rates else ''})"
               f"  ARC {sum(a['ht'] or 0 for a in arcs):>11,.2f} ({len(arcs)})")
-        if essai: continue
         old = direction.get("vente_" + r["id"]) or {}
+        if rates and not srcs and not old.get("man"):   # un devis lisible existe déjà : la copie signée scannée ne bloque pas
+            illis.append({"chantier": r["id"], "client": r["data"].get("client", ""), "fichiers": rates, "partiel": bool(srcs)})
+        if essai: continue
         if srcs and not old.get("man"):
             req("POST", "/rest/v1/direction", {"id": "vente_" + r["id"], "data": {"kind": "vente", "ht": round(vente, 2), "devis": srcs, "illisibles": rates, "le": le}},
                 {"Prefer": "resolution=merge-duplicates"})
         if arcs:
             req("POST", "/rest/v1/direction", {"id": "achat_" + r["id"], "data": {"kind": "arcs", "arcs": arcs, "le": le}},
                 {"Prefer": "resolution=merge-duplicates"})
+
+
+    print(len(illis), "chantier(s) avec un devis signé scanné")
+    if not essai:
+        # liste lue par l'appli (« À faire – Marine ») : reglages devis_illisibles, réécrite à chaque passage
+        req("POST", "/rest/v1/reglages", {"id": "devis_illisibles", "data": {"le": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "items": illis}},
+            {"Prefer": "resolution=merge-duplicates"})
 
 
 if __name__ == "__main__":
