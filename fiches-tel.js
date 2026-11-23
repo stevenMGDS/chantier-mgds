@@ -71,13 +71,24 @@ function trouve(lab,A){const t=nrmS(lab).replace(/×/g,"x"),F=FAMS.find(([re])=>
       return{a,ok:dims.every(d=>n.includes(d))&&cols.every(c=>n.includes(c)),sc:mots.filter(m=>n.includes(m)).length}}).filter(x=>x.ok&&x.sc>0).sort((x,y)=>y.sc-x.sc);
   return L.slice(0,2).map(x=>x.a)}
 async function aPrendre(el,d,j,id,mt){if(!el)return;let A=[],N=new Map();
-  try{const[a,n]=await Promise.all([sb.from("stock_articles").select("id,nom,famille,coloris,unite,emplacement").eq("stock","pose").neq("actif",false),sb.from("stock_niveaux").select("id,niveau")]);A=a.data||[];(n.data||[]).forEach(x=>N.set(x.id,+x.niveau||0))}catch(_){}
+  let PH=[];
+  try{const[a,n,ph]=await Promise.all([sb.from("stock_articles").select("id,nom,famille,coloris,unite,emplacement").eq("stock","pose").neq("actif",false),sb.from("stock_niveaux").select("id,niveau"),
+      sb.from("photos").select("pris_le,categorie,traite,releve").eq("chantier",id).in("categorie",["conso_sortie","conso_retour"])]);A=a.data||[];(n.data||[]).forEach(x=>N.set(x.id,+x.niveau||0));PH=ph.data||[]}catch(_){}
+  // photos de sortie du stock relues par Claude : ce qui y est vu vaut « chargé », sans cocher (Steven, 23/11/2026)
+  const vus=[];let enAttente=0;PH.forEach(p=>{if(!p.traite){if(p.categorie==="conso_sortie")enAttente++;return}let r=null;try{r=JSON.parse(p.releve||"null")}catch(_){}
+    ((r&&r.articles)||[]).forEach(x=>vus.push({...x,sens:p.categorie==="conso_sortie"?1:-1,le:p.pris_le}))});
+  const vu=lab=>{const L=trouve(lab,A)||[],ids=new Set(L.map(a=>a.id)),t=nrmS(lab);
+    // familles de mots : « Mastic silicone » = « Mastic Soudal Silirub » ; « Compribande » = « joint pré-comprimé »
+    const G=[/silicone|mastic|silirub/,/compribande|pre.?comprime|mousse impregnee/,/mousse pu|mousse expansive/,/\bvis\b/,/cheville/,/membrane|butyle/,/cale/,/scotch|adhesif|ruban/,/habillage|corniere|tole/].find(re=>re.test(t));
+    const V=vus.filter(x=>x.sens>0&&(ids.has(+x.stock)||(G&&G.test(nrmS(x.a+" "+(x.fiche||""))))));if(!V.length)return null;
+    return{q:V.map(x=>[x.q,x.u,x.c].filter(Boolean).join(" ")).join(" + "),le:V.map(x=>x.le).sort().slice(-1)[0]}};
   const B=(d.besoins||[]),M=mt&&window.mtTotaux?mtTotaux(mt.mt):[];
   const art=lab=>{const L=trouve(lab,A);if(L===null)return"";if(!L.length)return`<span class="ftart" style="color:#c96a2c">pas trouvé dans le stock : à demander au bureau</span>`;return L.length?L.map(a=>`<span class="ftart">${esc(a.nom)}${a.coloris?" · "+esc(a.coloris):""} · ${(N.get(a.id)||0)>0?`<b>${String(Math.round((N.get(a.id)||0)*10)/10).replace(".",",")} ${esc(a.unite||"")}</b> en stock`:`<b style="color:#b83a3a">plus en stock</b> (à signaler au bureau)`}${a.emplacement?` · 📍 <b>${esc(a.emplacement)}</b>`:""}</span>`).join(""):""};
   const sansEmp=A.length&&!A.some(a=>a.emplacement);
   el.innerHTML=`<h3>🧰 À prendre au stock</h3>${!B.length&&!M.length?`<p class="sub">Aucun consommable préparé pour ce chantier.</p>`:""}
-   ${B.map((b,k)=>`<label class="ftcons ${b.c?"ok":""}"><input type="checkbox" data-bk="${k}" ${b.c?"checked":""}><span><b>${esc(b.l)}</b> : ${esc(b.q||"")}${b.r?` <span class="sub">(${esc(b.r)})</span>`:""}${art(b.l+" "+(b.q||"")+" "+(b.r||""))}${b.c?`<span class="sub">chargé${typeof b.c==="object"&&b.c.le?" le "+frD(b.c.le):""}</span>`:""}</span></label>`).join("")}
-   ${M.length?`<p class="sub" style="margin-top:6px">D'après le métré tablette :</p>${M.map(r=>`<div class="ftcons"><span></span><span><b>${esc(r[0])}</b> : ${esc(r[1])}${art(r[0])}</span></div>`).join("")}`:""}
+   <p class="sub">Photographiez ce que vous prenez (onglet Stock, « Sortie du stock ») : Claude le relit et coche tout seul. La case ne sert que s'il n'y a pas de photo.${enAttente?` <b>${enAttente} photo${enAttente>1?"s":""} en attente de lecture (12 h 27, 18 h 27).</b>`:""}</p>
+   ${B.map((b,k)=>{const v=vu(b.l+" "+(b.q||"")+" "+(b.r||""));return`<label class="ftcons ${b.c||v?"ok":""}">${v?`<span class="ftvu">📷</span>`:`<input type="checkbox" data-bk="${k}" ${b.c?"checked":""}>`}<span><b>${esc(b.l)}</b> : ${esc(b.q||"")}${b.r?` <span class="sub">(${esc(b.r)})</span>`:""}${art(b.l+" "+(b.q||"")+" "+(b.r||""))}${v?`<span class="ftvuok">✓ vu sur la photo de sortie du ${frD(v.le.slice(0,10))} : ${esc(v.q)}</span>`:b.c?`<span class="sub">coché chargé${typeof b.c==="object"&&b.c.le?" le "+frD(b.c.le.slice(0,10)):""}</span>`:""}</span></label>`}).join("")}
+   ${M.length?`<p class="sub" style="margin-top:6px">D'après le métré tablette :</p>${M.map(r=>{const v=vu(r[0]);return`<div class="ftcons ${v?"ok":""}"><span>${v?"📷":""}</span><span><b>${esc(r[0])}</b> : ${esc(r[1])}${art(r[0])}${v?`<span class="ftvuok">✓ vu sur la photo de sortie du ${frD(v.le.slice(0,10))} : ${esc(v.q)}</span>`:""}</span></div>`}).join("")}`:""}
    ${sansEmp?`<p class="ftnote" style="font-weight:400">Les emplacements des articles ne sont pas encore notés dans le stock : l'étagère s'affichera ici dès qu'ils le seront.</p>`:""}
    <p class="sub"><a href="plan-stock.html">🗺️ Ouvrir le plan du stock</a></p>`;
   el.querySelectorAll("[data-bk]").forEach(cb=>cb.onchange=async()=>{const k=+cb.dataset.bk,v=cb.checked?{le:new Date().toISOString(),par:me}:false;cb.disabled=true;
@@ -237,7 +248,7 @@ const st=document.createElement("style");st.textContent=`.modal.ftel{align-items
 .ftchips{display:grid;gap:6px}.ftchips button[aria-pressed="true"]{background:#2f7d4a;border-color:#2f7d4a;color:#fff}.ftfam{font:600 11px inherit;letter-spacing:.04em;text-transform:uppercase;color:#10407e;background:#e8eff8;border-radius:6px;padding:2px 8px;justify-self:start}
 .ftl{display:grid;gap:4px;font-weight:600}.ftl input,.ftl select,.ftc textarea,.ftc input[type=text]{font:16px inherit;padding:10px;border:1px solid var(--line);border-radius:10px;width:100%;box-sizing:border-box;background:var(--surface,#fff);color:inherit}.ftc textarea{min-height:70px}
 .ftph{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.ftph img{width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--line)}
-.ftcons{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;padding:8px;border-radius:10px;background:var(--bg)}.ftcons.ok{background:#e8f5ec}.ftcons input{width:24px;height:24px}.ftcons>span{display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}.ftart{font-size:13px;color:#10407e}
+.ftcons{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;padding:8px;border-radius:10px;background:var(--bg)}.ftcons.ok{background:#e8f5ec}.ftcons input{width:24px;height:24px}.ftcons>span{display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}.ftart{font-size:13px;color:#10407e}.ftvu{font-size:20px;text-align:center}.ftvuok{font-size:13px;color:#2f7d4a;font-weight:600}
 .ftmic{font-size:18px;padding:14px}.ftmic.rec{background:#b83a3a;border-color:#b83a3a}.ftlive{color:var(--muted);font-style:italic;min-height:1em}
 .ftsig{width:100%;height:180px;border:1.5px dashed #9aa3b0;border-radius:12px;background:#fff;touch-action:none}`;
 document.head.appendChild(st);
