@@ -799,7 +799,7 @@ function afTaches(){const R=window.REG||{},S=R.synchro||{},F=R.taches_marine||{}
   // devis signé scanné (Steven, 23/11/2026) : la Direction ne peut pas lire son total ; Marine dépose la version PDF du logiciel
   // de devis (reglages « devis_illisibles », réécrit par Claude à chaque passage de 12 h 27 et 18 h 27)
   const DI=R.devis_illisibles||{};(DI.items||[]).forEach(x=>T.push({k:"illisible:"+x.chantier,id:jobs.has(x.chantier)?x.chantier:"",pass:DI.le||"",quoi:"Devis signé scanné : illisible",
-    nom:String(x.client||x.chantier).replace(/\s*-\s*D\d{9}[a-z]?\s*$/i,""),ref:x.chantier,depuis:"",detail:(x.fichiers||[]).join(", ")+(x.partiel?" (un autre devis du chantier est lu)":""),
+    nom:String(x.client||x.chantier).replace(/\s*-\s*D\d{9}[a-z]?\s*$/i,""),ref:x.chantier,depuis:"",detail:[...new Set(x.fichiers||[])].join(", ")+(x.partiel?" (un autre devis du chantier est lu)":""),
     action:"Déposer dans les documents du chantier (type Devis) le PDF du devis exporté par le logiciel de devis, pas un scan. La tâche se ferme quand Claude arrive à le lire (12 h 27 ou 18 h 27)."}));
   T.forEach(t=>{const f=F[t.k],ps=t.pass!=null?t.pass:pass;t.fait=!!(f&&f.le&&(!ps||f.le>ps));t.faitLe=f&&f.le;t.rouvert=!!(f&&f.le&&ps&&f.le<=ps)});
   return T.sort((a,b)=>a.fait-b.fait||String(a.depuis).localeCompare(String(b.depuis)))}
