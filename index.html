@@ -74,6 +74,12 @@ button{font:inherit;color:inherit}
 .bar i.cur{border:2px solid var(--ink)}
 .bar i.done{background:var(--s-vert);border-color:transparent}.bar i.late{background:var(--s-orange);border-color:transparent}.bar i.blk{background:var(--s-rouge);border-color:transparent}.bar i.part{background:repeating-linear-gradient(135deg,var(--s-orange) 0 3px,var(--t-orange) 3px 6px);border-color:var(--s-orange)}
 .phase{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:14px}
+.pvis{font-size:12.5px;font-weight:600;color:var(--ink);border:1px solid var(--line);border-radius:99px;padding:1px 8px;white-space:nowrap}
+.avc{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 12px;display:grid;gap:10px;background:var(--surface)}
+.avh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}.avh .btn{margin-left:auto;padding:4px 10px;font-size:13px}.avcible{font-size:17px}
+.avbar{list-style:none;margin:0;padding:0;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px}
+.avbar li{display:grid;gap:3px;font-size:12.5px;min-width:0}.avbar i{display:block;height:10px;border-radius:5px;background:var(--sunk)}
+.avbar li.ok i{background:var(--s-vert,#3f9e6a)}.avbar li.cur i{background:var(--s-orange,#E08A52)}.avbar span{font-weight:600;overflow-wrap:anywhere}.avbar em{font-style:normal;color:var(--muted)}
 .pill{font:600 12px var(--f-body);text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:4px;background:var(--t-gris)}
 .pill.orange{background:var(--t-orange)}.pill.bleu{background:var(--t-bleu)}.pill.vert{background:var(--t-vert)}.pill.rouge{background:var(--t-rouge)}
 .next{font-size:15px;min-width:0}
@@ -849,7 +855,7 @@ function row(j){
   return `<button class="row ${j.bloque?"blocked":lt||anyPart(j)?"late":""}" data-open="${esc(j.id)}">
     <div><div class="client">${esc(j.client)}</div><div class="mono">${esc(j.id)}${j.ville?" · "+esc(j.ville):""}</div><div class="sub">${typ}${j.plans?" · plans d'exé":""}${hasArcs(j)?" · "+arcsOf(j).length+" ARC":""}${LIEUX[j.livraison]?" · livraison "+LIEUX[j.livraison]:""} · ${esc(j.commercial||"?")} / suivi ${esc(j.suivi||"à désigner")}</div></div>
     <div class="prog"><div class="bar" style="grid-template-columns:repeat(${ss.length},1fr)" aria-label="${nDone(j)} étapes sur ${ss.length}">${bar}</div>
-      <div class="phase"><span class="pill ${j.bloque?"rouge":lt||partStep(j,c)?"orange":""}">${c?SK[c].ph:"Terminé"}</span><span>${c?"Étape : "+esc(lab(j,SK[c]))+(partStep(j,c)?" (partiel)":""):"Chantier terminé"}</span></div></div>
+      <div class="phase"><span class="pill ${j.bloque?"rouge":lt||partStep(j,c)?"orange":""}">${c?SK[c].ph:"Terminé"}</span><span>${c?"Étape : "+esc(lab(j,SK[c]))+(partStep(j,c)?" (partiel)":""):"Chantier terminé"}</span>${(()=>{const C=c&&poseCible(j.id,j);return C&&!C.fait?`<span class="pvis" title="${esc(C.why)}">Pose visée ${sem(C.d)}</span>`:""})()}</div></div>
     <div class="next">${c?`Prochaine action : <strong>${esc(nextOf(j,c))}</strong>`:"Payé"}${flags?`<div class="flags">${flags}</div>`:""}</div>
   </button>`;
 }
@@ -874,6 +880,22 @@ function closeSheet(){openId=null;$("sheet").hidden=true;$("scrim").hidden=true}
 // pose : 2 dates proposées (steps.poseprop.d et pose2), date retenue = steps.posevalid.d
 function poseDates(j){return[sd(j,"poseprop"),j.pose2||""].filter(Boolean)}
 function poseOk(j){return sd(j,"posevalid")||""}
+// ---------- Semaine de pose visée et avancement pour le client (Steven, 23/11/2026) ----------
+// Cible : la date la plus sûre connue (planning, pose confirmée ou proposée, planning prévu, délai annoncé par Stéphanie,
+// sinon estimée d'après les ARC et commandes : posePrevue), à défaut la pose du rétro-planning. Montrée dans la liste,
+// en tête de fiche avec une barre en 5 étapes, et ajoutée aux mails client des premières étapes.
+function poseCible(id,j){if(!j||done(j))return null;const ps=sd(j,"pose");if(ps)return{d:ps,fait:true,why:"posé"};
+  let P=null;try{P=posePrevue(id,j)}catch(_){}if(P&&P.d)return{d:P.d,why:P.src==="délai prévu"?"délai annoncé":P.src==="estimée"?"estimée ("+P.why+")":P.why};
+  const R=retro(j),r=R&&R.find(x=>x.k==="pose");return r&&r.due?{d:r.due,why:"rétro-planning (livraison + "+retroD().poseJ+" j)"}:null}
+const semDu=d=>{const l=lundi(d);return"semaine du "+frLong(l).replace(/^\S+\s/,"").replace(/^1 /,"1er ")};
+function avancement(j){const reno=j.type!=="neuf"&&!j.sansMetre,E=[["Commande confirmée",sd(j,"acompte")||sd(j,"signe")]];
+  if(reno)E.push(["Métré",sd(j,"metre")]);E.push(["Commande au fabricant",sd(j,"arc")||sd(j,"cmdok")],["Livraison",sd(j,"livre")],["Pose",sd(j,"pose")]);
+  for(let k=E.length-2;k>=0;k--)if(!E[k][1]&&E[k+1][1])E[k][1]=E[k+1][1];return E}
+function avTexte(id,j){const E=avancement(j),C=poseCible(id,j),cur=E.findIndex(e=>!e[1]);
+  return"Avancement de votre projet :\n"+E.map((e,i)=>(e[1]?"✓ ":i===cur?"▸ ":"○ ")+e[0]+(e[0]==="Pose"&&!e[1]&&C?" : prévue la "+semDu(C.d):"")).join("\n")}
+function avHtml(id,j){const E=avancement(j),C=poseCible(id,j),cur=E.findIndex(e=>!e[1]);if(!C&&!E[0][1])return"";
+  return`<div class="avc"><div class="avh"><span class="prevl">Avancement pour le client</span>${C?`<b class="avcible">${C.fait?"Posé le "+fr(C.d):"Pose visée : "+semDu(C.d)+" ("+sem(C.d)+")"}</b><span class="sub">${esc(C.why)}</span>`:""}<button class="btn ghost" data-avcopy="1" type="button">Copier pour le client</button></div>
+   <ol class="avbar">${E.map((e,i)=>`<li class="${e[1]?"ok":i===cur?"cur":""}"><i></i><span>${e[0]}</span><em>${e[1]?fr(e[1]):e[0]==="Pose"&&C?sem(C.d):""}</em></li>`).join("")}</ol></div>`}
 function poseRef(j){return poseOk(j)||poseDates(j).sort()[0]||""}
 function fillMail(s,j){const pd=poseDates(j);const prop=pd.length>1?"Nous vous proposons deux dates pour la pose : le "+frLong(pd[0])+" ou le "+frLong(pd[1])+".":"Nous vous proposons la pose le "+frLong(pd[0])+".";
   return s.replaceAll("{nom}",j.civilite||("Madame, Monsieur "+(j.client||""))).replaceAll("{drdv}",frLong(sd(j,"rdv"))).replaceAll("{propose}",prop).replaceAll("{dposeok}",frLong(poseRef(j))).replaceAll("{dpose}",frLong(sd(j,"poseprop")))}
@@ -910,7 +932,7 @@ async function renderSheet(){
   const mtBtn=(canWrite||canFill)&&window.mtNew&&j.type!=="neuf"&&!j.sansMetre&&!(j.docs||[]).some(d=>d.mt)?`<button class="btn ghost" data-mtnew="1" style="margin:6px 0 4px">📐 Faire le métré sur tablette (essai)</button>`:"";
   const mails=moments(j).map(m=>{const dueStep=sd(j,m[0]);const sent=(j.mails||{})[m[0]];
     const st=sent?`<span class="pill vert">envoyé le ${fr(sent)}</span>`:dueStep?`<span class="pill orange">à envoyer</span>`:`<span class="pill">plus tard</span>`;
-    const subj=fillMail(m[2],j),body=fillMail(m[3],j);
+    const subj=fillMail(m[2],j),body0=fillMail(m[3],j),body=["acompte","rdv","cmdok"].includes(m[0])?body0.replace(/\n\n(Bien cordialement|Merci de votre confiance)/,"\n\n"+avTexte(j.id,j)+"\n\n$1"):body0;
     const mt=j.email?`mailto:${encodeURIComponent(j.email)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`:"";
     return `<details class="mail" ${dueStep&&!sent?"open":""}><summary><span><b>${m[1]}</b></span>${st}</summary><div class="body">
       <div class="sub">Objet : ${esc(subj)}</div><pre id="mb-${m[0]}">${esc(body)}</pre>
@@ -958,7 +980,7 @@ async function renderSheet(){
    ${(()=>{// délai et temps prévus, en tête de fiche (Steven, 17/11/2026) : semaine de pose prévue (j.delai = lundi) et jours de pose (j.jp, 1 jour = 2 poseurs)
      const D=window.plDecompte&&window.PLN_OK&&PLN_OK()?plDecompte(openId,j):null,f=n=>String(Math.round(n*10)/10).replace(".",",");let P=null;try{P=posePrevue(openId,j)}catch(_){}
      const autre=P&&P.d&&P.src!=="délai prévu"&&(!j.delai||sem(P.d)!==sem(j.delai))?`pose ${P.src==="planning"?"au planning de Marine":"retenue par l'appli"} : ${sem(P.d)}${P.src==="planning"?"":" ("+esc(P.why||P.src)+")"}`:"";
-     return`<div class="prevtop">
+     return avHtml(openId,j)+`<div class="prevtop">
       <div class="prevc"><span class="prevl">Délai prévu</span>${semInput(`data-dlwk="1" ${roT}`,j.delai||"")}<span class="sub">${j.delai?"semaine du "+fr(j.delai):"semaine de pose annoncée"}${autre?" · "+autre:""}</span></div>
       ${(()=>{const R=retro(j);if(!R)return"";return`<div class="prevc retro"><span class="prevl">Rétro-planning</span><span class="rjal">${R.map(r=>`<span class="rj ${r.fait?"ok":r.retard?"late":""}" title="${esc(r.why)}"><b>${r.l}</b>${r.fait?(r.implicite?"fait":"fait le "+fr(r.fait)):(r.retard?"⚠ ":"")+"avant le "+fr(r.due)+(r.retard?" · "+r.retard+" j de retard":"")}</span>`).join("")}</span><span class="sub">${esc(R.map(r=>r.l+" : "+r.why).join(" · "))}</span></div>`})()}
       <div class="prevc"><span class="prevl">Temps prévu</span><span class="prevj"><input type="number" min="0" step="0.5" inputmode="decimal" id="f-jp" data-field="jp" value="${esc(j.jp??"")}" placeholder="0" aria-label="Temps de pose prévu en jours" ${roT}> jours</span><span class="sub">1 jour = 2 poseurs${D?` · au planning ${f(D.pl+D.pvj)} j${D.jp?` · <b>reste ${f(D.reste)} j</b>${D.pl+D.pvj>D.jp+.01?` <span class="state late">${f(D.pl+D.pvj-D.jp)} j de plus que prévu</span>`:""}`:""}`:""}</span></div></div>`})()}
@@ -1112,7 +1134,7 @@ function setFacs(arr){const j=jobs.get(openId),p=facSync(arr);if(!arr.length)p.s
   jobs.set(openId,{...j,...p,steps:{...(j.steps||{}),...p.steps}});renderSheet();render();save(openId,p)}
 // ---------- événements ----------
 document.addEventListener("click",async e=>{
-  const t=e.target.closest("[data-logi],[data-dellogi],[data-delpv],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-posechoice],[data-sent],[data-deltask],[data-view],[data-mtnew],[data-deldoc],#vclose,#vdl,#vedit,#vsave,#vnext");
+  const t=e.target.closest("[data-logi],[data-dellogi],[data-delpv],[data-ph],[data-delph],[data-fac],[data-delfac],[data-arc],[data-delarc],[data-filter],[data-who],[data-open],.box,#close,#scrim,#newBtn,[data-copy],[data-avcopy],[data-posechoice],[data-sent],[data-deltask],[data-view],[data-mtnew],[data-deldoc],#vclose,#vdl,#vedit,#vsave,#vnext");
   if(!t)return;
   if(t.dataset.open&&t.closest("#spanel")){const sp=$("spanel");if(sp)sp.hidden=true}
   if(t.dataset.arc!==undefined){const j=jobs.get(openId),arr=arcsOf(j).map(x=>({...x})),a=arr[+t.dataset.arc],k=t.dataset.arck;a[k]=a[k]&&a[k].d?null:{d:today(),by:me||""};setArcs(arr);return}
@@ -1148,7 +1170,8 @@ document.addEventListener("click",async e=>{
   }
   else if(t.dataset.posechoice){const j=jobs.get(openId),d=t.dataset.posechoice,cur=(j.steps||{}).posevalid;const v=cur&&cur.d===d?null:{d,by:me||""};
     jobs.set(openId,{...j,steps:{...(j.steps||{}),posevalid:v}});renderSheet();render();save(openId,{steps:{posevalid:v}})}
-  else if(t.dataset.copy){const m=MOMENTS.find(x=>String(x[0])===t.dataset.copy),j=jobs.get(openId);const txt="Objet : "+fillMail(m[2],j)+"\n\n"+fillMail(m[3],j);
+  else if(t.dataset.avcopy){const j=jobs.get(openId),C=poseCible(openId,j),txt=avTexte(openId,j);navigator.clipboard.writeText(txt).then(()=>toast("Avancement copié : à coller dans votre message au client.")).catch(()=>toast("Copie impossible sur cet appareil."))}
+  else if(t.dataset.copy){const m=MOMENTS.find(x=>String(x[0])===t.dataset.copy),j=jobs.get(openId);const pre=$("mb-"+m[0]),txt="Objet : "+fillMail(m[2],j)+"\n\n"+(pre?pre.textContent:fillMail(m[3],j));
     try{await navigator.clipboard.writeText(txt);toast("Texte copié")}catch(_){const r=document.createRange();r.selectNodeContents($("mb-"+m[0]));const s=getSelection();s.removeAllRanges();s.addRange(r);toast("Texte sélectionné : faites Cmd+C")}}
   else if(t.dataset.sent){const k=t.dataset.sent,j=jobs.get(openId);const v=(j.mails||{})[k]?null:today();jobs.set(openId,{...j,mails:{...(j.mails||{}),[k]:v}});renderSheet();render();save(openId,{mails:{[k]:v}})}
   else if(t.dataset.deltask){const k=t.dataset.deltask,j=jobs.get(openId);const arr=[...(j[k]||[])];arr.splice(+t.dataset.i,1);jobs.set(openId,{...j,[k]:arr});renderSheet();render();save(openId,{[k]:arr})}
@@ -4808,8 +4831,16 @@ function depCalc(p){const T=DEP_T,addD=(d,n)=>{const x=new Date(d);x.setDate(x.g
 const DEP_ORG={jour:"retour chaque soir",matin:"départ le matin",veille:"départ la veille",both:"départ la veille, retour le lendemain"};
 // début : 1er lundi du mois de pose souhaité (prix de l'hôtel selon la saison), sinon lundi prochain
 const depDebut=per=>{let d=per?new Date(per+"-01T12:00:00"):new Date(Date.now()+7*864e5);while(d.getDay()!==1)d.setDate(d.getDate()+1);return d.toISOString().slice(0,10)};
+// Le temps de route est déjà compris dans les jours de pose saisis (Steven, 23/11/2026 : « sur Masquin, 3 jours sur place et
+// 2 jours de déplacement dans les 5 jours ») : on retire les jours de route des jours de pose pour trouver les jours sur place,
+// et la main-d'œuvre du trajet n'est pas comptée une deuxième fois. Jours de route par aller-retour : départ la veille et
+// retour le lendemain 2 j, départ la veille 1 j, départ le matin 0,5 j, retour chaque soir 0 (le trajet est dans la journée).
+const DEP_JR={both:2,veille:1,matin:.5,jour:0};
 function dvDepRes(d){const x=d.dep;if(!x||!x.lieu||x.km===""||x.km==null||!(+d.jp>0))return null;
-  return depCalc({km:+x.km||0,peage:+x.peage||0,heures:+x.h||0,zone:x.zone||"province",pers:Math.max(1,+x.pers||2),jours:Math.max(1,Math.ceil(+d.jp)),debut:depDebut(d.periode)})}
+  const jp=+d.jp,base={km:+x.km||0,peage:+x.peage||0,heures:+x.h||0,zone:x.zone||"province",pers:Math.max(1,+x.pers||2),debut:depDebut(d.periode)};
+  let sur=Math.max(1,Math.ceil(jp)),r=null;
+  for(let i=0;i<5;i++){r=depCalc({...base,jours:sur});const n=Math.max(1,Math.ceil(jp-r.ar*DEP_JR[r.org]));if(n===sur)break;sur=n}
+  r.sur=sur;r.jr=r.ar*DEP_JR[r.org];r.court=r.jr+sur>jp+.01;r.total-=r.P.route;r.P.route=0;return r}
 function dvFrais(d){const r=dvDepRes(d);return r?r.total:0}
 // lieu hors de la liste : commune trouvée par la Base adresse nationale (api-adresse.data.gouv.fr, seul le nom de la commune
 // est envoyé), distance à vol d'oiseau depuis Orléans × 1,25, temps et péage estimés : à corriger à la main si besoin
@@ -4825,7 +4856,7 @@ function dvDep(d){const id=esc(d.id),x=d.dep||{},ro=plW()?"":"disabled",r=dvDepR
   const res=!x.lieu?`<span class="sub">Lieu du chantier à saisir : les frais de déplacement de l'équipe sont alors déduits de la marge.</span>`
    :x.km===""||x.km==null?`<span class="sub">${x.src==="cherche"?"Recherche de la distance…":"Distance inconnue : saisissez km, péage et temps de route."}</span>`
    :!r?`<span class="sub">Jours de pose à saisir pour calculer les frais.</span>`
-   :`<span><b>Frais de déplacement ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers. × ${Math.ceil(+d.jp)} j, ${DEP_ORG[r.org]}${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} : route ${plEur(r.P.route)}, camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}</span>`;
+   :`<span><b>Frais de déplacement ${plEur(f)}</b> déduits de la marge · ${plNf(+x.km)} km${x.src==="estimé"?" (estimés)":""}, ${Math.max(1,+x.pers||2)} pers. · ${plNf(+d.jp)} j de pose dont ${plNf(r.jr)} j de route (${DEP_ORG[r.org]}) : <b>${r.sur} j sur place</b>${r.nuits?`, ${r.nuits} nuit${r.nuits>1?"s":""}`:""} · camion ${plEur(r.P.camion)}${r.P.peage?`, péage ${plEur(r.P.peage)}`:""}${r.P.logement?`, hôtel ${plEur(r.P.logement)}`:""}${r.P.prime?`, primes ${plEur(r.P.prime)}`:""}. Le temps de route est déjà payé dans les jours de pose : il n'est pas compté ici.${r.court?` <b class="dvmj r">Les ${plNf(+d.jp)} j de pose ne couvrent pas ${plNf(r.jr)} j de route + 1 j sur place.</b>`:""}</span>`;
   return`<div class="dvdep"><label>Lieu du chantier<input type="text" list="depVilles" data-dvdep="lieu" data-id="${id}" value="${esc(x.lieu||"")}" placeholder="ville" ${ro}></label>
    <label>Équipe (pers.)<input type="number" min="1" step="1" inputmode="numeric" data-dvdep="pers" data-id="${id}" value="${esc(x.pers||2)}" ${ro}></label>
    ${x.lieu?`<details class="dvdepx"><summary>km, péage, temps</summary><label>Km aller<input type="number" min="0" data-dvdep="km" data-id="${id}" value="${esc(x.km??"")}" ${ro}></label><label>Péage aller (€ HT)<input type="number" min="0" data-dvdep="peage" data-id="${id}" value="${esc(x.peage??"")}" ${ro}></label><label>Route aller (h, camion)<input type="number" min="0" step="0.1" data-dvdep="h" data-id="${id}" value="${esc(x.h??"")}" ${ro}></label><label>Zone d'hôtel<select data-dvdep="zone" data-id="${id}" ${ro}>${Object.entries(DEP_Z).map(([k,z])=>`<option value="${k}" ${k===(x.zone||"province")?"selected":""}>${z.n}</option>`).join("")}</select></label></details>`:""}
