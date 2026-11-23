@@ -269,15 +269,17 @@ textarea{min-height:64px;resize:vertical}
 .dhn{display:grid;gap:2px;min-width:0}.dhn .lnk{text-align:left}.dhbars{display:grid;gap:5px;min-width:0}
 .dhb{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13px}.dhb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .dhl{color:var(--muted)}.dht{position:relative;height:12px;display:block}.dht i{position:absolute;left:0;top:0;height:12px;border-radius:0 4px 4px 0;display:block}
-.dhb .dhp{opacity:.25}.dhb.pose i.dhp,.dhb.pose i.dhr{background:var(--accent)}.dhb.atelier i.dhp,.dhb.atelier i.dhr{background:var(--s-orange,#E08A52)}
+.dhb .dhp{opacity:.25}.dhb.pose i.dhp,.dhb.pose i.dhr{background:var(--pose)}.dhb.atelier i.dhp,.dhb.atelier i.dhr{background:var(--atl)}
 .dhb i.dho{background:var(--s-rouge,#CC4141);border-left:2px solid var(--surface)}.dhv{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}.dhv.r{color:var(--s-rouge,#CC4141);font-weight:700}
 .dhleg{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}.dhleg .sw{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
-.dhleg .sw.pose{background:var(--accent)}.dhleg .sw.atelier{background:var(--s-orange,#E08A52)}.dhleg .sw.prev{background:var(--muted);opacity:.3}.dhleg .sw.over{background:var(--s-rouge,#CC4141)}
+.dhleg .sw.pose{background:var(--pose)}.dhleg .sw.atelier{background:var(--atl)}.dhleg .sw.prev{background:var(--muted);opacity:.3}.dhleg .sw.over{background:var(--s-rouge,#CC4141)}
 @media (max-width:560px){.dhrow{grid-template-columns:1fr}}
 .hb{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:14px;margin-bottom:8px}.hb i{grid-column:1/-1;height:9px;border-radius:2px;background:var(--accent);display:block;min-width:2px}.hb b{font:500 13px var(--f-mono)}
 .tabs{display:flex;gap:4px;margin:0 0 14px;border-bottom:1px solid var(--line)}
 .tabs button{font:600 15px var(--f-body);padding:10px 16px;border:0;background:none;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;margin-bottom:-1px}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs button[data-tab="atelier"]{color:var(--atl)}.tabs button[data-tab="atelier"][aria-selected="true"]{border-bottom-color:var(--atl);color:var(--ink)}
+#tab-atelier .atlh{border-left:5px solid var(--atl);padding-left:8px}#asheet{border-top:5px solid var(--atl)}
 .planframe{width:100%;height:calc(100vh - 150px);min-height:520px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 .terr{display:grid;gap:10px}.terr h4{margin:6px 0 2px;font-size:14px}
 .terr table{border-collapse:collapse;font-size:14px;width:100%}.terr td,.terr th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left}
@@ -325,7 +327,7 @@ textarea{min-height:64px;resize:vertical}
 @media (max-width:560px){.stksante .sf{grid-template-columns:minmax(80px,120px) 1fr 32px}}
 .spanel{position:fixed;z-index:60}.stkbig{font:700 28px var(--f-mono)}.stkbig.r{color:var(--s-rouge)}.stkbig.o{color:var(--s-orange)}
 .stkform{display:flex;flex-direction:column;gap:8px;margin-top:8px}.stkform .clab{display:flex;flex-direction:column;gap:2px}
-.atlwk{display:grid;grid-template-columns:64px 1fr 96px;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}.atlwk .g{height:12px;background:var(--sunk);border-radius:3px;overflow:hidden}.atlwk .g i{display:block;height:100%;background:var(--s-bleu)}.atlwk .g i.o{background:var(--s-orange)}.atlwk .g i.r{background:var(--s-rouge)}.atlwk small{grid-column:2/-1;color:var(--muted);font-size:13px}
+.atlwk{display:grid;grid-template-columns:64px 1fr 96px;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}.atlwk .g{height:12px;background:var(--sunk);border-radius:3px;overflow:hidden}.atlwk .g i{display:block;height:100%;background:var(--atl)}.atlwk .g i.o{background:var(--s-orange)}.atlwk .g i.r{background:var(--s-rouge)}.atlwk small{grid-column:2/-1;color:var(--muted);font-size:13px}
 .atlh{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:24px 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}.atlh .sub{text-transform:none;letter-spacing:0;font-weight:400}
 .lim{display:block;font:12px var(--f-mono);color:var(--muted);white-space:nowrap}.lim.o{color:var(--s-orange);font-weight:600}.lim.r{color:var(--s-rouge);font-weight:600}
 .atltk td:nth-child(2) input,.atltk td:nth-child(3) input{text-align:right;max-width:110px;margin-left:auto;display:block}.atltk .tot td{background:var(--sunk)}
@@ -4467,6 +4469,19 @@ function atlSubmit(e){e.preventDefault();e.stopPropagation();
 <style>
 /* Onglet Planning en vues (v22) : Pose par semaine, Atelier, Charge sur 12 mois et devis en attente */
 :root{--pl1:#173F6B;--pl2:#2a78d6;--pl3:#9cc3f1;--pl-at:#C96A12;--pl-at-bg:#FBE9D6;--pl-at-ink:#6B3706}
+/* Code couleur unique (Steven, 23/11/2026) : POSE = BLEU, ATELIER = ORANGE, partout (planning, charge, devis, atelier,
+   direction, heures). Même orange que les poseurs à l'atelier dans le planning. Trois teintes par famille : foncé = confirmé /
+   à produire, moyen = prévu, clair = estimé ; hachuré = devis probables ; rouge = en retard. */
+:root{--pose:#2a78d6;--pose-bg:#E3EEFB;--atl:#C96A12;--atl-bg:#FBE9D6;--at1:#A9550C;--at2:#E08A2E;--at3:#F4C49B}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--pose:#5e9fe8;--pose-bg:#1F3550;--atl:#E79A4C;--atl-bg:#402A14;--at1:#F6D3AE;--at2:#E79A4C;--at3:#8A4E1C}}
+:root[data-theme="dark"]{--pose:#5e9fe8;--pose-bg:#1F3550;--atl:#E79A4C;--atl-bg:#402A14;--at1:#F6D3AE;--at2:#E79A4C;--at3:#8A4E1C}
+.c-atl{--pl1:var(--at1);--pl2:var(--at2);--pl3:var(--at3)}
+.plw.c-pose>header{border-left:6px solid var(--pose);background:var(--pose-bg)}
+.plw.c-atl>header{border-left:6px solid var(--atl);background:var(--atl-bg)}
+.plw.c-pose>header b::before,.plw.c-atl>header b::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:1px;background:var(--pose)}
+.plw.c-atl>header b::before{background:var(--atl)}
+.legcode{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;font-weight:600;align-items:center}.legcode span{display:inline-flex;align-items:center;gap:6px}
+.legcode i{width:22px;height:14px;border-radius:4px;display:inline-block}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--pl1:#d6e6f9;--pl2:#5e9fe8;--pl3:#2a5c9c;--pl-at:#E79A4C;--pl-at-bg:#402A14;--pl-at-ink:#F6D3AE}}
 :root[data-theme="dark"]{--pl1:#d6e6f9;--pl2:#5e9fe8;--pl3:#2a5c9c;--pl-at:#E79A4C;--pl-at-bg:#402A14;--pl-at-ink:#F6D3AE}
 .plnnav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
@@ -4542,6 +4557,7 @@ button.plc{cursor:pointer}
 .pldvr .dvdep{display:grid;gap:8px;grid-column:auto}
 .pldvr .dvmet{align-self:center;padding-top:16px}
 .dvf{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px 10px;align-items:end}
+.dvfl.fpose>span::before,.dvfl.fatl>span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--pose);margin-right:5px}.dvfl.fatl>span::before{background:var(--atl)}
 .dvfl{display:grid!important;gap:3px;font-size:12px!important;font-weight:600;color:var(--muted);min-width:0}.dvfl.w2{grid-column:span 2}
 .pldvr .dvfl input,.pldvr .dvfl select{font:15px var(--f-body);padding:8px 10px;border-radius:8px;transition:border-color .15s,box-shadow .15s}
 .pldvr .dvfl input:focus,.pldvr .dvfl select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(9,82,161,.15)}
@@ -4763,9 +4779,9 @@ const plEtat=(ferme,tot,cap)=>ferme>cap+.05?"il manque "+plNf(ferme-cap)+" h":to
 const plTxt=(o,noms)=>{const r=o.r||0,P=[[o.c,noms[0]],[o.p,"prévu"],[o.e,"estimé"],[r,"en retard sur la pose"],[o.d,"devis probables"]].filter(x=>x[0]>0.05);return(P.map(([v,l])=>plNf(v)+" h "+l).join(" + ")||"rien de prévu")+" · "+plNf(o.cap)+" h disponibles · "+plEtat(o.c+o.p+o.e+r,o.c+o.p+o.e+r+o.d,o.cap)};
 function plAtlHtml(){
   const W=plCharge(12),live=plLive(),max=Math.max(60,...W.map(w=>Math.max(w.A.cap,w.A.c+w.A.r+w.A.d)))*1.05;
-  let h=`<div class="plw"><header><b>Charge de l'atelier</b><span>Manu 39 h par semaine, plus le renfort des poseurs</span></header>${W.map(w=>
+  let h=`<div class="plw c-atl"><header><b>Charge de l'atelier</b><span>Manu 39 h par semaine, plus le renfort des poseurs</span></header>${W.map(w=>
     plBar(sem(w.mon),[[w.A.c,"pk1","à produire"],[w.A.r,"pk5","en retard sur la pose"],[w.A.d,"pk4","devis probables"]],w.A.cap,max,plTxt(w.A,["à produire"])+(w.A.renf?" (dont "+plNf(w.A.renf)+" h de renfort)":""),w.A.it.length?plItems(w.A.it,false,"à produire"):"",plNoms(w.A.it))).join("")}</div>
-   <div class="leg"><span><i class="sw pk1"></i>À produire</span><span><i class="sw pk5"></i>En retard sur la pose</span><span><i class="sw pk4"></i>Devis en attente (probables)</span><span><i class="sw" style="width:2px;background:var(--ink)"></i>Heures disponibles</span></div>
+   <div class="leg c-atl"><span><i class="sw pk1"></i>À produire</span><span><i class="sw pk5"></i>En retard sur la pose</span><span><i class="sw pk4"></i>Devis en attente (probables)</span><span><i class="sw" style="width:2px;background:var(--ink)"></i>Heures disponibles</span></div>
    <p class="plnote">Touchez une semaine pour voir les commandes. Chaque commande est fabriquée au plus près de sa pose en gardant une semaine de sécurité, en remontant le temps dans les jours où l'atelier a de la place, jamais avant l'arrivée de la matière ; les commandes déjà lancées passent d'abord. Faute de place, la production empiète sur la semaine de sécurité ; les heures en rouge ne tiennent pas avant la pose.</p>`;
   const rows=live.map(a=>({a,p:atlPlan(a)})).sort((x,y)=>(x.p.besoin||"9999").localeCompare(y.p.besoin||"9999")||(x.p.fin||"").localeCompare(y.p.fin||"")).map(({a,p})=>{
     const st=k=>{const x=atlCmd(a,k);return!x.on?"—":x.recu&&x.recu.d?"reçu":p.P[k]?sem(p.P[k]):"—"},fin=atlD(a,"fin");
@@ -4795,14 +4811,15 @@ function plChgHtml(){
   const W=plCharge(57),M=plMonths(W),DV=dvLive(),pr=d=>(DV_CH[d.chance]||DV_CH.moyenne)[1];
   const tot=DV.reduce((s,d)=>s+(+d.montant||0),0),prob=DV.reduce((s,d)=>s+(+d.montant||0)*pr(d),0),jp=DV.reduce((s,d)=>s+dvJT(d)*pr(d),0),ha=DV.reduce((s,d)=>s+(+d.ha||0)*pr(d),0);
   let h=`<div class="pltiles"><div class="pltile"><b>${plEur(tot)}</b><span>chiffrés, en attente de signature (${DV.length} devis)</span></div><div class="pltile"><b>${plEur(prob)}</b><span>probables, selon la chance de signature</span></div><div class="pltile"><b>${plNf(jp)} j</b><span>de pose probables pour une équipe</span></div><div class="pltile"><b>${plNf(ha)} h</b><span>d'atelier probables</span></div></div>
+   <div class="legcode"><span><i style="background:var(--pose)"></i>Pose</span><span><i style="background:var(--atl)"></i>Atelier</span><span class="sub" style="font-weight:400">foncé = confirmé / à produire · moyen = prévu · clair = estimé · hachuré = devis probables · rouge = en retard</span></div>
    <div class="leg"><span><i class="sw pk1"></i>Confirmé</span><span><i class="sw pk2"></i>Prévu</span><span><i class="sw pk3"></i>Estimé</span><span><i class="sw pk5"></i>Atelier en retard sur la pose</span><span><i class="sw pk4"></i>Devis en attente (probables)</span><span><i class="sw" style="width:2px;background:var(--ink)"></i>Heures disponibles</span></div>
-   <div class="plw"><header><b>Pose sur 12 mois</b><span>heures par mois</span></header>${plYear("plyP",M,"P","confirmé")}</div>
-   <div class="plw"><header><b>Atelier sur 12 mois</b><span>heures par mois</span></header>${plYear("plyA",M,"A","à produire")}</div>
+   <div class="plw c-pose"><header><b>Pose sur 12 mois</b><span>heures par mois</span></header>${plYear("plyP",M,"P","confirmé")}</div>
+   <div class="plw c-atl"><header><b>Atelier sur 12 mois</b><span>heures par mois</span></header>${plYear("plyA",M,"A","à produire")}</div>
    <p class="plnote">Touchez un mois pour voir ses chantiers (pose : heures et jours d'équipe de 2). Le trait noir marque les heures disponibles : ${PLN.np} poseurs à 35 h, 42,75 h les semaines avec vendredi travaillé (tous en juin et juillet) ; Manu 39 h, plus les jours de renfort. Les congés ne sont comptés que lorsqu'ils sont au planning de Marine.</p>
    <div class="plsep">Le détail des 15 prochaines semaines : touchez une semaine pour voir ses chantiers</div>`;
   const W15=W.slice(0,15),mxP=Math.max(60,...W15.map(w=>Math.max(w.P.cap,w.P.c+w.P.p+w.P.e+w.P.d)))*1.05,mxA=Math.max(60,...W15.map(w=>Math.max(w.A.cap,w.A.c+w.A.r+w.A.d)))*1.05;
-  h+=`<div class="plw"><header><b>Pose</b><span>heures des ${PLN.np} poseurs par semaine</span></header>${W15.map(w=>plBar(sem(w.mon),[[w.P.c,"pk1","confirmé"],[w.P.p,"pk2","prévu"],[w.P.e,"pk3","estimé"],[w.P.d,"pk4","devis probables"]],w.P.cap,mxP,plTxt(w.P,["confirmé"]),w.P.it.length?plItems(w.P.it,true):"")).join("")}</div>
-   <div class="plw"><header><b>Atelier</b><span>heures de Manu et du renfort</span></header>${W15.map(w=>plBar(sem(w.mon),[[w.A.c,"pk1","à produire"],[w.A.r,"pk5","en retard sur la pose"],[w.A.d,"pk4","devis probables"]],w.A.cap,mxA,plTxt(w.A,["à produire"]),w.A.it.length?plItems(w.A.it,false,"à produire"):"",plNoms(w.A.it))).join("")}</div>`;
+  h+=`<div class="plw c-pose"><header><b>Pose</b><span>heures des ${PLN.np} poseurs par semaine</span></header>${W15.map(w=>plBar(sem(w.mon),[[w.P.c,"pk1","confirmé"],[w.P.p,"pk2","prévu"],[w.P.e,"pk3","estimé"],[w.P.d,"pk4","devis probables"]],w.P.cap,mxP,plTxt(w.P,["confirmé"]),w.P.it.length?plItems(w.P.it,true):"")).join("")}</div>
+   <div class="plw c-atl"><header><b>Atelier</b><span>heures de Manu et du renfort</span></header>${W15.map(w=>plBar(sem(w.mon),[[w.A.c,"pk1","à produire"],[w.A.r,"pk5","en retard sur la pose"],[w.A.d,"pk4","devis probables"]],w.A.cap,mxA,plTxt(w.A,["à produire"]),w.A.it.length?plItems(w.A.it,false,"à produire"):"",plNoms(w.A.it))).join("")}</div>`;
   return h+dvHtml(DV)}
 // ---------- devis en attente ----------
 function dvMois(sel){const d=new Date(),o=[`<option value="">à préciser</option>`];for(let i=0;i<18;i++){const x=new Date(d.getFullYear(),d.getMonth()+i,1),v=x.getFullYear()+"-"+pad(x.getMonth()+1);o.push(`<option value="${v}" ${v===sel?"selected":""}>${plMoisLab(v)}</option>`)}
@@ -4816,7 +4833,7 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
   const chance=`<select id="dv-chance-${id}" ${a} data-k="chance" ${ro}>${Object.entries(DV_CH).map(([k,[l]])=>`<option value="${k}" ${k===((d&&d.chance)||"moyenne")?"selected":""}>${l}</option>`).join("")}</select>`;
   const num=(k,step,ph="",mode="decimal")=>`<input type="number" min="0" step="${step}" inputmode="${mode}" id="dv-${k}-${id}" ${a} data-k="${k}" value="${v(k)}" placeholder="${ph}" ${ro}>`;
   if(!d)return`<form class="pldvr dvnew" data-dvadd="1"><div class="dvnewh"><b>＋ Nouveau devis</b><span class="sub">ou glissez la capture du chiffrage ici</span></div>
-   <div class="dvf">${F("Client, affaire",`<input type="text" id="dv-client-new" data-k="client" placeholder="ex. DUPONT – baie coulissante" ${ro}>`,"w2")}${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Chance",chance)}${F("Pose sur place (j)",num("jp",.5))}${F("Atelier (h)",num("ha",1,"","numeric"))}${F("Pose souhaitée",`<select id="dv-periode-new" data-k="periode" ${ro}>${dvMois("")}</select>`)}<div class="acts"><button class="btn">Ajouter</button></div></div></form>`;
+   <div class="dvf">${F("Client, affaire",`<input type="text" id="dv-client-new" data-k="client" placeholder="ex. DUPONT – baie coulissante" ${ro}>`,"w2")}${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Chance",chance)}${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Pose souhaitée",`<select id="dv-periode-new" data-k="periode" ${ro}>${dvMois("")}</select>`)}<div class="acts"><button class="btn">Ajouter</button></div></div></form>`;
   const mj=dvMj(d),O=rtObj(),cls=dvCls(mj);
   return`<div class="pldvr dvcard ${cls}">
    <div class="dvhd"><input type="text" class="dvcli" id="dv-client-${id}" ${a} data-k="client" value="${v("client")}" aria-label="Client, affaire" ${ro}>
@@ -4824,8 +4841,8 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
     <div class="acts">${plW()?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">✓ Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:""}</div></div>
    ${dvSug(d)}
    <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">
-    ${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"))}
-    ${F("Pose sur place (j)",num("jp",.5))}${F("Atelier (h)",num("ha",1,"","numeric"))}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d.periode||"")}</select>`)}
+    ${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
+    ${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d.periode||"")}</select>`)}
    </div>${dvChif(d)}</div>
    <div class="dvsec"><h4>Déplacement et livraison</h4>${dvDep(d)}</div></div>`}
 // Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
