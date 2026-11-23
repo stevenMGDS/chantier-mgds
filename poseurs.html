@@ -156,6 +156,7 @@ html.embed body{background:transparent}html.embed header.top,html.embed .who{dis
 .modal.mtview{align-items:stretch;background:var(--bg)}.modal.mtview>div{width:100%;max-width:1100px;max-height:none;height:100%;border-radius:0;padding:0 12px 24px}
 .mtvbar{position:sticky;top:0;z-index:2;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;background:var(--bg)}.mtvbar b{flex:1;text-align:center}
 @media print{body>*:not(.mtview){display:none!important}.mtview .mtvbar{display:none}.modal.mtview{position:static}}
+.pg.mtpose{background:#fff;padding:14px;box-sizing:border-box;height:auto}
 </style>
 <link rel="stylesheet" href="theme-mac.css">
 </head>
@@ -483,6 +484,9 @@ async function openFill(docId,edit=true,push=true){
       await page.render({canvasContext:c.getContext("2d"),viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
       vPages.push({page,box,c,css:w/v0.width,vp});
     }
+    // feuille de préparation : les habillages, seuils, options et croquis du métré tablette à la suite, sur le même document (Steven, 23/11/2026)
+    const mt=d.type==="Préparation"&&window.mtPoseHtml&&(j.docs||[]).find(x=>x.mt);
+    if(mt){const box=document.createElement("div");box.className="pg mtpose";box.style.width=w+"px";box.innerHTML=`<div class="mtlire">${mtPoseHtml(mt.mt,j)}</div>`;pg.appendChild(box)}
     if(!edit){if(FILL_ON&&FILLABLE[d.type]&&(role==="poseur"||role==="editeur"))$("vedit").hidden=false;return}
     await startFill();
   }catch(e){console.error(e);pg.innerHTML='<p class="sub">Cette fiche ne peut pas s\'ouvrir pour le moment.</p>'}

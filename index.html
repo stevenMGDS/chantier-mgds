@@ -1222,6 +1222,9 @@ async function viewDoc(d){
       await page.render({canvasContext:c.getContext("2d"),viewport:vp,annotationMode:pdfjsLib.AnnotationMode.ENABLE}).promise;
       vPages.push({page,box,c,vp,w0:v0.width,h0:v0.height});
     }
+    // feuille de préparation : la feuille de pose du métré tablette à la suite (habillages, seuils, options, croquis ; Steven, 23/11/2026)
+    {const J=jobs.get(openId)||{},M=d.type==="Préparation"&&window.mtPoseHtml&&(J.docs||[]).find(x=>x.mt);
+     if(M){const box=document.createElement("div");box.className="mtpose";box.style.cssText="width:"+Math.round(w)+"px;max-width:100%;background:#fff;padding:14px;box-sizing:border-box;margin:0 auto 16px;border-radius:4px";box.innerHTML=`<div class="mtlire">${mtPoseHtml(M.mt,J)}</div>`;pg.appendChild(box)}}
     if(vPages.length>1&&!vForm)pg.classList.add("apercu");
     if((canWrite||canFill)&&assets&&d.type in FORM_TYPES&&!$("viewer").hidden){const fs=(await pdf.getFieldObjects())||{};if(Object.keys(fs).length){$("vedit").hidden=false;if(d.rempli)showFill(d.rempli.reste)}}
     if(d.type==="Préparation"&&!$("viewer").hidden)setTimeout(()=>{prepFromMetre(d);prepFromSupport(d)},50);
