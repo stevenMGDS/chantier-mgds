@@ -4,6 +4,7 @@
   python3 -I chiffrage.py note <devis> <json> écrit ce que Claude a lu : {"client", "montant", "achats", "mo", "marge", "jp", "ha", "alerte"}
                                               (seules les clés données sont écrites ; lu = vrai ; le client seulement
                                               pour un devis créé depuis une capture, « Devis à lire (capture) »)
+  python3 -I chiffrage.py report              devis signés rattachés à un chantier : achats prévus -> Direction (prev_)
   python3 -I chiffrage.py controle            devis en attente à compléter (jours, achats, mois, lieu, trajet à estimer)
   python3 -I chiffrage.py trajet <devis> <json> trajet estimé par Claude : {"km", "peage" (€ HT aller, classe 2), "h" (camion), "zone"}
   python3 -I chiffrage.py chantier <chantier> <doc_id> <json>
@@ -105,6 +106,25 @@ def trajet(devis, valeurs):
     print(devis, "trajet noté :", dep)
 
 
+def report():
+    """Devis signé rattaché à un chantier (appli, 23/11/2026) : ses achats et sa main-d'œuvre prévus passent dans la
+    Direction (prev_<chantier>) s'il n'y a encore rien. La capture du chantier, si elle arrive, les remplace."""
+    have = {r["id"] for r in req("GET", "/rest/v1/direction?select=id&id=like.prev_*")}
+    n = 0
+    for r in req("GET", "/rest/v1/devis?select=id,data"):
+        d = r["data"]
+        if d.get("etat") != "signe" or not d.get("chantier") or d.get("achats") in (None, ""): continue
+        if "prev_" + d["chantier"] in have: continue
+        prev = {"kind": "prevu", "achat": d["achats"], "source": "devis en attente " + r["id"]}
+        for k in ("mo", "marge"):
+            if d.get(k) not in (None, ""): prev[k] = d[k]
+        if d.get("montant") not in (None, ""): prev["vente_capture"] = d["montant"]
+        req("POST", "/rest/v1/direction", {"id": "prev_" + d["chantier"], "data": prev}, {"Prefer": "resolution=merge-duplicates"})
+        n += 1
+        print("prévu reporté :", d["chantier"], d.get("client", ""))
+    print(n, "chantier(s) reporté(s)")
+
+
 def chantier(cid, doc_id, valeurs):
     r = req("GET", "/rest/v1/chantiers?select=id,data,version&id=eq." + urllib.parse.quote(cid))
     if not r: sys.exit("chantier introuvable : " + cid)
@@ -126,4 +146,5 @@ if __name__ == "__main__":
     elif sys.argv[1] == "note": note(sys.argv[2], json.loads(sys.argv[3]))
     elif sys.argv[1] == "chantier": chantier(sys.argv[2], sys.argv[3], json.loads(sys.argv[4]))
     elif sys.argv[1] == "controle": controle()
+    elif sys.argv[1] == "report": report()
     elif sys.argv[1] == "trajet": trajet(sys.argv[2], json.loads(sys.argv[3]))
