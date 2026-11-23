@@ -21,8 +21,6 @@ const REG=[
  ["depH","Pièce plus haute que le dossier : dépassement admis (mm)",200],
  ["maxH","Hauteur chargée maxi (mm)",1700],
  ["palBase","Hauteur du socle (mm)",150],
- ["palDepth","Pupitre à fabriquer : profondeur du socle (mm)",800],
- ["margeL","Pupitre à fabriquer : jeu en longueur (mm)",0],
  ["prot","Protection par pièce (mm)",20],
  ["coffre","Coffre de volet, épaisseur (mm)",200],
  ["teteBeche","Volets tête-bêche (1 = oui, 0 = non)",1],
@@ -30,7 +28,7 @@ const REG=[
  ["frappeSep","Fenêtres et portes : ouvrants séparés du cadre (1 = oui, 0 = montés)",0],
  ["sepDO","Séparer dormants et ouvrants (1 = oui, 0 = non)",1]
 ];
-const R={hCamion:2600};
+const R={hCamion:2600,palDepth:800,margeL:0};
 function readReg(){let s={};try{s=JSON.parse(localStorage.getItem("mgdsCondReg")||"{}")}catch(e){}REG.forEach(([k,,d])=>R[k]=num(s[k],d))}
 function saveReg(o){try{localStorage.setItem("mgdsCondReg",JSON.stringify(o))}catch(e){}}
 readReg();
@@ -115,7 +113,16 @@ function palettiser(P){
   const base=R.palBase, gap=50, sep=R.sepDO>=1;
   const useStock=stock.some(s=>num(s.L)&&num(s.P)&&num(s.q));
   const dispo=useStock? stock.filter(s=>num(s.L)&&num(s.P)).map(s=>({nom:s.nom,L:num(s.L),P:num(s.P),Hd:num(s.Hd),q:Math.round(num(s.q))})) : [];
-  let horsStock=0;
+  const vrac=[];
+  // pourquoi une pièce ne va sur aucun pupitre de chez nous
+  const raison=p=>{const inv=stock.filter(s=>num(s.L)),maxL=Math.max(0,...inv.map(s=>num(s.L))),ok=inv.filter(s=>num(s.L)>=p.L),maxHd=Math.max(0,...ok.map(s=>num(s.Hd)));
+    let r;
+    if(p.L>maxL) r=`trop longue : ${mm(p.L)} mm, le plus long pupitre fait ${mm(maxL)} mm`;
+    else if(p.S>maxHd+R.depH) r=`trop haute posée sur un pupitre : ${mm(p.S)} mm pour un dossier de ${mm(maxHd)} mm (+ ${mm(R.depH)} admis)`;
+    else if(p.kg>R.maxKg) r=`trop lourde : environ ${kg(p.kg)} pour ${kg(R.maxKg)} maxi par pupitre`;
+    else r=`nos pupitres assez longs (n° ${ok.map(s=>s.nom).join(", ")}) sont déjà pleins avec d'autres pièces de ce chantier`;
+    if(Math.min(p.a,p.b)>R.hCamion) r+=` · ne tient pas debout dans un camion (${mm(R.hCamion)} mm) : à coucher ou en biais`;
+    return r};
   const zones=[...new Set(P.map(p=>p.zone||"Sans niveau"))];
   zones.forEach(z=>{
     const ps=P.filter(p=>(p.zone||"Sans niveau")===z).map(p=>{
@@ -149,21 +156,24 @@ function palettiser(P){
       let s=null;
       if(useStock) s=dispo.filter(s=>s.q>0&&s.L>=p.L&&s.P>=Math.min(p.th,R.palDepth)&&(!s.Hd||s.Hd+R.depH>=p.S)).sort((a,b)=>a.L*a.P-b.L*b.P)[0];
       if(s){s.q--;Object.assign(pal,{L:s.L,P:s.P,Hd:s.Hd||0,stock:s.nom||"stock"});}
-      else{Object.assign(pal,{L:Math.ceil((p.L+R.margeL)/100)*100,P:R.palDepth,horsStock:useStock}); if(useStock) horsStock++;}
+      else if(useStock) return null; // aucun pupitre de chez nous : la pièce part en vrac
+      else Object.assign(pal,{L:Math.ceil((p.L+R.margeL)/100)*100,P:R.palDepth});
       zp.push(pal); return pal;
     };
     const placeOne=p=>{
       for(const pal of zp) if(tryPiece(pal,p)) return;
-      if(p.kg>R.maxKg) alertes.push(`${p.ref} (${p.label}) pèse environ ${kg(p.kg)} à lui seul : plus que ${kg(R.maxKg)}. Prévoir un pupitre renforcé.`);
       const pal=newPal(p);
+      if(!pal){vrac.push({...p,raison:raison(p)});return}
       if(!tryPiece(pal,p)){pal.rows.push({th:p.th,len:p.L,items:[p]});pal.hMax=Math.max(pal.hMax,p.S);pal.items.push(p);pal.kg+=p.kg;}
     };
     groups.forEach(g=>{
       for(const pal of zp){const s=snap(pal);if(g.every(p=>tryPiece(pal,p)))return;Object.assign(pal,s);}
       if(g.length>1){
-        const before=dispo.map(d=>d.q), hs=horsStock, pal=newPal(g[0]);
-        if(g.every(p=>tryPiece(pal,p))) return;
-        zp.pop(); dispo.forEach((d,i)=>d.q=before[i]); horsStock=hs;
+        const before=dispo.map(d=>d.q), pal=newPal(g[0]);
+        if(pal){
+          if(g.every(p=>tryPiece(pal,p))) return;
+          zp.pop(); dispo.forEach((d,i)=>d.q=before[i]);
+        }
       }
       g.forEach(placeOne);
     });
@@ -186,9 +196,9 @@ function palettiser(P){
       pals.push(pal);
     });
   });
-  if(horsStock) alertes.push(`${horsStock} pupitre${horsStock>1?"s":""} sans pupitre de l'inventaire qui convienne (trop long, trop haut ou tous déjà pris) : à fabriquer ou à trouver.`);
+
   pals.forEach((p,i)=>p.n=i+1);
-  return {pals,alertes};
+  return {pals,alertes,vrac};
 }
 
 
@@ -263,6 +273,7 @@ const FICHE_CSS=`.fiche{border:1px solid #d3dae4;border-radius:12px;padding:12px
 .ft2{width:100%;border-collapse:collapse;font-size:14px}.ft2 th{font:600 11px Barlow,Arial;letter-spacing:.05em;text-transform:uppercase;color:#566070;text-align:left;border-bottom:2px solid #d3dae4;padding:5px}
 .ft2 td{border-bottom:1px solid #d3dae4;padding:5px;vertical-align:top}.ft2 .rg{font:700 20px "Barlow Semi Condensed",Arial;color:#10407e;text-align:center;width:44px}
 .ft2 .n{text-align:right;white-space:nowrap}
+.vrac{background:#fff4d6;color:#1d2633;border:2px solid #e0b84a;border-radius:10px;padding:10px 12px;display:grid;gap:6px;break-inside:avoid}
 .lex{background:#e8eff8;border-radius:8px;padding:10px 14px;font-size:14px;color:#1d2633}.lex ul{margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
 .cftag{display:inline-block;font:600 11px Barlow,Arial;letter-spacing:.05em;text-transform:uppercase;border-radius:4px;padding:2px 6px;background:#e8eff8;color:#10407e}.cftag.w{background:#fff4d6;color:#5c4300}
 .foot{color:#566070;font-size:12px}.cfrow{display:flex;flex-wrap:wrap;align-items:center}
@@ -311,12 +322,12 @@ function typer(o,s){
 }
 
 /* ---------- Fiche imprimable ---------- */
-function ficheDoc(titre,pals){
+function ficheDoc(titre,pals,vrac=[]){
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Conditionnement ${esc(titre)}</title>
 <style>body{font:15px/1.4 Barlow,Arial,sans-serif;margin:16px;color:#1d2633}h1{font:700 28px "Barlow Semi Condensed",Arial;color:#10407e;margin:0 0 4px}${FICHE_CSS}
 .wrapf{display:grid;gap:16px}@media print{body{margin:0}.fiche{page-break-after:always}}</style></head><body>
 <h1>Fiche de conditionnement · ${esc(titre)}</h1><p class="foot">MGDS Menuiserie · ${pals.length} pupitre${pals.length>1?"s":""} · ordre de pose : d'abord les pupitres de dormants, puis ceux d'ouvrants.</p>
-<div class="wrapf">${LEXIQUE}${pals.map(p=>fiche(p,pals.length)).join("")}</div></body></html>`;
+<div class="wrapf">${vrac.length?vracHtml(vrac):""}${LEXIQUE}${pals.map(p=>fiche(p,pals.length)).join("")}</div></body></html>`;
 }
 
 /* ---------- Écran plein (même principe que le métré) ---------- */
@@ -418,10 +429,10 @@ async function condOpen(a,c){st.a=a;st.c=c||null;st.dirty=false;st.ignores=[];st
     <div class="tw"><table class="cdt" id="cdL"><thead><tr><th>Repère</th><th>Type</th><th>Gamme</th><th class="n">Larg.</th><th class="n">Haut.</th><th class="n">Qté</th><th class="n">Vtx</th><th>Vitrage</th><th>Vitré par</th><th>VR</th><th>Niveau</th><th></th></tr></thead><tbody></tbody></table></div>
     ${W?`<div><button class="btn ghost" id="cdAdd">+ Ajouter une ligne</button> <span class="sub">Dimensions en mm. Vtx = vantaux. VR = volet roulant monté dessus.</span></div>`:""}
    </section>
-   <section class="cdp"><h3>2. Résultat</h3><div class="cdk" id="cdK"></div><div id="cdA" style="display:grid;gap:6px"></div><div class="pals" id="cdP"></div>
+   <section class="cdp"><h3>2. Résultat</h3><div class="cdk" id="cdK"></div><div id="cdA" style="display:grid;gap:6px"></div><div id="cdV"></div><div class="pals" id="cdP"></div>
     <details><summary>Détail des pièces</summary><div class="tw"><table class="cdt" id="cdD"><thead><tr><th>Pièce</th><th>Niveau</th><th class="n">Long.</th><th class="n">Larg.</th><th class="n">Épaisseur</th><th class="n">Poids</th><th>Rangement</th><th class="n">Pupitre</th></tr></thead><tbody></tbody></table></div></details></section>
    <section class="cdp"><details><summary><b>Réglages du calcul</b> <span class="sub">(gardés sur cet appareil)</span></summary><div class="cdfs" id="cdR" style="margin-top:8px">${REG.map(([k,l])=>`<label>${esc(l)}<input type="number" step="any" data-rk="${k}" value="${R[k]}"></label>`).join("")}</div>
-    <p class="sub">Règles : pièces posées à champ, côté le plus long sur le socle, jamais plus longues que le pupitre ; rang 1 contre le dossier, les plus longues au fond ; ouvrants d'une même menuiserie ensemble et dans l'ordre ; dormants et ouvrants sur des pupitres séparés, par niveau ; 500 kg maxi hors pupitre ; volets tête-bêche. On prend le plus petit pupitre de l'inventaire qui convient ; sinon « à fabriquer ».</p></details></section></div>`;
+    <p class="sub">Seulement nos pupitres : une pièce qui ne va sur aucun part en vrac, avec une alerte. Règles : pièces posées à champ, côté le plus long sur le socle, jamais plus longues que le pupitre ; rang 1 contre le dossier, les plus longues au fond ; ouvrants d'une même menuiserie ensemble et dans l'ordre ; dormants et ouvrants sur des pupitres séparés, par niveau ; 500 kg maxi hors pupitre ; volets tête-bêche. On prend le plus petit de nos pupitres qui convient.</p></details></section></div>`;
   renderLignes();calc();etat();
   const L=document.getElementById("cdL");
   L.addEventListener("input",e=>{const tr=e.target.closest("tr[data-i]");if(!tr)return;const l=lignes[+tr.dataset.i],k=e.target.dataset.k;if(!k)return;l[k]=e.target.type==="checkbox"?e.target.checked:e.target.value;st.dirty=true;etat();calc()});
@@ -447,35 +458,40 @@ function renderLignes(){const W=canW(),ro=W?"":"disabled",tb=document.querySelec
    <td>${W?`<button type="button" class="x" data-del="${i}" aria-label="Supprimer">✕</button>`:""}</td></tr>`).join("")||`<tr><td colspan="12" class="sub">Aucune menuiserie.</td></tr>`;
   let zl=document.getElementById("cdZones");if(!zl){zl=document.createElement("datalist");zl.id="cdZones";document.body.appendChild(zl)}
   zl.innerHTML=["RDJ","RDC","R+1","R+2","Combles",...new Set(lignes.map(l=>l.zone).filter(Boolean))].filter((v,i,a)=>a.indexOf(v)===i).map(z=>`<option value="${esc(z)}">`).join("")}
-let dernier=[];
+let dernier=[],dernierV=[];
 function calc(){
-  const P=pieces();const{pals,alertes}=palettiser(P);dernier=pals;
-  const parN={};pals.forEach(p=>{const k=p.stock?"n° "+p.stock:"à fabriquer";parN[k]=(parN[k]||0)+1});
+  const P=pieces();const{pals,alertes,vrac}=palettiser(P);dernier=pals;dernierV=vrac;
+  const parN={};pals.forEach(p=>{const k="n° "+p.stock;parN[k]=(parN[k]||0)+1});
   // ce qui manque dans l'inventaire
   const manque=pupitres.filter(p=>p.quantite>0&&(parN["n° "+p.numero]||0)>=p.quantite).map(p=>p.numero);
   document.getElementById("cdK").innerHTML=[
     [pals.length,"pupitre"+(pals.length>1?"s":"")+" : "+pals.filter(p=>p.cat==="D"&&!p.mixte).length+" dormants, "+pals.filter(p=>p.cat==="O"&&!p.mixte).length+" ouvrants"],
     [Object.entries(parN).sort().map(([k,n])=>n+" × "+k).join(" · ")||"–","pupitres utilisés"],
     [kg(P.reduce((s,p)=>s+p.kg,0)),"menuiseries (hors pupitres)"],
-    [P.length,"pièces à ranger"]].map(k=>`<div><b>${esc(k[0])}</b><span>${esc(k[1])}</span></div>`).join("");
+    [P.length-vrac.length+" / "+P.length,"pièces sur pupitre"+(vrac.length?" · "+vrac.length+" hors pupitre":"")]].map(k=>`<div><b>${esc(k[0])}</b><span>${esc(k[1])}</span></div>`).join("");
   const al=[...alertes];
+  if(vrac.length)al.unshift(`⚠ ${vrac.length} pièce${vrac.length>1?"s":""} ne ${vrac.length>1?"vont":"va"} sur aucun de nos pupitres : à mettre en vrac à côté (liste ci-dessous). Solution à décider.`);
   if(manque.length)al.push(`Tous les pupitres n° ${manque.join(", ")} de l'inventaire sont pris par ce chantier : vérifier qu'ils ne sont pas déjà partis sur un autre.`);
   if(pals.some(p=>p.haute))al.push(`Pupitres hauts (pièces de plus de ${mm(R.maxH-R.palBase)} mm de large, posées à champ) : jusqu'à ${mm(Math.max(...pals.filter(p=>p.haute).map(p=>p.H)))} mm de haut.`);
   const trop=pals.filter(p=>p.H>R.hCamion);if(trop.length)al.push(`Pupitre${trop.length>1?"s":""} ${trop.map(p=>p.n).join(", ")} : plus haut que la hauteur utile d'un camion standard (${mm(R.hCamion)} mm).`);
-  document.getElementById("cdA").innerHTML=al.map(a=>`<div class="warn">${esc(a)}</div>`).join("")||(pals.length?`<div class="okn">Tout tient sur les pupitres de l'inventaire.</div>`:"");
+  document.getElementById("cdA").innerHTML=al.map(a=>`<div class="warn">${esc(a)}</div>`).join("")||(pals.length?`<div class="okn">Tout tient sur nos pupitres.</div>`:"");
+  document.getElementById("cdV").innerHTML=vrac.length?vracHtml(vrac):"";
   document.getElementById("cdP").innerHTML=pals.length?LEXIQUE+pals.map(p=>fiche(p,pals.length)).join(""):`<p class="sub">Aucune pièce à palettiser.</p>`;
   document.querySelector("#cdD tbody").innerHTML=pals.flatMap(p=>p.items.map(i=>`<tr><td>${esc(i.ref)} <span class="sub">${esc(i.label)}${i.vr?" + volet":""}</span></td><td>${esc(i.zone)}</td><td class="n">${mm(i.L)}</td><td class="n">${mm(i.S)}</td><td class="n">${mm(i.th)}</td><td class="n">${kg(i.kg)}</td><td>${esc(faceTxt(i))}, ${esc(i.haut)}</td><td class="n">${p.n}${p.stock?" (n° "+esc(p.stock)+")":""}</td></tr>`)).join("")}
+function vracHtml(V){return `<div class="vrac"><b>Hors pupitre : en vrac à côté</b> <span class="foot">${V.length} pièce${V.length>1?"s":""}, ${kg(V.reduce((s,p)=>s+p.kg,0))}</span>
+  <table class="ft2"><thead><tr><th>Repère</th><th>Pièce</th><th class="n">Long. × haut. (mm)</th><th class="n">Poids</th><th>Pourquoi</th></tr></thead><tbody>${V.map(p=>`<tr><td><b>${esc(p.ref)}</b></td><td>${esc(p.label)}${p.vr?" + volet":""}<br><span class="foot">${esc(p.zone||"Sans niveau")}</span></td><td class="n">${mm(p.L)} × ${mm(p.S)}</td><td class="n">${kg(p.kg)}</td><td>${esc(p.raison)}</td></tr>`).join("")}</tbody></table></div>`}
 function resume(){return dernier.map(p=>({n:p.n,numero:p.stock?+p.stock:null,L:p.L,P:p.P,H:p.H,zone:p.zone,cat:p.mixte?"mixte":p.cat==="O"?"ouvrants":"dormants",kg:Math.round(p.kg),
   rangs:p.rows.map(r=>r.items.map(it=>({ref:it.ref,piece:it.label,face:it.face,haut:it.haut})))}))}
+function resumeV(){return dernierV.map(p=>({ref:p.ref,piece:p.label,L:Math.round(p.L),H:Math.round(p.S),kg:Math.round(p.kg),zone:p.zone,raison:p.raison}))}
 async function enregistrer(statut){const a=st.a,m=document.getElementById("cdEtat");
-  const row={atelier_id:a.id,chantier:a.chantier||null,lignes,resultat:{pupitres:resume(),reglages:{...R}},statut:statut||(st.row?st.row.statut:"brouillon"),maj_le:new Date().toISOString()};
+  const row={atelier_id:a.id,chantier:a.chantier||null,lignes,resultat:{pupitres:resume(),vrac:resumeV(),reglages:{...R}},statut:statut||(st.row?st.row.statut:"brouillon"),maj_le:new Date().toISOString()};
   if(statut==="valide"&&lignes.some(l=>!String(l.zone||"").trim())&&!confirm("Certaines lignes n'ont pas de niveau : elles seront rangées ensemble. Valider quand même ?"))return;
   const q=st.row?sbc().from("conditionnements").update(row).eq("id",st.row.id).select():sbc().from("conditionnements").insert(row).select();
   const{data,error}=await q;if(error){m.textContent="Non enregistré : "+error.message;return}
   st.row=data&&data[0]||st.row;st.dirty=false;etat()}
 function imprimer(){const a=st.a,t=(a.client||(st.c&&st.c.client)||a.chantier||"")+" · "+a.id;
   const w=window.open("","_blank");if(!w){alert("Le navigateur a bloqué la fenêtre d'impression.");return}
-  w.document.write(ficheDoc(t,dernier));w.document.close();setTimeout(()=>{try{w.focus();w.print()}catch(e){}},400)}
+  w.document.write(ficheDoc(t,dernier,dernierV));w.document.close();setTimeout(()=>{try{w.focus();w.print()}catch(e){}},400)}
 
 window.pupOpen=pupOpen;window.condOpen=condOpen;
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){const o=document.getElementById("cdov");if(o&&!o.hidden)fermer()}});
