@@ -4885,9 +4885,9 @@ function dvCls(mj){const O=rtObj();return mj==null?"":mj>=O.obj?"ok":mj>=O.obj*.
 function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",id=d?esc(d.id):"new",v=k=>d?esc(d[k]??""):"";
   const F=(lab,inner,cls="")=>`<label class="dvfl ${cls}"><span>${lab}</span>${inner}</label>`;
   const chance=`<select id="dv-chance-${id}" ${a} data-k="chance" ${ro}>${Object.entries(DV_CH).map(([k,[l]])=>`<option value="${k}" ${k===((d&&d.chance)||"moyenne")?"selected":""}>${l}</option>`).join("")}</select>`;
-  const num=(k,step,ph="",mode="decimal")=>`<input type="number" min="0" step="${step}" inputmode="${mode}" id="dv-${k}-${id}" ${a} data-k="${k}" value="${v(k)}" placeholder="${ph}" ${ro}>`;
+  const num=(k,step,ph="",mode="decimal")=>`<input type="number" min="0" step="any" inputmode="${mode}" id="dv-${k}-${id}" ${a} data-k="${k}" value="${v(k)}" placeholder="${ph}" ${ro}>`;
   // nouveau devis (Steven, 23/11/2026 : tout saisir d'un coup, sans revenir sur la carte) : chiffrage complet + déplacement
-  if(!d)return`<form class="pldvr dvnew" data-dvadd="1"><div class="dvnewh"><b>＋ Nouveau devis</b><span class="sub">tout se remplit ici, ou glissez la capture du chiffrage</span></div>
+  if(!d)return`<form class="pldvr dvnew" data-dvadd="1" novalidate><div class="dvnewh"><b>＋ Nouveau devis</b><span class="sub">tout se remplit ici, ou glissez la capture du chiffrage</span></div>
    <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">${F("Client, affaire",`<input type="text" id="dv-client-new" data-k="client" placeholder="ex. DUPONT – baie coulissante" ${ro}>`,"w2")}${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
     ${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-new" data-k="periode" ${ro}>${dvMois("")}</select>`)}</div></div>
    <div class="dvsec"><h4>Déplacement et livraison</h4><div class="dvf">${F("Lieu du chantier",`<input type="text" list="depVilles" data-k="lieu" placeholder="ville (vide = pas de déplacement)" ${ro}>`)}${F("Équipe (pers.)",`<input type="number" min="1" step="1" inputmode="numeric" data-k="pers" value="2" ${ro}>`)}
