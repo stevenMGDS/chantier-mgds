@@ -1,5 +1,5 @@
 """Rentabilité par chantier (Direction, Steven seul) : lit le total HT des devis signés et des ARC de l'appli
-et les range dans la table direction (vente_<chantier>, achat_<chantier>). Règle de Steven du 17/11/2026 : les prix
+et les range dans la table direction (vente_<chantier>, achat_<chantier>, atl_<commande atelier>). Règle de Steven du 17/11/2026 : les prix
 ne sont lus que pour la page Direction ; rien n'est écrit ailleurs (ni chantier, ni serveur, ni mémoire).
 
   python3 -I rentabilite.py essai    montre ce qui serait écrit
@@ -59,6 +59,45 @@ def num_devis(nom):
     return m.group(0) if m else None
 
 
+def ls(prefix):
+    return [{**x, "chemin": prefix + x["name"]} for x in req("POST", "/storage/v1/object/list/documents", {"prefix": prefix, "limit": 1000}) or []]
+
+
+def devis_atelier(a, liens):
+    """devis client de Christophe le plus récent (comme arc_atelier.py) : ATELIER/DEVIS CLIENT du serveur, sinon document « Devis client »"""
+    d = a["data"]; cand = []
+    c = (liens.get(d.get("chantier") or "") or {})
+    dos = c.get("chemin") or c.get("dossier") or ""
+    if dos:
+        try:
+            for x in ls(f"serveur/{dos}/ATELIER/DEVIS CLIENT/"):
+                if x["name"].lower().endswith(".pdf"): cand.append((x.get("updated_at") or "", x["chemin"], x["name"]))
+        except Exception: pass
+    for doc in d.get("docs") or []:
+        if doc.get("type") == "Devis client": cand.append((doc.get("at") or "", doc["id"], doc.get("name") or doc["id"]))
+    return sorted(cand)[-1] if cand else None
+
+
+def atelier(direction, essai, le):
+    """Rentabilité séparée pose / atelier (Steven, 24/11/2026) : prix de vente de l'atelier = total HT du devis client de
+    Christophe (ce que l'atelier « vend » au chantier). Rangé dans direction/atl_<commande> ; une saisie à la main n'est jamais écrasée."""
+    try: liens = (json.loads(req("GET", "/storage/v1/object/documents/serveur/_liens.json", raw=True)) or {}).get("chantiers") or {}
+    except Exception: liens = {}
+    for a in req("GET", "/rest/v1/atelier?select=id,data"):
+        d = a["data"]
+        if not d.get("chantier"): continue
+        s = devis_atelier(a, liens)
+        if not s: continue
+        try:
+            t = texte(s[1]); m = re.findall(r"Total HT\s*:?\s*\n?\s*([\d\s.,]+)\s*€", t); v = nombre(m[-1].strip()) if m else None
+        except Exception: v = None
+        print(f"atelier {a['id']:<10} {d.get('chantier'):<14} devis client {s[2]} : {'illisible' if v is None else f'{v:,.2f}'}")
+        old = direction.get("atl_" + a["id"]) or {}
+        if essai or v is None or old.get("man"): continue
+        req("POST", "/rest/v1/direction", {"id": "atl_" + a["id"], "data": {"kind": "atelier", "chantier": d["chantier"], "ht": round(v, 2), "doc": s[2], "le": le}},
+            {"Prefer": "resolution=merge-duplicates"})
+
+
 def main(essai):
     direction = {r["id"]: r["data"] for r in req("GET", "/rest/v1/direction?select=id,data")}
     le = datetime.date.today().isoformat()
@@ -95,6 +134,7 @@ def main(essai):
                 {"Prefer": "resolution=merge-duplicates"})
 
 
+    atelier(direction, essai, le)
     print(len(illis), "chantier(s) avec un devis signé scanné")
     if not essai:
         # liste lue par l'appli (« À faire – Marine ») : reglages devis_illisibles, réécrite à chaque passage
