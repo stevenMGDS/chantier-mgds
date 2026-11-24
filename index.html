@@ -510,7 +510,9 @@ sb.auth.onAuthStateChange((ev,s)=>{if(ev==="PASSWORD_RECOVERY"){session=s;gate("
 // ---------- base ----------
 const isObj=v=>v&&typeof v==="object"&&!Array.isArray(v);
 // profil « terrain » (Yannick, Stéphanie) : remplir les fiches et cocher les tâches, rien d'autre (la base vérifie aussi)
-const okTerrain=p=>Object.keys(p).every(k=>["docs","av","ap","type","typeChange","delai","jp","sansMetre"].includes(k)||(k==="steps"&&isObj(p.steps)&&Object.keys(p.steps).every(s=>["metre","prepa","recep","rdv"].includes(s))));
+// 24/11/2026 : Yannick passe les commandes et suit les ARC : étapes commande / ARC / livraison et lignes d'ARC (outil/terrain-commandes.sql)
+const T_STEPS=["metre","prepa","recep","rdv","cmd","cmdok","arc","livprev","livre"];
+const okTerrain=p=>Object.keys(p).every(k=>["docs","av","ap","type","typeChange","delai","jp","sansMetre","arcs","livraison"].includes(k)||(k==="steps"&&isObj(p.steps)&&Object.keys(p.steps).every(s=>T_STEPS.includes(s))));
 function merge(a,b){const o=isObj(a)?{...a}:{};for(const[k,v]of Object.entries(b))o[k]=isObj(v)&&isObj(o[k])?merge(o[k],v):v;return o}
 function docRef(path){
   const id=path.split("/")[1];
@@ -640,7 +642,9 @@ const hasArcs=j=>arcsOf(j).length>0;
 function arcSync(arcs){
   const max=xs=>xs.length?xs.sort().slice(-1)[0]:"";
   const all=f=>arcs.length&&arcs.every(f);
-  const steps={arc:all(a=>a.ok&&a.ok.d)?{d:max(arcs.map(a=>a.ok.d)),by:""}:null,
+  // « Pas d'ARC » (Steven, 24/11/2026 : Keller n'envoie pas d'ARC) : la ligne compte comme validée, à la date où on l'a noté
+  const okD=a=>(a.ok&&a.ok.d)||(a.sansArc&&a.sansArc.d)||"";
+  const steps={arc:all(okD)?{d:max(arcs.map(okD)),by:""}:null,
     livprev:all(a=>a.prev)?{d:max(arcs.map(a=>a.prev)),by:""}:null,
     livre:all(a=>a.livre&&a.livre.d)?{d:max(arcs.map(a=>a.livre.d)),by:""}:null};
   const ls=[...new Set(arcs.map(a=>a.lieu).filter(Boolean))];
@@ -817,7 +821,7 @@ function ayTaches(){const T=[],t=today();
         T.push({id,j,quoi:!cmd?"Commande à passer":"ARC à faire valider",urg:n!=null&&n<0?2:n!=null&&n<=2?1:0,
           detail:(m&&m.fait?"métré fait le "+fr(m.fait):j.plans?"plans validés le "+fr(pret):"acompte reçu le "+fr(R.dep))+(cmd?" · commande saisie le "+fr(cmd):""),
           lim:a.due?(n<0?`ARC validé attendu le ${fr(a.due)} : ${-n} j de retard`:n===0?"ARC validé attendu aujourd'hui":`ARC validé attendu avant le ${fr(a.due)} (dans ${n} j)`):"",
-          action:!cmd?"Passer la commande au fournisseur, puis cocher « Commande saisie ».":"Relancer le fournisseur pour l'ARC, le contrôler, le ranger dans ARC VALIDÉ et cocher « ARC validé »."})}}
+          action:!cmd?"Passer la commande au fournisseur, puis cocher « Commande saisie ».":"Relancer le fournisseur pour l'ARC, le contrôler, le ranger dans ARC VALIDÉ et cocher « Validé » sur sa ligne (ou « Pas d'ARC » si le fournisseur n'en envoie pas, comme Keller)."})}}
     logiDue(j).forEach(x=>{const n=-days(logiPour(j,x));T.push({id,j,quoi:"À commander : "+(LOGI[x.type]?LOGI[x.type][0]:x.type),urg:n<0?2:n<=7?1:0,
       detail:x.t||"",lim:n<0?"date dépassée":n===0?"à commander aujourd'hui":"besoin dans "+n+" j",action:"Commander, puis cocher « Commandé » dans la fiche du chantier."})})}
   return T.sort((a,b)=>b.urg-a.urg||String(a.j.client).localeCompare(String(b.j.client)))}
@@ -875,7 +879,7 @@ function render(){
   $("list").innerHTML=vis.map(row).join("");
 }
 function nextOf(j,c){
-  if(hasArcs(j)&&c==="arc")return"Contrôler les ARC (Yannick) : "+arcCount(j,a=>a.ok&&a.ok.d)+" validés";
+  if(hasArcs(j)&&c==="arc")return"Contrôler les ARC (Yannick) : "+arcCount(j,a=>(a.ok&&a.ok.d)||(a.sansArc&&a.sansArc.d))+" validés";
   if(hasArcs(j)&&c==="livprev")return"Noter la semaine de livraison de chaque ARC : "+arcCount(j,a=>a.prev)+" notées";
   if(hasArcs(j)&&c==="livre")return"Réceptionner le matériel : "+arcCount(j,a=>a.livre&&a.livre.d)+" livraisons reçues";
   if(hasPhases(j)&&c==="pose"){const r=phasesOf(j).find(x=>!(x.pose&&x.pose.d));return"Poser "+(r.t||"la suite")+" : "+nPosed(j)+"/"+phasesOf(j).length+" posées"+(r.motif==="manque"?" (matériel manquant)":"")}
@@ -948,14 +952,15 @@ async function renderSheet(){
     const autoP=(hasPhases(j)&&i==="pose")||(hasFacs(j)&&(i==="facture"||i==="paye"));
     if(autoP)return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" aria-label="${lab(j,s)}" disabled>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}<em>${i==="pose"?nPosed(j)+"/"+phasesOf(j).length+" poses faites · se coche avec les poses":i==="facture"?"se coche avec la facture de solde":facsOf(j).filter(f=>f.paye&&f.paye.d).length+"/"+facsOf(j).length+" payées · se coche avec les factures"}</em>${tag(i)}</span><span class="date">${fr(v&&v.d)}</span></li>`;
     const auto=hasArcs(j)&&ARC_STEPS.includes(i);
-    if(auto)return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" aria-label="${lab(j,s)}" disabled>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}<em>${i==="arc"?arcCount(j,a=>a.ok&&a.ok.d)+" ARC validés":i==="livprev"?arcCount(j,a=>a.prev)+" semaines notées":arcCount(j,a=>a.livre&&a.livre.d)+" livraisons reçues"} · se coche avec les ARC</em>${tag(i)}</span><span class="date">${i==="livprev"?sem(v&&v.d):fr(v&&v.d)}</span></li>`;
+    if(auto)return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" aria-label="${lab(j,s)}" disabled>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}<em>${i==="arc"?arcCount(j,a=>(a.ok&&a.ok.d)||(a.sansArc&&a.sansArc.d))+" ARC validés ou sans ARC":i==="livprev"?arcCount(j,a=>a.prev)+" semaines notées":arcCount(j,a=>a.livre&&a.livre.d)+" livraisons reçues"} · se coche avec les ARC</em>${tag(i)}</span><span class="date">${i==="livprev"?sem(v&&v.d):fr(v&&v.d)}</span></li>`;
     const fl=FORM_STEPS[i]&&!(v&&v.d)&&!formDone(j,i);
     const note=lk?`<em>après validation des plans par le MOE</em>`:fl?`<em>se coche quand la fiche « ${FORM_STEPS[i]} » est remplie en entier dans l'appli</em>`:s.opt?`<em>si besoin</em>`:"";
     if(i==="poseprop")return `<li><span></span><span class="lab">${s.l}<em>2 dates à proposer au client</em>${m}${tag(i)}</span><span class="pdates"><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${v&&v.d||""}" aria-label="Date proposée 1" ${ro}><span class="sub">ou</span><input type="date" min="2000-01-01" max="2099-12-31" data-field="pose2" value="${j.pose2||""}" aria-label="Date proposée 2" ${ro}></span></li>`;
     if(i==="posevalid"){const pd=poseDates(j).sort(),ok=v&&v.d;return `<li><span></span><span class="lab">${s.l}<em>date retenue par le client</em>${m}${tag(i)}${pd.length&&canWrite?`<span class="pchoice">${pd.map(d=>`<button class="btn ${ok===d?"":"ghost"}" data-posechoice="${d}">${ok===d?"✓ ":""}${fr(d)} · ${sem(d)}</button>`).join("")}</span>`:""}</span><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${ok||""}" aria-label="Date de pose validée" ${ro}></li>`}
     if(i==="livprev")return `<li><span></span><span class="lab">${s.l}<em>semaine de livraison</em>${m}${tag(i)}</span>${semInput(`data-stepwk="livprev" ${ro}`,v&&v.d)}</li>`;
     if(s.man)return `<li><span></span><span class="lab">${s.l}<em>date à saisir</em>${m}${tag(i)}</span><input type="date" min="2000-01-01" max="2099-12-31" id="d-${i}" data-date="${i}" value="${v&&v.d||""}" ${i==="rdv"?roT:ro}></li>`;
-    return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" data-step="${i}" aria-label="${lab(j,s)}" ${ro||(lk||fl?"disabled":"")}>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}${m}${note}${tag(i)}<span class="who-by" data-by="${v&&v.by||""}"></span></span><span class="date">${fr(v&&v.d)}</span></li>`}).join("");
+    const roS=canWrite||(canFill&&T_STEPS.includes(i))?"":"disabled";
+    return `<li><button class="box" role="checkbox" aria-checked="${!!(v&&v.d)}" data-step="${i}" aria-label="${lab(j,s)}" ${roS||(lk||fl?"disabled":"")}>${v&&v.d?tick:""}</button><span class="lab">${lab(j,s)}${m}${note}${tag(i)}<span class="who-by" data-by="${v&&v.by||""}"></span></span><span class="date">${fr(v&&v.d)}</span></li>`}).join("");
   const tl=k=>(j[k]||[]).map((t,i)=>`<div class="task ${t.f?"done":""}"><input type="checkbox" data-task="${k}" data-i="${i}" ${t.f?"checked":""} ${canWrite||canFill?"":"disabled"} aria-label="${esc(t.t)}"><span>${esc(t.t)}${t.f?` <span class="mono">${fr(t.f)}</span>`:""}</span>${canWrite?`<button class="x" data-deltask="${k}" data-i="${i}" aria-label="Supprimer">×</button>`:""}</div>`).join("");
   // les fiches à remplir (préparation, métré / réception de support, réception de fin de chantier, toujours en dernier) à part
   // des documents repris du serveur ou déposés (devis, plans, factures…) — Steven, 09/11/2026
@@ -975,12 +980,15 @@ async function renderSheet(){
       <div class="acts"><button class="btn ghost" data-copy="${m[0]}">Copier le texte</button>${mt?`<a class="btn ghost" href="${esc(mt)}">Ouvrir dans Mail</a>`:`<span class="sub">Ajoutez l'email du client en haut de la fiche.</span>`}
       ${canWrite?`<button class="btn ${sent?"ghost":""}" data-sent="${m[0]}">${sent?"Annuler « envoyé »":"Marquer envoyé"}</button>`:""}</div></div></details>`}).join("");
   const lkArc=locked(j,"arc");
-  const arcs=arcsOf(j).map((a,i)=>{const ok=a.ok&&a.ok.d,lv=a.livre&&a.livre.d;
-    return `<li class="arc ${ok?"ok":""}"><div class="arch"><b>${esc(a.four||"Fournisseur ?")}</b><span class="mono">${a.ref?"ARC "+esc(a.ref):"ARC pas encore reçu"}</span>${a.objet?`<span class="sub">${esc(a.objet)}</span>`:""}${a.aid?`<span class="state ok">suivi par l'atelier</span>`:""}${canWrite&&!a.aid?`<button class="x" data-delarc="${i}" aria-label="Retirer cet ARC">×</button>`:""}</div>
-     <div class="arcf"><label>Livraison<select data-arcfield="lieu" data-i="${i}" ${ro}>${[["","à préciser"],["depot","Dépôt MGDS"],["chantier","Chantier"]].map(([v,t])=>`<option value="${v}" ${v===(a.lieu||"")?"selected":""}>${t}</option>`).join("")}</select></label>
-      <label>Semaine prévue${semInput(`data-arcwk="${i}" ${ro||(a.aid?"disabled":"")}`,a.prev)}</label>
-      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-arc="${i}" data-arck="ok" aria-label="ARC ${esc(a.four)} validé" ${ro||(a.aid||lkArc&&!ok?"disabled":"")}>${ok?tick:""}</button>Validé<span class="mono">${fr(ok)}</span></span>
-      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!lv}" data-arc="${i}" data-arck="livre" aria-label="${esc(a.four)} livré" ${ro||(a.aid?"disabled":"")}>${lv?tick:""}</button>Livré<span class="mono">${fr(lv)}</span></span></div>
+  const roA=canWrite||canFill?"":"disabled";   // ARC : le bureau et Yannick (terrain)
+  const arcs=arcsOf(j).map((a,i)=>{const ok=a.ok&&a.ok.d,lv=a.livre&&a.livre.d,sa=a.sansArc&&a.sansArc.d;
+    return `<li class="arc ${ok||sa?"ok":""}"><div class="arch"><b>${esc(a.four||"Fournisseur ?")}</b><span class="mono">${sa?"pas d'ARC chez ce fournisseur":a.ref?"ARC "+esc(a.ref):"ARC pas encore reçu"}</span>${a.objet?`<span class="sub">${esc(a.objet)}</span>`:""}${a.aid?`<span class="state ok">suivi par l'atelier</span>`:""}${canWrite&&!a.aid?`<button class="x" data-delarc="${i}" aria-label="Retirer cet ARC">×</button>`:""}</div>
+     <div class="arcf"><label>Livraison<select data-arcfield="lieu" data-i="${i}" ${roA}>${[["","à préciser"],["depot","Dépôt MGDS"],["chantier","Chantier"]].map(([v,t])=>`<option value="${v}" ${v===(a.lieu||"")?"selected":""}>${t}</option>`).join("")}</select></label>
+      <label>Semaine prévue${semInput(`data-arcwk="${i}" ${roA||(a.aid?"disabled":"")}`,a.prev)}</label>
+      ${sa?"":`<span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-arc="${i}" data-arck="ok" aria-label="ARC ${esc(a.four)} validé" ${roA||(a.aid||lkArc&&!ok?"disabled":"")}>${ok?tick:""}</button>Validé<span class="mono">${fr(ok)}</span></span>`}
+      ${ok||a.aid?"":`<span class="arck"><button class="box" role="checkbox" aria-checked="${!!sa}" data-arc="${i}" data-arck="sansArc" aria-label="Pas d'ARC chez ${esc(a.four)}" ${roA||(lkArc&&!sa?"disabled":"")}>${sa?tick:""}</button>Pas d'ARC<span class="mono">${fr(sa)}</span></span>`}
+      <span class="arck"><button class="box" role="checkbox" aria-checked="${!!lv}" data-arc="${i}" data-arck="livre" aria-label="${esc(a.four)} livré" ${roA||(a.aid?"disabled":"")}>${lv?tick:""}</button>Livré<span class="mono">${fr(lv)}</span></span></div>
+     ${sa?`<div class="sub">Pas d'ARC : la commande est validée sur l'offre signée (noté le ${fr(sa)}). Contrôler les cotes sur l'offre avant la fabrication.</div>`:""}
      ${a.adr?`<div class="sub">Adresse de livraison lue sur l'ARC : ${esc(a.adr)} ${a.adrok===false?'<span class="state blk">ne correspond pas</span>':a.adrok?'<span class="state ok">conforme</span>':""}</div>`:""}
      ${!a.lieu?`<div class="sub"><span class="state late">lieu de livraison à préciser</span></div>`:""}</li>`}).join("");
   const phases=phasesOf(j).map((x,i)=>{const ok=x.pose&&x.pose.d;
