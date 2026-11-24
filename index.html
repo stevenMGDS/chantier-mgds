@@ -328,6 +328,16 @@ textarea{min-height:64px;resize:vertical}
 .spanel{position:fixed;z-index:60}.stkbig{font:700 28px var(--f-mono)}.stkbig.r{color:var(--s-rouge)}.stkbig.o{color:var(--s-orange)}
 .stkform{display:flex;flex-direction:column;gap:8px;margin-top:8px}.stkform .clab{display:flex;flex-direction:column;gap:2px}
 .atlwk{display:grid;grid-template-columns:64px 1fr 96px;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}.atlwk .g{height:12px;background:var(--sunk);border-radius:3px;overflow:hidden}.atlwk .g i{display:block;height:100%;background:var(--atl)}.atlwk .g i.o{background:var(--s-orange)}.atlwk .g i.r{background:var(--s-rouge)}.atlwk small{grid-column:2/-1;color:var(--muted);font-size:13px}
+.atlsub{display:flex;gap:6px;margin:0 0 14px}.atlsub .chip[aria-selected="true"]{background:var(--atl);border-color:var(--atl);color:#fff}
+.atschart{width:100%;height:auto;display:block;margin:6px 0 4px;font:12px var(--f-body,system-ui)}.atsgl{stroke:var(--line);stroke-width:1}.atsax{fill:var(--muted);font-size:11px}.atslab{fill:var(--ink);font-size:12.5px}.atsval{fill:var(--muted);font-size:11.5px}
+.atshit{fill:transparent}.atsrow:hover .atshit,.atsrow:focus .atshit,g[data-atstip]:hover>.atshit,g[data-atstip]:focus>.atshit{fill:var(--sunk)}g[data-atstip]:focus{outline:none}
+.atsbar{fill:var(--atl)}.atsbar.r{fill:#d03b3b}.atsbar.o{fill:#ec835a}.atsbar.ok{fill:#0ca30c}.atscol{fill:var(--atl)}.atscol.d{fill:var(--at3)}.atscol.r{fill:#d03b3b}.atscib{stroke:var(--ink);stroke-width:2.5}
+.atsleg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);margin-top:4px}.atsleg .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.atsleg .sw.atsbar,.atsleg .sw.atscol{background:var(--atl)}.atsleg .sw.atsbar.r,.atsleg .sw.atscol.r{background:#d03b3b}.atsleg .sw.atsbar.o{background:#ec835a}.atsleg .sw.atsbar.ok{background:#0ca30c}.atsleg .sw.atscol.d{background:var(--at3)}.atsleg .sw.atscib{width:14px;height:3px;border-radius:0;background:var(--ink);vertical-align:3px}
+.atstip{position:fixed;z-index:60;pointer-events:none;background:var(--card,#fff);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.16);max-width:300px;display:grid;gap:2px}.atstip b{font-size:15px}
+.atsec{font-weight:700}.atsec.ok{color:#006300}.atsec.r{color:#c62828}.atsec.o{color:#b45309}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .atsec.ok{color:#0ca30c}:root:not([data-theme="light"]) .atsec.r{color:#ff6b6b}}:root[data-theme="dark"] .atsec.ok{color:#0ca30c}:root[data-theme="dark"] .atsec.r{color:#ff6b6b}
+.atsdet{margin-top:8px}.atsdet summary{cursor:pointer;color:var(--muted);font-size:13.5px}.atsh4{margin:16px 0 6px;font-size:14px}
 .atsg{position:relative;display:flex;height:12px;background:var(--sunk);border-radius:6px;overflow:visible;min-width:140px}.atsg i{display:block;height:100%;background:var(--atl,#e8832a)}.atsg i.o{background:#d9822b}.atsg i.r{background:#c62828}.atsg i.d{opacity:.45}.atsg b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
 .atlh{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:24px 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}.atlh .sub{text-transform:none;letter-spacing:0;font-weight:400}
 .lim{display:block;font:12px var(--f-mono);color:var(--muted);white-space:nowrap}.lim.o{color:var(--s-orange);font-weight:600}.lim.r{color:var(--s-rouge);font-weight:600}
@@ -4041,7 +4051,7 @@ async function atlHrLoad(){const sb=window.sbClient;if(!sb)return;
     const m=new Map();for(const h of data){const o=m.get(h.atelier)||{tot:0,j:[]};o[h.tache]=atlR1((o[h.tache]||0)+ +h.heures);o.tot=atlR1(o.tot+ +h.heures);o.j.push([h.jour||"",+h.heures]);m.set(h.atelier,o)}atl.hr=m}
   catch(_){atl.hr=atl.hr||new Map()}}
 const ATL_DOCS=["Devis client","Bon de commande matière","Bon de commande accessoires","Bon de commande vitrages","Bon de commande volets / stores","ARC","Plan / débit","Autre"];
-const atl={rows:new Map(),ok:null,open:null,dest:"",q:"",filter:"encours",pending:false,built:false,
+const atl={sub:(()=>{try{return localStorage.getItem("atelier-sub")||"cmd"}catch(_){return"cmd"}})(),rows:new Map(),ok:null,open:null,dest:"",q:"",filter:"encours",pending:false,built:false,
   tri:(()=>{try{return localStorage.getItem("atelier-tri")||"pose"}catch(e){return"pose"}})()}; // même tri que la liste des chantiers (Steven, 08/11/2026)
 const atlRole=()=>(window.mgdsProfil||{}).role||"lecteur";
 const atlCanW=()=>["editeur","atelier"].includes(atlRole());
@@ -4142,11 +4152,11 @@ function atlRefresh(){atlRender();const s=$("asheet");
 // ---- liste ----
 function atlBuild(){
   const el=$("tab-atelier");if(atl.built)return;atl.built=true;
-  el.innerHTML=`${atlRole()==="atelier"?`<p style="margin:0 0 12px"><button type="button" class="btn" data-tab="heures">🕒 Mes heures : remplir ma journée à l'atelier</button></p>`:""}<div class="stats" id="atlStats"></div>
+  el.innerHTML=`<div class="atlsub" role="tablist"><button class="chip" data-atlsub="cmd" role="tab">Commandes</button><button class="chip" data-atlsub="ana" role="tab">📊 Analyse</button></div>
+   <div id="atlAna" hidden><div id="atlSuivi"></div></div><div id="atlMain">${atlRole()==="atelier"?`<p style="margin:0 0 12px"><button type="button" class="btn" data-tab="heures">🕒 Mes heures : remplir ma journée à l'atelier</button></p>`:""}<div class="stats" id="atlStats"></div>
    <div class="tools"><div id="atlChips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input type="search" id="atlQ" placeholder="Chercher un client, un n° de commande ou de devis"><select id="atlTri" aria-label="Trier les commandes atelier" style="width:auto;flex:none"><option value="pose">Trier : pose la plus proche</option><option value="alertes">Trier : retards et alertes</option><option value="alpha">Trier : ordre alphabétique (A → Z)</option></select><button class="btn ghost" data-apup>🪵 Pupitres</button>${atlCanW()?`<button class="btn" id="atlNew">Nouvelle commande atelier</button>`:""}</div>
    <div class="list" id="atlList"></div>
-   <h3 class="atlh">Charge de l'atelier<span class="sub">temps de production réparti sur les jours prévus · ${ATL_H_SEM} h par semaine</span></h3><div id="atlLoad"></div>
-   <h3 class="atlh">Suivi de l'atelier sur l'année<span class="sub">commandes livrées comprises</span></h3><div id="atlSuivi"></div>`;
+   <h3 class="atlh">Charge de l'atelier<span class="sub">temps de production réparti sur les jours prévus · ${ATL_H_SEM} h par semaine</span></h3><div id="atlLoad"></div></div>`;
   $("atlQ").addEventListener("input",e=>{atl.q=e.target.value.trim().toLowerCase();atlRender()});
   $("atlTri").value=atl.tri;$("atlTri").addEventListener("change",e=>{atl.tri=e.target.value;try{localStorage.setItem("atelier-tri",atl.tri)}catch(x){}atlRender()});
 }
@@ -4173,7 +4183,9 @@ function atlRender(){
   else vis.sort((x,y)=>aParPose(x,y)||aAlerte(y)-aAlerte(x)||aAlpha(x,y));
   $("atlList").innerHTML=!all.length?`<div class="empty">Aucune commande atelier pour l'instant.${atlCanW()?" Cliquez sur « Nouvelle commande atelier ».":""}</div>`:vis.length?vis.map(atlRow).join(""):`<div class="empty">Aucune commande dans ce filtre.</div>`;
   $("atlLoad").innerHTML=atlLoadHtml(live);
-  atsRender();
+  const an=atl.sub==="ana";$("atlAna").hidden=!an;$("atlMain").hidden=an;
+  document.querySelectorAll("[data-atlsub]").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.atlsub===(an?"ana":"cmd"))));
+  if(an)atsRender();
 }
 // ---------- Suivi de l'atelier sur l'année (Steven, 24/11/2026) ----------
 // Pour Christophe (et Steven) : projection 12 mois en avant, heures et rentabilité 12 mois en arrière, commandes livrées
@@ -4196,6 +4208,30 @@ function atsRender(){const el=$("atlSuivi");if(!el)return;if(!ats.ok){el.innerHT
   const V=[["proj","Projection 12 mois"],["heures","Heures 12 mois"],...(atsRentaOk()?[["renta","Rentabilité 12 mois"]]:[])];
   if(!V.some(v=>v[0]===ats.vue))ats.vue="proj";
   el.innerHTML=`<div class="tools">${V.map(([k,l])=>`<button class="chip" data-atsv="${k}" aria-pressed="${ats.vue===k}">${l}</button>`).join("")}</div>`+(ats.vue==="proj"?atsProj():ats.vue==="heures"?atsHeures():atsRenta())}
+// ---- graphiques (survol : nom et écart ; le tableau reste dessous) ----
+const atsTips=[];
+function atsTipEl(){let t=document.getElementById("atsTip");if(!t){t=document.createElement("div");t.id="atsTip";t.className="atstip";t.hidden=true;document.body.appendChild(t)}return t}
+function atsTipShow(e,i){const d=atsTips[i];if(!d)return;const t=atsTipEl();t.replaceChildren();
+  const v=document.createElement("b");v.textContent=d.v;const n=document.createElement("div");n.className="sub";n.textContent=d.n;t.append(v,n);
+  (d.l||[]).forEach(x=>{const r=document.createElement("div");r.textContent=x;t.appendChild(r)});
+  if(d.e){const r=document.createElement("div");r.className="atsec "+(d.ec||"");r.textContent=d.e;t.appendChild(r)}
+  t.hidden=false;const b=e.target.getBoundingClientRect?e.target.getBoundingClientRect():{left:0,top:0,width:0};
+  const x=e.clientX!=null&&e.type!=="focus"?e.clientX:b.left+b.width/2,y=e.clientY!=null&&e.type!=="focus"?e.clientY:b.top;
+  const w=t.offsetWidth,h=t.offsetHeight;t.style.left=Math.max(8,Math.min(innerWidth-w-8,x+14))+"px";t.style.top=Math.max(8,y-h-12)+"px"}
+document.addEventListener("pointermove",e=>{const m=e.target.closest&&e.target.closest("[data-atstip]");if(m)atsTipShow(e,+m.dataset.atstip);else{const t=document.getElementById("atsTip");if(t)t.hidden=true}});
+document.addEventListener("focusin",e=>{const m=e.target.closest&&e.target.closest("[data-atstip]");if(m)atsTipShow(e,+m.dataset.atstip)});
+const atsCut=(s,n=30)=>{s=String(s||"");return s.length>n?s.slice(0,n-1)+"…":s};
+const atsNum=v=>String(Math.round(v*10)/10).replace(".",",");
+// barres horizontales : valeur (barre) face à une cible (trait) ; une ligne par commande
+function atsBarres(L,{max,unit,cls,cible,lab}){const W=760,LW=250,RW=70,row=28,H=L.length*row+28,x=v=>LW+(W-LW-RW)*Math.max(0,v)/max;
+  const step=[5,10,20,25,50,100,200,500].find(s=>max/s<=6)||1000;let g="";
+  for(let v=0;v<=max;v+=step)g+=`<line class="atsgl" x1="${x(v)}" x2="${x(v)}" y1="4" y2="${H-22}"/><text class="atsax" x="${x(v)}" y="${H-6}" text-anchor="middle">${v}${unit}</text>`;
+  const bars=L.map((d,i)=>{const y=4+i*row,k=atsTips.push(d.tip)-1,bw=Math.max(2,x(d.v)-LW);
+    return`<g class="atsrow" data-atstip="${k}" tabindex="0" role="img" aria-label="${esc(d.tip.n+" : "+d.tip.v)}"><rect class="atshit" x="0" y="${y}" width="${W}" height="${row}"/>
+      <text class="atslab" x="${LW-8}" y="${y+row/2+4}" text-anchor="end">${esc(atsCut(d.n))}</text>
+      <rect class="atsbar ${cls(d)}" x="${LW}" y="${y+6}" width="${bw}" height="${row-12}" rx="3"/>${d.c!=null?`<line class="atscib" x1="${x(d.c)}" x2="${x(d.c)}" y1="${y+2}" y2="${y+row-2}"/>`:""}
+      <text class="atsval" x="${Math.min(W-60,Math.max(LW+bw,d.c!=null?x(d.c):0)+8)}" y="${y+row/2+4}">${esc(lab(d))}</text></g>`}).join("");
+  return`<svg class="atschart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(cible)}">${g}${bars}</svg>`}
 function atsNoteH(){const N=new Map();for(const h of ats.hs){const k=h.atelier;N.set(k,(N.get(k)||0)+(+h.heures||0))}return N}
 // projection : reste à faire des commandes en cours (réparti comme la charge de l'atelier) + devis en attente (heures × chance)
 function atsProj(){const all=[...atl.rows.entries()].map(([id,a])=>({id,...a})),live=all.filter(a=>!atlDone(a)),{wk}=atlWeekLoad(live);
@@ -4205,15 +4241,30 @@ function atsProj(){const all=[...atl.rows.entries()].map(([id,a])=>({id,...a})),
   M.forEach(x=>{const d=new Date(x.m+"-01T12:00");let n=0;while(d.getMonth()+1===+x.m.slice(5)){if(d.getDay()===5)n++;d.setDate(d.getDate()+1)}x.cap=n*ATL_H_SEM});
   try{if(typeof dvLive==="function")for(const d of dvLive()){const x=ix.get(d.periode||"");if(x&&+d.ha>0)x.d+=(+d.ha)*((DV_CH[d.chance]||DV_CH.moyenne)[1])}}catch(_){}
   const mx=Math.max(...M.map(x=>Math.max(x.cap,x.c+x.d)),1),h1=v=>String(Math.round(v)).replace(".",",");
-  return`<div class="tbl"><table class="rttab"><thead><tr><th>Mois</th><th class="n">Commandes</th><th class="n">Devis probables</th><th class="n">Capacité</th><th>Charge</th></tr></thead><tbody>${M.map(x=>{const t=x.c+x.d,cl=t>x.cap+.5?"r":t>x.cap*.85?"o":"";
+  atsTips.length=0;const W=760,H=240,L0=44,B=26,T=10,pw=(W-L0)/M.length,bw=Math.min(40,pw-14),top=Math.ceil(mx*1.1/50)*50,y=v=>T+(H-T-B)*(1-v/top);
+  let g="";for(let v=0;v<=top;v+=top>300?100:50)g+=`<line class="atsgl" x1="${L0}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text class="atsax" x="${L0-6}" y="${y(v)+4}" text-anchor="end">${v} h</text>`;
+  const cols=M.map((m,i)=>{const x0=L0+i*pw+(pw-bw)/2,t=m.c+m.d,ec=t-m.cap,k=atsTips.push({v:h1(t)+" h prévues",n:atsML(m.m),l:[`Commandes : ${h1(m.c)} h`,`Devis probables : ${h1(m.d)} h`,`Capacité : ${h1(m.cap)} h`],e:ec>0.5?`Dépassement : +${h1(ec)} h`:`Place libre : ${h1(-ec)} h`,ec:ec>0.5?"r":"ok"})-1;
+    const yc=y(m.c),yd=y(m.c+m.d);
+    return`<g data-atstip="${k}" tabindex="0" role="img" aria-label="${esc(atsML(m.m)+" : "+h1(t)+" h pour "+h1(m.cap)+" h")}"><rect class="atshit" x="${L0+i*pw}" y="${T}" width="${pw}" height="${H-T-B}"/>
+      ${m.c>0?`<rect class="atscol ${ec>0.5?"r":""}" x="${x0}" y="${yc}" width="${bw}" height="${Math.max(1,y(0)-yc)}" rx="3"/>`:""}${m.d>0?`<rect class="atscol d" x="${x0}" y="${yd}" width="${bw}" height="${Math.max(1,yc-yd-2)}" rx="3"/>`:""}
+      <line class="atscib" x1="${x0-5}" x2="${x0+bw+5}" y1="${y(m.cap)}" y2="${y(m.cap)}"/><text class="atsax" x="${x0+bw/2}" y="${H-8}" text-anchor="middle">${esc(atsML(m.m))}</text></g>`}).join("");
+  const chart=`<div class="atsleg"><span><i class="sw atscol"></i>Commandes en cours</span><span><i class="sw atscol d"></i>Devis probables</span><span><i class="sw atscib"></i>Capacité de l'atelier</span><span><i class="sw atscol r"></i>Au-dessus de la capacité</span></div>
+    <svg class="atschart" viewBox="0 0 ${W} ${H}" role="group" aria-label="Charge de l'atelier sur 12 mois">${g}${cols}</svg>`;
+  return chart+`<details class="atsdet"><summary>Voir le tableau</summary><div class="tbl"><table class="rttab"><thead><tr><th>Mois</th><th class="n">Commandes</th><th class="n">Devis probables</th><th class="n">Capacité</th><th>Charge</th></tr></thead><tbody>${M.map(x=>{const t=x.c+x.d,cl=t>x.cap+.5?"r":t>x.cap*.85?"o":"";
     return`<tr><td>${atsML(x.m)}</td><td class="n">${h1(x.c)} h</td><td class="n">${x.d?h1(x.d)+" h":"–"}</td><td class="n">${h1(x.cap)} h</td><td><span class="g atsg"><i class="${cl}" style="width:${Math.min(100,x.c/mx*100)}%"></i><i class="d" style="width:${Math.min(100,x.d/mx*100)}%"></i><b style="left:${Math.min(100,x.cap/mx*100)}%"></b></span></td></tr>`}).join("")}</tbody></table></div>
-   <p class="sub">Commandes en cours : temps de production restant, placé comme la charge de l'atelier. Devis probables : heures d'atelier des devis en attente × chance de signature, au mois de pose souhaité. Capacité : ${ATL_H_SEM} h par semaine, hors renfort des poseurs.</p>`}
+   </details><p class="sub">Commandes en cours : temps de production restant, placé comme la charge de l'atelier. Devis probables : heures d'atelier des devis en attente × chance de signature, au mois de pose souhaité. Capacité : ${ATL_H_SEM} h par semaine, hors renfort des poseurs.</p>`}
 // heures : par commande (12 mois, livrées comprises), prévu / noté, par personne ; Christophe ajoute les heures manquantes
 function atsCmds(){const de=atsMois(-12),N=atsNoteH();
   return[...atl.rows.entries()].map(([id,a])=>({id,...a})).filter(a=>{const f=atlD(a,"fin")||atlD(a,"livre")||"";return!f||f.slice(0,7)>=de||N.has(a.id)})
     .map(a=>({a,prev:atlHeures(a)||0,note:N.get(a.id)||0,fin:atlD(a,"fin")||"",mois:(atlD(a,"fin")||(a.calc&&a.calc.fin)||"").slice(0,7)}))
     .sort((x,y)=>(y.fin||"9999").localeCompare(x.fin||"9999"))}
 function atsHeures(){const L=atsCmds(),chef=atsChef(),h1=v=>String(Math.round(v*100)/100).replace(".",",");
+  atsTips.length=0;const G=L.filter(x=>x.prev||x.note).map(x=>{const ec=x.note-x.prev;return{n:atlName(x.a),v:x.note,c:x.prev||null,prev:x.prev,
+    tip:{v:atsNum(x.note)+" h notées",n:atlName(x.a)+" · "+x.a.id,l:[x.prev?`Prévu (cible) : ${atsNum(x.prev)} h`:"Pas de temps prévu",x.fin?"Terminée le "+fr(x.fin):atlD(x.a,"debut")?"En production":"Pas commencée"],
+      e:x.prev?(ec>=0?`+${atsNum(ec)} h au-dessus du prévu`:`${atsNum(ec)} h sous le prévu`)+` (${Math.round(x.note/x.prev*100)} %)`:"",ec:x.prev?(ec>0?"r":atlD(x.a,"fin")&&x.note<x.prev*.5?"o":"ok"):""}}});
+  const gr=G.length?`<div class="atsleg"><span><i class="sw atsbar"></i>Heures notées</span><span><i class="sw atsbar r"></i>Au-dessus du prévu</span><span><i class="sw atsbar o"></i>Terminée, heures à compléter</span><span><i class="sw atscib"></i>Heures prévues (cible)</span></div>`+
+    atsBarres(G,{max:Math.max(10,...G.map(d=>Math.max(d.v,d.c||0)))*1.08,unit:" h",cible:"Heures notées face aux heures prévues, par commande",
+      cls:d=>d.prev&&d.v>d.prev?"r":d.tip.ec==="o"?"o":"",lab:d=>atsNum(d.v)+(d.prev?" / "+atsNum(d.prev)+" h":" h")}):"";
   const pers=id=>{const p=ats.noms.get(id);return p?p.nom:"?"};
   const rows=L.map(x=>{const a=x.a,H=ats.hs.filter(h=>h.atelier===a.id),parP=new Map();H.forEach(h=>parP.set(h.poseur,(parP.get(h.poseur)||0)+(+h.heures||0)));
     const manque=x.prev&&x.note<x.prev*.5&&atlD(a,"fin");
@@ -4221,7 +4272,7 @@ function atsHeures(){const L=atsCmds(),chef=atsChef(),h1=v=>String(Math.round(v*
       <td class="n">${x.prev?h1(x.prev)+" h":"–"}</td><td class="n"><b class="${manque?"rtm":""}">${h1(x.note)} h</b>${manque?`<br><small class="rtm">heures à compléter</small>`:""}</td>
       <td><small>${[...parP].map(([p,v])=>esc(pers(p))+" "+h1(v)+" h").join(" · ")||"–"}</small></td>
       <td>${chef?`<button class="btn ghost" data-atsadd="${esc(a.id)}">+ heures</button>`:""}</td></tr>${ats.add===a.id?`<tr><td colspan="5">${atsForm(a)}</td></tr>`:""}`}).join("");
-  return`<div class="tbl"><table class="rttab"><thead><tr><th>Commande</th><th class="n">Prévu</th><th class="n">Noté</th><th>Par personne</th><th></th></tr></thead><tbody>${rows||`<tr><td colspan="5" class="sub">Aucune commande sur l'année.</td></tr>`}</tbody></table></div>
+  return gr+`<h4 class="atsh4">Détail et ajout d'heures</h4><div class="tbl"><table class="rttab"><thead><tr><th>Commande</th><th class="n">Prévu</th><th class="n">Noté</th><th>Par personne</th><th></th></tr></thead><tbody>${rows||`<tr><td colspan="5" class="sub">Aucune commande sur l'année.</td></tr>`}</tbody></table></div>
    <p class="sub">Heures notées dans « Mes heures » sur chaque commande (12 derniers mois). « Heures à compléter » : production terminée avec moins de la moitié du temps prévu.${chef?" Christophe peut ajouter les heures manquantes de chacun, même sur une commande livrée.":""}</p>`}
 function atsForm(a){const P=[...ats.noms.values()].filter(p=>["atelier","poseur"].includes(p.role)).sort((x,y)=>String(x.nom).localeCompare(String(y.nom)));
   const T=["Débit","Usinage","Montage","Vitrage","Divers"];
@@ -4229,17 +4280,21 @@ function atsForm(a){const P=[...ats.noms.values()].filter(p=>["atelier","poseur"
     <input type="date" name="j" value="${today()}" max="${today()}" aria-label="Jour"><select name="t" aria-label="Tâche">${T.map(t=>`<option>${t}</option>`).join("")}</select>
     <input type="number" name="h" min="0" step="any" inputmode="decimal" placeholder="heures" aria-label="Heures" style="flex:0 1 90px"><button class="btn">Ajouter</button><button type="button" class="btn ghost" data-atsadd="">Fermer</button></form>`}
 // rentabilité : prix de l'atelier (devis de Christophe) − matière (éléments validés) ÷ heures notées (sinon prévues)
-function atsRenta(){const O=rtObj(),L=atsCmds(),eur=v=>plEur(v);let tv=0,tm=0,th=0;
+function atsRenta(){const O=rtObj(),L=atsCmds(),eur=v=>plEur(v);let tv=0,tm=0,th=0;const G=[];atsTips.length=0;
   const rows=L.map(x=>{const a=x.a,A=ats.dir.get("atl_"+a.id)||{},V=a.chantier?ats.dir.get("atlv_"+a.chantier):null;
     const v=V&&V.man?+V.ht:A.ht!=null?+A.ht:null,mat=A.mat!=null?+A.mat:null,inc=x.prev&&x.note<x.prev*.5,h=inc?x.prev:x.note||x.prev,mg=v!=null&&mat!=null?v-mat:null,mh=mg!=null&&h?mg/h:null;
-    if(mh!=null){tv+=v;tm+=mg;th+=h}
+    if(mh!=null){tv+=v;tm+=mg;th+=h;const ec=mh-O.taux;
+      G.push({n:atlName(a),v:mh,c:O.taux,tip:{v:eur(mh)+" de marge par heure",n:atlName(a)+" · "+a.id,l:[`Objectif : ${eur(O.taux)}/h`,`Heures : ${atsNum(x.note)} notées / ${atsNum(x.prev)} prévues`,`Prix ${eur(v)} − matière ${eur(mat)} = marge ${eur(mg)}`],
+        e:(ec>=0?"+":"")+eur(ec)+"/h "+(ec>=0?"au-dessus de l'objectif":"sous l'objectif")+(x.prev&&x.fin?` · heures ${x.note>=x.prev?"+":""}${atsNum(x.note-x.prev)} h`:x.fin?"":" · en cours : heures prévues comptées"),ec:ec>=0?"ok":"r"}})}
     const cl=mh==null?"":mh>=O.taux?"ok":mh>=O.taux*.9?"o":"r";
     return`<tr><td>${esc(atlName(a))}<br><small class="sub">${esc(a.id)}${x.fin?" · "+fr(x.fin):""}</small></td><td class="n">${v!=null?eur(v):"<small class=rtm>prix à lire</small>"}</td><td class="n">${mat!=null?eur(mat):"<small class=rtm>éléments validés à lire</small>"}</td>
       <td class="n">${String(Math.round(h*10)/10).replace(".",",")} h${inc&&x.note?" <small class=rtm>(prévues : heures notées incomplètes)</small>":x.note?"":" <small class=sub>(prévues)</small>"}</td><td class="n">${mg!=null?eur(mg):"–"}</td><td class="n"><b class="rtv ${cl}">${mh!=null?eur(mh)+"/h":"–"}</b></td></tr>`}).join("");
   return`<div class="kpis"><div class="kpi"><b>${eur(O.taux)}/h</b><span>Objectif par heure de production</span></div><div class="kpi ${th&&tm/th<O.taux?"r":""}"><b>${th?eur(tm/th)+"/h":"–"}</b><span>Marge par heure de l'atelier (12 mois)</span></div><div class="kpi"><b>${eur(tv)}</b><span>Vendu par l'atelier (commandes chiffrées)</span></div></div>
-   <div class="tbl"><table class="rttab"><thead><tr><th>Commande</th><th class="n">Prix atelier</th><th class="n">Matière</th><th class="n">Heures</th><th class="n">Marge</th><th class="n">Par heure</th></tr></thead><tbody>${rows}</tbody></table></div>
+   ${G.length?`<div class="atsleg"><span><i class="sw atsbar ok"></i>Au-dessus de l'objectif</span><span><i class="sw atsbar r"></i>En dessous</span><span><i class="sw atscib"></i>Objectif ${eur(O.taux)}/h</span></div>`+atsBarres(G.sort((p,q)=>p.v-q.v),{max:Math.max(O.taux*1.6,...G.map(d=>d.v))*1.05,unit:" €",cible:"Marge par heure de chaque commande face à l'objectif",cls:d=>d.v>=d.c?"ok":"r",lab:d=>eur(d.v)+"/h"}):`<p class="sub">Aucune commande n'a encore son prix et sa matière : le graphique apparaîtra dès que les devis client et les éléments validés seront lus.</p>`}
+   <details class="atsdet"><summary>Voir le tableau (${L.length} commandes)</summary><div class="tbl"><table class="rttab"><thead><tr><th>Commande</th><th class="n">Prix atelier</th><th class="n">Matière</th><th class="n">Heures</th><th class="n">Marge</th><th class="n">Par heure</th></tr></thead><tbody>${rows}</tbody></table></div></details>
    <p class="sub">Prix de l'atelier = total HT du devis client de Christophe ; matière = commandes du dossier ATELIER/ÉLÉMENTS VALIDÉS (Technal, accessoires, Foussier, vitrages) ; heures = heures notées (les heures prévues tant que moins de la moitié est notée). Objectif : ${eur(O.taux)} de marge par heure, comme la pose.</p>`}
-document.addEventListener("click",e=>{const v=e.target.closest&&e.target.closest("[data-atsv],[data-atsadd]");if(!v)return;
+document.addEventListener("click",e=>{const s=e.target.closest&&e.target.closest("[data-atlsub]");if(s){atl.sub=s.dataset.atlsub;try{localStorage.setItem("atelier-sub",atl.sub)}catch(_){}atlRender();return}
+  const v=e.target.closest&&e.target.closest("[data-atsv],[data-atsadd]");if(!v)return;
   if(v.dataset.atsv){ats.vue=v.dataset.atsv;atsRender();return}
   ats.add=v.dataset.atsadd&&ats.add!==v.dataset.atsadd?v.dataset.atsadd:null;atsRender()});
 document.addEventListener("submit",async e=>{const f=e.target.closest&&e.target.closest("[data-atsform]");if(!f)return;e.preventDefault();
