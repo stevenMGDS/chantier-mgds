@@ -3739,7 +3739,7 @@ function rtMoisData(O,L){
   for(const o of L){const m=ix.get(o.mois);if(!m)continue;
     if(o.fin&&o.margeR!=null){m.r+=o.margeR;m.it.push({k:"r",o})}else if(o.margeP!=null){m.p+=o.margeP;m.it.push({k:"p",o})}else{m.manque++;m.it.push({k:"x",o})}}
   const DV=typeof dvLive==="function"?dvLive():[];
-  for(const d of DV){const m=ix.get(d.periode||"");if(!m)continue;const mg=+d.montant&&+d.achats?(+d.montant+(typeof dvSupp==="function"?dvSupp(d):0)-+d.achats-(typeof dvFrais==="function"?dvFrais(d):0)+(+d.ha||0)*O.tauxAtl):null,ch=(DV_CH[d.chance]||DV_CH.moyenne)[1];
+  for(const d of DV){const m=ix.get(d.periode||"");if(!m)continue;const mg=+d.montant&&+d.achats?(+d.montant-+d.achats-(typeof dvFraisMarge==="function"?dvFraisMarge(d):0)+(+d.ha||0)*O.tauxAtl):null,ch=(DV_CH[d.chance]||DV_CH.moyenne)[1];
     if(mg!=null)m.d+=mg*ch;m.it.push({k:"d",d,mg,ch})}
   return M}
 function rtChart(O,L){
@@ -4616,6 +4616,9 @@ button.plc{cursor:pointer}
 .pldvr .acts{display:flex;gap:6px}
 .dvdep{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end;font-size:13px}.dvdep>label{width:auto;flex:0 1 170px}.dvdep>label:nth-child(2){flex-basis:90px}.dvdepx{flex:1 1 100%}.dvdepx summary{cursor:pointer;color:var(--muted);font-size:12.5px}.dvdepx[open]{display:flex;flex-wrap:wrap;gap:6px 10px}.dvdepx label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 150px}.dvach{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end}.dvach label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 170px}.dvach .sub{font-size:12px;flex:1 1 200px}
 .dvbr{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--atl-bg,#FBE9D6);border-radius:8px;padding:8px 10px;font-size:13.5px}.dvbr span{flex:1 1 260px}.dvcard.dvbrc{border-style:dashed}
+.dvcalc .dvfl input,.dvcalc .dvfl select,.dvcalc .dvdepx input{font:15px var(--f-body);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);width:100%;box-sizing:border-box;min-width:0}
+.dvcalc{border:2px solid var(--pose,#2a78d6);border-radius:12px;padding:10px 14px;background:var(--surface);display:grid;gap:10px}.dvcalc>summary{cursor:pointer;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-size:16px}.dvcalc[open]>summary{margin-bottom:6px}
+details.dvannex>summary{cursor:pointer;list-style:none}details.dvannex:not([open]){padding:6px 12px}
 .dvcard.dvneuf{box-shadow:0 0 0 3px var(--pose,#2a78d6)}
 .dvannex{grid-column:1/-1;display:grid;gap:6px;border:1px solid var(--pose,#2a78d6);border-radius:10px;padding:10px 12px;background:var(--pose-bg,#E3EEFB)}.dvannex.inc{border-color:var(--line);background:var(--sunk)}.dvannexh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}.dvannexh .btn{margin-left:auto;padding:4px 10px;font-size:13px}.dvannexp{margin:0;font:12.5px/1.45 var(--f-mono);white-space:pre-wrap;color:var(--ink)}
 .dvmet{display:flex!important;align-items:center;gap:6px;font-size:13px;color:var(--ink);flex:0 1 auto!important}.dvmet input{width:auto}.dvdepr{flex:1 1 100%;color:var(--muted)}.dvdepr b{color:var(--ink)}
@@ -4902,14 +4905,43 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
   const br=d._br?`<div class="dvbr"><span><b>Modifications en cours</b> : la marge de cette carte est recalculée, la charge et les plannings ne changent qu'après mise à jour.</span>${plW()?`<button type="button" class="btn" data-dvmaj="${id}">Mettre à jour</button><button type="button" class="btn ghost" data-dvannul="${id}">Annuler</button>`:""}</div>`:"";
   return`<div class="pldvr dvcard ${cls} ${d._br?"dvbrc":""}">${br}
    <div class="dvhd"><input type="text" class="dvcli" id="dv-client-${id}" ${a} data-k="client" value="${v("client")}" aria-label="Client, affaire" ${ro}>
-    <div class="dvmjbox ${cls}"><b>${mj!=null?plEur(mj):"—"}</b><span>${mj!=null?"marge jour · objectif "+plEur(O.obj):"marge jour : achats à saisir"}${dvSupp(d)?` · total ${plEur(dvTotal(d))} HT avec frais`:""}</span></div>
+    <div class="dvmjbox ${cls}"><b>${mj!=null?plEur(mj):"—"}</b><span>${mj!=null?"marge jour · objectif "+plEur(O.obj):"marge jour : achats à saisir"}</span></div>
     <div class="acts">${plW()?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">✓ Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:""}</div></div>
    ${dvSug(d)}
    <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">
-    ${F("Montant HT hors frais annexes (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
+    ${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
     ${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d.periode||"")}</select>`)}
    </div>${dvChif(d)}</div>
    <div class="dvsec"><h4>Déplacement et livraison</h4>${dvDep(d)}${dvAnnexHtml(d)}</div></div>`}
+// ---------- Calculateur de frais (pré-chiffrage, Steven 24/11/2026) ----------
+// Avant de faire le devis : lieu, équipe, jours sur place, retours, livraison, métré -> frais de déplacement et de livraison
+// (coût et vente conseillée au coefficient 1,2) à intégrer au chiffrage. Rien n'est enregistré dans la base (gardé sur l'appareil).
+let DV_CALC=(()=>{try{return JSON.parse(localStorage.getItem("dvCalc")||"null")}catch(_){return null}})()||{id:"calc",jp:"",periode:"",dep:{pers:2,retours:"we",liv:"",metre:false}};
+const dvCalcSave=()=>{try{localStorage.setItem("dvCalc",JSON.stringify(DV_CALC))}catch(_){}};
+function dvCalcHtml(){const c=DV_CALC,x=c.dep||{},A=dvAnnexes(c),r=A&&A.r;const sel=(k,opts,v)=>`<select data-calc="${k}">${opts.map(([a,b])=>`<option value="${a}" ${String(v??"")===a?"selected":""}>${b}</option>`).join("")}</select>`;
+  const F=(l,inner,cls="")=>`<label class="dvfl ${cls}"><span>${l}</span>${inner}</label>`;
+  const res=!x.lieu?`<p class="sub" style="margin:0">Saisissez le lieu et les jours sur place pour obtenir les frais à intégrer au devis.</p>`:x.km===""||x.km==null?`<p class="sub" style="margin:0">${x.src==="cherche"?"Recherche de la distance…":"Commune introuvable : saisissez les km, le péage et le temps de route ci-dessous."}</p>`:!A?`<p class="sub" style="margin:0">Jours sur place à saisir.</p>`
+   :`<div class="dvpills"><span class="dvpill"><b>${plNf(r.jt)} j</b> temps total</span><span class="dvpill"><b>${plNf(r.jr)} j</b> de route · ${r.ar} A/R</span>${r.nuits?`<span class="dvpill"><b>${r.nuits}</b> nuit${r.nuits>1?"s":""}</span>`:""}<span class="dvpill c"><b>${plEur(A.venteDep)}</b> déplacement à vendre (coût ${plEur(A.dep)})</span>${A.liv?`<span class="dvpill c"><b>${plEur(A.venteLiv)}</b> transport à vendre (coût ${plEur(A.liv)})</span>`:""}</div>
+    <pre class="dvannexp">${esc(dvAnnexTexte(c))}</pre><div><button type="button" class="btn ghost" data-calccopy="1">Copier les lignes pour le devis</button> <button type="button" class="btn ghost" data-calcraz="1">Effacer</button></div>`;
+  return`<details class="dvcalc" ${x.lieu?"open":""} id="dvcalc"><summary><b>🧮 Calculateur de frais (pré-chiffrage)</b><span class="sub">déplacement, découchers et livraison à intégrer au devis, avant de le créer</span></summary>
+   <div class="dvf">${F("Lieu du chantier",`<input type="text" list="depVilles" data-calc="lieu" value="${esc(x.lieu||"")}" placeholder="ville">`)}${F("Équipe (pers.)",`<input type="number" min="1" step="1" inputmode="numeric" data-calc="pers" value="${esc(x.pers||2)}">`)}
+    ${F("Pose sur place (j)",`<input type="number" min="0" step="any" inputmode="decimal" data-calc="jp" value="${esc(c.jp||"")}">`,"fpose")}${F("Mois de pose",`<select data-calc="periode">${dvMois(c.periode||"")}</select>`)}
+    ${F("Retours à Orléans",sel("retours",[["we","chaque week-end"],["0","aucun (reste sur place)"],...[1,2,3,4,5,6].map(n=>[String(n),n+" fois pendant le chantier"])],x.retours??"we"))}${F("Livraison du matériel",sel("liv",LIV_OPT,x.liv||""),"w2")}
+    <label class="dvmet"><input type="checkbox" data-calc="metre" ${x.metre?"checked":""}> Métré sur place (1 personne)</label></div>
+   ${x.lieu?`<details class="dvdepx"><summary>Corriger km, péage, temps</summary><label>Km aller<input type="number" min="0" step="any" data-calc="km" value="${esc(x.km??"")}"></label><label>Péage aller (€ HT)<input type="number" min="0" step="any" data-calc="peage" value="${esc(x.peage??"")}"></label><label>Route aller (h, camion)<input type="number" min="0" step="any" data-calc="h" value="${esc(x.h??"")}"></label></details>`:""}
+   ${res}</details>`}
+async function dvCalcChange(t){const k=t.dataset.calc,c=DV_CALC,x={...(c.dep||{})};
+  if(k==="lieu"){const l=t.value.trim();if(!l){c.dep={pers:x.pers||2,retours:x.retours||"we",liv:x.liv||"",metre:!!x.metre}}else{c.dep={...x,lieu:l,km:"",src:"cherche"};dvCalcSave();dvCalcMaj();c.dep=await depDuLieu(l,{...x})}}
+  else if(k==="jp"||k==="periode")c[k]=t.value;
+  else if(k==="metre")c.dep={...x,metre:t.checked};
+  else if(k==="retours"||k==="liv")c.dep={...x,[k]:t.value};
+  else c.dep={...x,[k]:t.value===""?"":Math.max(k==="pers"?1:0,+String(t.value).replace(",",".")||0),...(k==="pers"?{}:{src:"saisi"})};
+  dvCalcSave();dvCalcMaj()}
+function dvCalcMaj(){const el=document.getElementById("dvcalc");if(!el)return;const w=document.createElement("div");w.innerHTML=dvCalcHtml();const n=w.firstElementChild;n.open=true;el.replaceWith(n)}
+document.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.calc)dvCalcChange(t)});
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-calccopy],[data-calcraz]");if(!b)return;
+  if(b.dataset.calcraz){DV_CALC={id:"calc",jp:"",periode:"",dep:{pers:2,retours:"we",liv:"",metre:false}};dvCalcSave();dvCalcMaj();return}
+  navigator.clipboard.writeText(dvAnnexTexte(DV_CALC)).then(()=>toast("Lignes copiées : à coller dans le devis.")).catch(()=>toast("Copie impossible sur cet appareil."))});
 function dvAnnexTexte(d){const A=dvAnnexes(d);if(!A)return"";const r=A.r,x=d.dep||{},p=Math.max(1,+x.pers||2),e=n=>plEur(n).replace(/\u202f|\u00a0/g," ");
   const L=[];if(A.dep>0){L.push(`Frais de déplacement : ${e(A.venteDep)} HT`);
     if(r.P.logement)L.push(`  Hôtel : ${r.nuits} nuit${r.nuits>1?"s":""} × ${p} pers. = ${e(r.P.logement)}`);if(r.P.prime)L.push(`  Primes de découcher : ${r.nuits} × ${p} × ${e(DEP_T.prime)} = ${e(r.P.prime)}`);
@@ -4917,15 +4949,14 @@ function dvAnnexTexte(d){const A=dvAnnexes(d);if(!A)return"";const r=A.r,x=d.dep
     L.push(`  Coût ${e(A.dep)} × ${String(DEP_COEF).replace(".",",")}`)}
   if(A.liv>0)L.push(`Transport (livraison semi ${r.liv.lab}) : ${e(A.venteLiv)} HT`,`  ${Math.round(r.liv.km)} km · coût ${e(A.liv)} × ${String(DEP_COEF).replace(".",",")}`);
   return L.join("\n")}
-function dvAnnexHtml(d){const A=dvAnnexes(d),x=d.dep||{},id=esc(d.id),ro=plW()?"":"disabled";if(!A||!A.cout)return"";
-  const chk=`<label class="dvmet"><input type="checkbox" data-dvdep="fraisInclus" data-id="${id}" ${A.inc?"checked":""} ${ro}> Frais déjà compris dans le montant saisi (ancien devis)</label>`;
-  if(A.inc)return`<div class="dvannex inc">${chk}<span class="sub">Les ${plEur(A.cout)} de frais sont seulement déduits de la marge : rien n'est ajouté au prix.</span></div>`;
-  return`<div class="dvannex"><div class="dvannexh"><b>À ajouter au devis : ${plEur(A.vente)} HT</b><span class="sub">frais annexes vendus au coefficient ${String(DEP_COEF).replace(".",",")} · total du devis ${plEur(dvTotal(d))} HT</span><button type="button" class="btn ghost" data-dvannexcopy="${id}">Copier les lignes</button></div>
-   <pre class="dvannexp">${esc(dvAnnexTexte(d))}</pre>${chk}</div>`}
+function dvAnnexHtml(d){const A=dvAnnexes(d),id=esc(d.id),ro=plW()?"":"disabled";if(!A||!A.cout)return"";
+  const chk=`<label class="dvmet"><input type="checkbox" data-dvdep="horsDevis" data-id="${id}" ${A.hors?"checked":""} ${ro}> Frais pas dans le devis (ancien devis, remise négative) : déduire leur coût de la marge</label>`;
+  return`<details class="dvannex ${A.hors?"inc":""}"><summary class="dvannexh"><b>Contrôle des frais annexes : vente conseillée ${plEur(A.vente)} HT</b><span class="sub">coût ${plEur(A.cout)} · à retrouver dans les lignes Frais de déplacement et Transport du devis${A.hors?" · coût déduit de la marge":""}</span></summary>
+   <pre class="dvannexp">${esc(dvAnnexTexte(d))}</pre><div class="dvannexh"><button type="button" class="btn ghost" data-dvannexcopy="${id}">Copier les lignes</button></div>${chk}</details>`}
 // Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
 // (outil/chiffrage.py) qui remplit achats, main-d'œuvre, marge prévue et jours de pose. Marge jour prévue =
 // (montant HT − achats) ÷ (jours de pose + heures d'atelier ÷ 17,5), face à l'objectif de la page Direction > Rentabilité.
-const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,h=+d.ha||0,j=dvJT(d)+h/PL_EQ;return m&&a&&j?(m+dvSupp(d)-a-dvFrais(d)+h*rtObj().tauxAtl)/j:null};
+const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,h=+d.ha||0,j=dvJT(d)+h/PL_EQ;return m&&a&&j?(m-a-dvFraisMarge(d)+h*rtObj().tauxAtl)/j:null};
 // ---------- Frais de déplacement par devis (Steven, 23/11/2026) ----------
 // Repris de l'artefact « Frais de déplacement MGDS » : départ Orléans, camion type Crafter, organisation automatique
 // selon le temps de route (retour chaque soir ≤ 1 h, départ le matin, la veille, ou la veille + retour le lendemain ≥ 4 h),
@@ -5028,11 +5059,17 @@ function dvFrais(d){const r=dvDepRes(d);return r?r.total:0}
 // supplément au coefficient DEP_COEF : c'est ce total qu'on recopie dans le devis (lignes « Frais de déplacement » et
 // « Transport »). Case « frais déjà compris dans le montant » (anciens devis, remise négative type Masquin) : pas de
 // supplément, les frais sont seulement déduits de la marge comme avant.
+// Révisé le 24/11/2026 (Steven) : les frais sont calculés avec le calculateur en tête des devis puis mis DANS le devis (lignes
+// « Frais de déplacement » et « Transport », leur coût compris dans les achats). L'appli n'ajoute rien au prix : chaque carte
+// montre les frais calculés pour contrôle. Case « frais pas dans le devis » (anciens devis, remise négative type Masquin) :
+// le coût calculé est alors déduit de la marge.
 const DEP_COEF=1.2;
-function dvAnnexes(d){const r=dvDepRes(d);if(!r)return null;const liv=r.liv&&r.liv.cout?r.liv.cout:0,dep=r.total-liv,inc=!!(d.dep&&d.dep.fraisInclus);
-  return{r,dep,liv,cout:r.total,inc,venteDep:inc?0:Math.round(dep*DEP_COEF),venteLiv:inc?0:Math.round(liv*DEP_COEF),get vente(){return this.venteDep+this.venteLiv}}}
-function dvSupp(d){const A=dvAnnexes(d);return A?A.vente:0}
-function dvTotal(d){return(+d.montant||0)+dvSupp(d)}
+function dvAnnexes(d){const r=dvDepRes(d);if(!r)return null;const liv=r.liv&&r.liv.cout?r.liv.cout:0,dep=r.total-liv,hors=!!(d.dep&&d.dep.horsDevis);
+  return{r,dep,liv,cout:r.total,hors,venteDep:Math.round(dep*DEP_COEF),venteLiv:Math.round(liv*DEP_COEF),get vente(){return this.venteDep+this.venteLiv}}}
+function dvSupp(d){return 0}
+function dvTotal(d){return +d.montant||0}
+// coût des frais à retirer de la marge : seulement s'ils ne sont pas dans le devis
+function dvFraisMarge(d){const A=dvAnnexes(d);return A&&A.hors?A.cout:0}
 // lieu hors de la liste : commune trouvée par la Base adresse nationale (api-adresse.data.gouv.fr, seul le nom de la commune
 // est envoyé), distance à vol d'oiseau depuis Orléans × 1,25, temps et péage estimés : à corriger à la main si besoin
 async function depEstime(lieu){
@@ -5080,7 +5117,7 @@ async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=dvVue(id
   else if(k==="metre")x.metre=t.checked;
   else if(k==="retours")x.retours=t.value;
   else if(k==="liv")x.liv=t.value;
-  else if(k==="fraisInclus")x.fraisInclus=t.checked;
+  else if(k==="horsDevis")x.horsDevis=t.checked;
   else{x[k]=k==="zone"?t.value:(t.value===""?"":Math.max(k==="pers"?1:0,+String(t.value).replace(",",".")||0));if(k!=="pers"&&k!=="zone")x.src="saisi"}
   await dvSave(id,{dep:x});dvKeep(planRender)}
 document.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.dvdep)dvDepChange(t)});
@@ -5122,7 +5159,7 @@ function dvHtml(DV){
    <div class="dvobj"><p style="margin:0"><b>Objectif : ${plEur(O.obj)} de marge par journée d'équipe de 2</b>, soit ${plEur(O.taux)} par heure de production, en pose comme à l'atelier.</p>
     <span>Marge jour d'un devis = (prix de vente HT − achats − frais de déplacement + heures d'atelier × ${plEur(O.tauxAtl)}) ÷ (temps total : jours sur place + jours de route + métré lointain, + heures d'atelier ÷ ${plNf(PL_EQ)}). La main-d'œuvre d'atelier comprise dans le prix de Christophe est rajoutée à la marge, comme la pose : elle est déjà payée par nos charges. Jours de pose = main-d'œuvre de pose ÷ ${plEur(O.moJour)} environ par jour d'équipe. Une heure d'atelier se vend au moins ${plEur(O.taux)}, comme une heure de pose. À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
    <p class="plnote">Astuce : glissez la capture d'écran du chiffrage sur la ligne « Nouveau devis » : le devis est créé et Claude remplit client, montant, jours et heures. Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
-   <datalist id="depVilles">${DEP_V.map(v=>`<option value="${esc(v[0])}">`).join("")}</datalist><div class="pldv">${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
+   <datalist id="depVilles">${DEP_V.map(v=>`<option value="${esc(v[0])}">`).join("")}</datalist><div class="pldv">${dvCalcHtml()}${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
 // enregistrement : on relit la ligne juste avant d'écrire et on n'y change que les champs modifiés (23/11/2026 : une page
 // ouverte depuis longtemps renvoyait sa vieille copie et effaçait les achats lus par Claude entre-temps)
 async function dvSave(id,patch){const sb=window.sbClient;let srv=null;
