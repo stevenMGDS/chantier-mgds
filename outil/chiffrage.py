@@ -73,7 +73,9 @@ def note(devis, valeurs):
         if k in ("montant", "achats", "mo", "marge", "jp", "ha", "alerte") and v not in (None, ""):
             if k in ("jp", "ha") and d.get(k) not in (None, ""): continue   # ce que l'équipe a saisi reste
             d[k] = v
-    if ecarts: d["alerte"] = "; ".join(x for x in [d.get("alerte"), "la capture du logiciel de devis est retenue : " + ", ".join(ecarts) + " (vérifier que la capture est la dernière version)"] if x)
+    # écart saisie / capture : la capture fait foi et remplace la saisie ; plus d'alerte (Steven, 24/11/2026 : la carte affiche
+    # déjà les chiffres de la capture, l'ancienne saisie dans l'alerte n'était pas comprise) ; seulement noté dans le journal
+    if ecarts: print(devis, "saisie remplacée par la capture :", ", ".join(ecarts))
     # jours de pose saisis par l'équipe (Steven, 24/11/2026) : ils font foi, pas d'alerte « main-d'œuvre ÷ 1 000 € »
     if d.get("jp") not in (None, "") and d.get("alerte"):
         d["alerte"] = "; ".join(x for x in d["alerte"].split("; ") if not re.search(r"main-d.œuvre ÷|pose de la capture", x)) or ""
