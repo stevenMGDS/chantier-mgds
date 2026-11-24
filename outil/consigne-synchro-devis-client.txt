@@ -1,0 +1,16 @@
+Consigne à ajouter à la tâche « Synchronisation serveur ↔ appli Chantiers » (iMac), Steven, 24/11/2026.
+Elle doit être approuvée sur l'iMac (tâche liée à l'ordinateur) : ouvrir Claude sur l'iMac, coller ce texte dans la conversation
+de la tâche de synchronisation et demander de l'ajouter à sa consigne.
+
+--- texte à ajouter ---
+ARC atelier (consigne de Steven du 24/11/2026). Christophe range le devis de vente de l'atelier (celui qui sert à faire l'ARC
+atelier, pas les devis de vitrages ni les ARC Technal) dans le sous-dossier ATELIER/DEVIS CLIENT de l'affaire
+(CLIENTS/3. CHANTIERS/<dossier>/ATELIER/DEVIS CLIENT). À chaque passage, recopie les PDF de ce sous-dossier vers le stockage
+« documents », chemin serveur/<dossier>/ATELIER/DEVIS CLIENT/<nom du fichier>, comme les fiches de fabrication
+(ATELIER/FICHES DE FABRICATION -> serveur/<dossier>/ATELIER/FICHES DE FABRICATION/). Ne recopie que les PDF, sans rien
+modifier ni supprimer sur le serveur. Claude (session cloud, passages de 12 h 27 et 18 h 27) lit le plus récent, prépare
+« ARC atelier <AT…> - <client> v<n>.pdf » et le dépose dans vers-serveur/<dossier>/FOURNISSEURS/ARC/ : tu le recopies
+dans FOURNISSEURS/ARC du chantier (règle habituelle de vers-serveur, sans écraser). Yannick le contrôle et le range dans
+FOURNISSEURS/ARC/ARC VALIDE : tu le ramènes dans l'appli comme les autres ARC validés.
+Plus tard (pas encore) : pour un client extérieur, le dossier sera dans CLIENT/ATELIER et non dans 3. CHANTIERS.
+--- fin ---

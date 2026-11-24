@@ -352,6 +352,7 @@ textarea{min-height:64px;resize:vertical}
 .rj.ok{background:var(--t-vert,#ddf0e2)}.rj.late{background:var(--t-rouge,#f8dada);color:var(--s-rouge,#b83a3a)}
 .plnoms{display:block;grid-column:2/-1;font-size:12.5px;color:var(--ink);margin-top:2px}.plobj{display:block;font-size:12px;color:var(--muted)}
 .afaire{border:2px solid var(--s-orange,#c96a2c);border-radius:12px;padding:10px 14px;margin:14px 0 4px;background:var(--surface)}
+.atlarcx{margin:4px 0 8px;padding:8px 10px;border-radius:8px;background:var(--atl-bg,#FBE9D6);border-left:5px solid var(--atl,#C96A12);font-size:14px}.atlarcx.ok{background:var(--t-vert,#DDF0E2);border-left-color:var(--s-vert,#469A61)}
 .afaire.afy{border-color:var(--pose,#2a78d6)}.afaire li.late{background:var(--t-rouge,#F8DADA)}.afaire li.soon{background:var(--t-orange,#FBE3D3)}.afi{font-size:18px;text-align:center}
 .afaire summary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;cursor:pointer;font-size:17px}.afaire ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
 .afaire li{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;padding:8px;border-radius:8px;background:var(--sunk)}.afaire li.ok{opacity:.6}.afaire li.ok b{text-decoration:line-through}
@@ -4002,7 +4003,7 @@ async function atlHrLoad(){const sb=window.sbClient;if(!sb)return;
   try{const{data,error}=await sb.from("heures").select("atelier,tache,heures,jour").not("atelier","is",null);if(error)throw error;
     const m=new Map();for(const h of data){const o=m.get(h.atelier)||{tot:0,j:[]};o[h.tache]=atlR1((o[h.tache]||0)+ +h.heures);o.tot=atlR1(o.tot+ +h.heures);o.j.push([h.jour||"",+h.heures]);m.set(h.atelier,o)}atl.hr=m}
   catch(_){atl.hr=atl.hr||new Map()}}
-const ATL_DOCS=["Bon de commande matière","Bon de commande accessoires","Bon de commande vitrages","Bon de commande volets / stores","ARC","Plan / débit","Autre"];
+const ATL_DOCS=["Devis client","Bon de commande matière","Bon de commande accessoires","Bon de commande vitrages","Bon de commande volets / stores","ARC","Plan / débit","Autre"];
 const atl={rows:new Map(),ok:null,open:null,dest:"",q:"",filter:"encours",pending:false,built:false,
   tri:(()=>{try{return localStorage.getItem("atelier-tri")||"pose"}catch(e){return"pose"}})()}; // même tri que la liste des chantiers (Steven, 08/11/2026)
 const atlRole=()=>(window.mgdsProfil||{}).role||"lecteur";
@@ -4262,6 +4263,8 @@ function atlSheet(){
    <details class="atldet"><summary>Fournisseurs, n° de commande et délais</summary><ul class="arcs" style="margin-top:8px">${cmds}</ul></details>
    ${W?`<h3>Conditionnement<span class="sub" style="text-transform:none;letter-spacing:0">sur demande seulement · menuiseries Technal de l'atelier, rangées sur les pupitres</span></h3><p><button type="button" class="btn ghost" data-acond>📦 Préparer le conditionnement (pupitres)</button></p>`:""}
    <h3>ARC atelier<span class="sub" style="text-transform:none;letter-spacing:0">cotes validées après le métré</span></h3>
+   ${(()=>{const X=a.arcAtelier;if(!X)return`<p class="sub">L'ARC atelier est préparé par Claude à partir du devis client de Christophe (dossier ATELIER / DEVIS CLIENT du serveur, ou document « Devis client » déposé ici), au passage de 12 h 27 ou 18 h 27.</p>`;
+     return`<p class="atlarcx ${X.statut==="valide"?"ok":""}">📄 <b>${esc(X.fichier||"ARC atelier")}</b> · préparé le ${fr(X.le)} d'après « ${esc(X.source||"devis client")} » (${X.lignes||"?"} lignes, ${X.menuiseries||"?"} menuiseries) · ${X.statut==="valide"?"validé par Yannick le "+fr(X.valideLe):X.serveur?"à contrôler par Yannick dans FOURNISSEURS / ARC, puis à ranger dans ARC VALIDE":"à contrôler par Yannick"}</p>`})()}
    <div class="fields"><label>N° d'ARC<input type="text" data-af="arcRef" value="${esc(a.arcRef||a.id)}" ${ro}></label><div class="sub" style="align-self:end">${arcInfo}</div></div>
    ${arcOk?`<p class="sub">ARC validé le ${fr(arcOk)} : les lignes ne se modifient plus (décochez « ARC validé » pour corriger).</p>`:""}
    <div class="tbl"><table class="atllg"><thead><tr><th>Repère</th><th>Désignation</th><th>L (mm)</th><th>H (mm)</th><th>Qté</th><th></th></tr></thead><tbody>${lignes||`<tr><td colspan="6" class="sub">Aucune ligne. Ajoutez les menuiseries avec leurs cotes, ou déposez l'ARC du logiciel dans Documents.</td></tr>`}</tbody></table></div>
