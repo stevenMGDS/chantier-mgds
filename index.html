@@ -328,6 +328,7 @@ textarea{min-height:64px;resize:vertical}
 .spanel{position:fixed;z-index:60}.stkbig{font:700 28px var(--f-mono)}.stkbig.r{color:var(--s-rouge)}.stkbig.o{color:var(--s-orange)}
 .stkform{display:flex;flex-direction:column;gap:8px;margin-top:8px}.stkform .clab{display:flex;flex-direction:column;gap:2px}
 .atlwk{display:grid;grid-template-columns:64px 1fr 96px;gap:4px 10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:14px}.atlwk .g{height:12px;background:var(--sunk);border-radius:3px;overflow:hidden}.atlwk .g i{display:block;height:100%;background:var(--atl)}.atlwk .g i.o{background:var(--s-orange)}.atlwk .g i.r{background:var(--s-rouge)}.atlwk small{grid-column:2/-1;color:var(--muted);font-size:13px}
+.atsg{position:relative;display:flex;height:12px;background:var(--sunk);border-radius:6px;overflow:visible;min-width:140px}.atsg i{display:block;height:100%;background:var(--atl,#e8832a)}.atsg i.o{background:#d9822b}.atsg i.r{background:#c62828}.atsg i.d{opacity:.45}.atsg b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
 .atlh{font:700 15px var(--f-display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:24px 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}.atlh .sub{text-transform:none;letter-spacing:0;font-weight:400}
 .lim{display:block;font:12px var(--f-mono);color:var(--muted);white-space:nowrap}.lim.o{color:var(--s-orange);font-weight:600}.lim.r{color:var(--s-rouge);font-weight:600}
 .atltk td:nth-child(2) input,.atltk td:nth-child(3) input{text-align:right;max-width:110px;margin-left:auto;display:block}.atltk .tot td{background:var(--sunk)}
@@ -4144,7 +4145,8 @@ function atlBuild(){
   el.innerHTML=`${atlRole()==="atelier"?`<p style="margin:0 0 12px"><button type="button" class="btn" data-tab="heures">🕒 Mes heures : remplir ma journée à l'atelier</button></p>`:""}<div class="stats" id="atlStats"></div>
    <div class="tools"><div id="atlChips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input type="search" id="atlQ" placeholder="Chercher un client, un n° de commande ou de devis"><select id="atlTri" aria-label="Trier les commandes atelier" style="width:auto;flex:none"><option value="pose">Trier : pose la plus proche</option><option value="alertes">Trier : retards et alertes</option><option value="alpha">Trier : ordre alphabétique (A → Z)</option></select><button class="btn ghost" data-apup>🪵 Pupitres</button>${atlCanW()?`<button class="btn" id="atlNew">Nouvelle commande atelier</button>`:""}</div>
    <div class="list" id="atlList"></div>
-   <h3 class="atlh">Charge de l'atelier<span class="sub">temps de production réparti sur les jours prévus · ${ATL_H_SEM} h par semaine</span></h3><div id="atlLoad"></div>`;
+   <h3 class="atlh">Charge de l'atelier<span class="sub">temps de production réparti sur les jours prévus · ${ATL_H_SEM} h par semaine</span></h3><div id="atlLoad"></div>
+   <h3 class="atlh">Suivi de l'atelier sur l'année<span class="sub">commandes livrées comprises</span></h3><div id="atlSuivi"></div>`;
   $("atlQ").addEventListener("input",e=>{atl.q=e.target.value.trim().toLowerCase();atlRender()});
   $("atlTri").value=atl.tri;$("atlTri").addEventListener("change",e=>{atl.tri=e.target.value;try{localStorage.setItem("atelier-tri",atl.tri)}catch(x){}atlRender()});
 }
@@ -4171,7 +4173,78 @@ function atlRender(){
   else vis.sort((x,y)=>aParPose(x,y)||aAlerte(y)-aAlerte(x)||aAlpha(x,y));
   $("atlList").innerHTML=!all.length?`<div class="empty">Aucune commande atelier pour l'instant.${atlCanW()?" Cliquez sur « Nouvelle commande atelier ».":""}</div>`:vis.length?vis.map(atlRow).join(""):`<div class="empty">Aucune commande dans ce filtre.</div>`;
   $("atlLoad").innerHTML=atlLoadHtml(live);
+  atsRender();
 }
+// ---------- Suivi de l'atelier sur l'année (Steven, 24/11/2026) ----------
+// Pour Christophe (et Steven) : projection 12 mois en avant, heures et rentabilité 12 mois en arrière, commandes livrées
+// comprises ; Christophe complète les heures manquantes (outil/atelier-suivi.sql). Manu : projection et heures, sans prix.
+const ats={vue:"proj",ok:false,loading:false,hs:[],noms:new Map(),dir:new Map(),add:null};
+const atsChef=()=>atlRole()==="editeur"||(atlRole()==="atelier"&&(window.mgdsProfil||{}).reserve_stock===true);
+const atsMois=n=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")};
+const atsML=m=>PL_MOIS[+m.slice(5,7)-1]+" "+m.slice(2,4);
+async function atsLoad(){if(ats.loading)return;ats.loading=true;const sb=window.sbClient;
+  try{const de=atsMois(-12)+"-01";
+    const[a,b,c]=await Promise.all([sb.from("heures").select("id,poseur,jour,atelier,tache,heures,valide_le").not("atelier","is",null).gte("jour",de).limit(20000),
+      sb.from("profils").select("id,nom,role"),
+      atsChef()?sb.from("direction").select("id,data").like("id","atl%"):Promise.resolve({data:[]})]);
+    ats.hs=a.data||[];ats.noms=new Map((b.data||[]).map(p=>[p.id,p]));ats.dir=new Map((c.data||[]).map(r=>[r.id,r.data]));ats.ok=true}
+  catch(_){ats.ok=true}ats.loading=false;atsRender()}
+function atsRender(){const el=$("atlSuivi");if(!el)return;if(!ats.ok){el.innerHTML=`<span class="sub">Chargement…</span>`;atsLoad();return}
+  const V=[["proj","Projection 12 mois"],["heures","Heures 12 mois"],...(atsChef()?[["renta","Rentabilité 12 mois"]]:[])];
+  if(!V.some(v=>v[0]===ats.vue))ats.vue="proj";
+  el.innerHTML=`<div class="tools">${V.map(([k,l])=>`<button class="chip" data-atsv="${k}" aria-pressed="${ats.vue===k}">${l}</button>`).join("")}</div>`+(ats.vue==="proj"?atsProj():ats.vue==="heures"?atsHeures():atsRenta())}
+function atsNoteH(){const N=new Map();for(const h of ats.hs){const k=h.atelier;N.set(k,(N.get(k)||0)+(+h.heures||0))}return N}
+// projection : reste à faire des commandes en cours (réparti comme la charge de l'atelier) + devis en attente (heures × chance)
+function atsProj(){const all=[...atl.rows.entries()].map(([id,a])=>({id,...a})),live=all.filter(a=>!atlDone(a)),{wk}=atlWeekLoad(live);
+  const M=[...Array(12)].map((_,i)=>({m:atsMois(i),c:0,d:0,cap:0}));const ix=new Map(M.map(x=>[x.m,x]));
+  for(const[f,v]of Object.entries(wk)){const x=ix.get(f.slice(0,7));if(x)x.c+=+v||0}
+  // capacité : Manu ${ATL_H_SEM} h par semaine (vendredis du mois)
+  M.forEach(x=>{const d=new Date(x.m+"-01T12:00");let n=0;while(d.getMonth()+1===+x.m.slice(5)){if(d.getDay()===5)n++;d.setDate(d.getDate()+1)}x.cap=n*ATL_H_SEM});
+  try{if(typeof dvLive==="function")for(const d of dvLive()){const x=ix.get(d.periode||"");if(x&&+d.ha>0)x.d+=(+d.ha)*((DV_CH[d.chance]||DV_CH.moyenne)[1])}}catch(_){}
+  const mx=Math.max(...M.map(x=>Math.max(x.cap,x.c+x.d)),1),h1=v=>String(Math.round(v)).replace(".",",");
+  return`<div class="tbl"><table class="rttab"><thead><tr><th>Mois</th><th class="n">Commandes</th><th class="n">Devis probables</th><th class="n">Capacité</th><th>Charge</th></tr></thead><tbody>${M.map(x=>{const t=x.c+x.d,cl=t>x.cap+.5?"r":t>x.cap*.85?"o":"";
+    return`<tr><td>${atsML(x.m)}</td><td class="n">${h1(x.c)} h</td><td class="n">${x.d?h1(x.d)+" h":"–"}</td><td class="n">${h1(x.cap)} h</td><td><span class="g atsg"><i class="${cl}" style="width:${Math.min(100,x.c/mx*100)}%"></i><i class="d" style="width:${Math.min(100,x.d/mx*100)}%"></i><b style="left:${Math.min(100,x.cap/mx*100)}%"></b></span></td></tr>`}).join("")}</tbody></table></div>
+   <p class="sub">Commandes en cours : temps de production restant, placé comme la charge de l'atelier. Devis probables : heures d'atelier des devis en attente × chance de signature, au mois de pose souhaité${atsChef()?"":" (visibles par Christophe et Steven)"}. Capacité : ${ATL_H_SEM} h par semaine, hors renfort des poseurs.</p>`}
+// heures : par commande (12 mois, livrées comprises), prévu / noté, par personne ; Christophe ajoute les heures manquantes
+function atsCmds(){const de=atsMois(-12),N=atsNoteH();
+  return[...atl.rows.entries()].map(([id,a])=>({id,...a})).filter(a=>{const f=atlD(a,"fin")||atlD(a,"livre")||"";return!f||f.slice(0,7)>=de||N.has(a.id)})
+    .map(a=>({a,prev:atlHeures(a)||0,note:N.get(a.id)||0,fin:atlD(a,"fin")||"",mois:(atlD(a,"fin")||(a.calc&&a.calc.fin)||"").slice(0,7)}))
+    .sort((x,y)=>(y.fin||"9999").localeCompare(x.fin||"9999"))}
+function atsHeures(){const L=atsCmds(),chef=atsChef(),h1=v=>String(Math.round(v*100)/100).replace(".",",");
+  const pers=id=>{const p=ats.noms.get(id);return p?p.nom:"?"};
+  const rows=L.map(x=>{const a=x.a,H=ats.hs.filter(h=>h.atelier===a.id),parP=new Map();H.forEach(h=>parP.set(h.poseur,(parP.get(h.poseur)||0)+(+h.heures||0)));
+    const manque=x.prev&&x.note<x.prev*.5&&atlD(a,"fin");
+    return`<tr><td><button class="lnk" data-aopen="${esc(a.id)}">${esc(atlName(a))}</button><br><small class="sub">${esc(a.id)}${x.fin?" · terminée le "+fr(x.fin):atlD(a,"debut")?" · en production":" · pas commencée"}</small></td>
+      <td class="n">${x.prev?h1(x.prev)+" h":"–"}</td><td class="n"><b class="${manque?"rtm":""}">${h1(x.note)} h</b>${manque?`<br><small class="rtm">heures à compléter</small>`:""}</td>
+      <td><small>${[...parP].map(([p,v])=>esc(pers(p))+" "+h1(v)+" h").join(" · ")||"–"}</small></td>
+      <td>${chef?`<button class="btn ghost" data-atsadd="${esc(a.id)}">+ heures</button>`:""}</td></tr>${ats.add===a.id?`<tr><td colspan="5">${atsForm(a)}</td></tr>`:""}`}).join("");
+  return`<div class="tbl"><table class="rttab"><thead><tr><th>Commande</th><th class="n">Prévu</th><th class="n">Noté</th><th>Par personne</th><th></th></tr></thead><tbody>${rows||`<tr><td colspan="5" class="sub">Aucune commande sur l'année.</td></tr>`}</tbody></table></div>
+   <p class="sub">Heures notées dans « Mes heures » sur chaque commande (12 derniers mois). « Heures à compléter » : production terminée avec moins de la moitié du temps prévu.${chef?" Christophe peut ajouter les heures manquantes de chacun, même sur une commande livrée.":""}</p>`}
+function atsForm(a){const P=[...ats.noms.values()].filter(p=>["atelier","poseur"].includes(p.role)).sort((x,y)=>String(x.nom).localeCompare(String(y.nom)));
+  const T=["Débit","Usinage","Montage","Vitrage","Divers"];
+  return`<form class="add arcadd" data-atsform="${esc(a.id)}" novalidate><select name="p" aria-label="Personne">${P.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join("")}</select>
+    <input type="date" name="j" value="${today()}" max="${today()}" aria-label="Jour"><select name="t" aria-label="Tâche">${T.map(t=>`<option>${t}</option>`).join("")}</select>
+    <input type="number" name="h" min="0" step="any" inputmode="decimal" placeholder="heures" aria-label="Heures" style="flex:0 1 90px"><button class="btn">Ajouter</button><button type="button" class="btn ghost" data-atsadd="">Fermer</button></form>`}
+// rentabilité : prix de l'atelier (devis de Christophe) − matière (éléments validés) ÷ heures notées (sinon prévues)
+function atsRenta(){const O=rtObj(),L=atsCmds(),eur=v=>plEur(v);let tv=0,tm=0,th=0;
+  const rows=L.map(x=>{const a=x.a,A=ats.dir.get("atl_"+a.id)||{},V=a.chantier?ats.dir.get("atlv_"+a.chantier):null;
+    const v=V&&V.man?+V.ht:A.ht!=null?+A.ht:null,mat=A.mat!=null?+A.mat:null,inc=x.prev&&x.note<x.prev*.5,h=inc?x.prev:x.note||x.prev,mg=v!=null&&mat!=null?v-mat:null,mh=mg!=null&&h?mg/h:null;
+    if(mh!=null){tv+=v;tm+=mg;th+=h}
+    const cl=mh==null?"":mh>=O.taux?"ok":mh>=O.taux*.9?"o":"r";
+    return`<tr><td>${esc(atlName(a))}<br><small class="sub">${esc(a.id)}${x.fin?" · "+fr(x.fin):""}</small></td><td class="n">${v!=null?eur(v):"<small class=rtm>prix à lire</small>"}</td><td class="n">${mat!=null?eur(mat):"<small class=rtm>éléments validés à lire</small>"}</td>
+      <td class="n">${String(Math.round(h*10)/10).replace(".",",")} h${inc&&x.note?" <small class=rtm>(prévues : heures notées incomplètes)</small>":x.note?"":" <small class=sub>(prévues)</small>"}</td><td class="n">${mg!=null?eur(mg):"–"}</td><td class="n"><b class="rtv ${cl}">${mh!=null?eur(mh)+"/h":"–"}</b></td></tr>`}).join("");
+  return`<div class="kpis"><div class="kpi"><b>${eur(O.taux)}/h</b><span>Objectif par heure de production</span></div><div class="kpi ${th&&tm/th<O.taux?"r":""}"><b>${th?eur(tm/th)+"/h":"–"}</b><span>Marge par heure de l'atelier (12 mois)</span></div><div class="kpi"><b>${eur(tv)}</b><span>Vendu par l'atelier (commandes chiffrées)</span></div></div>
+   <div class="tbl"><table class="rttab"><thead><tr><th>Commande</th><th class="n">Prix atelier</th><th class="n">Matière</th><th class="n">Heures</th><th class="n">Marge</th><th class="n">Par heure</th></tr></thead><tbody>${rows}</tbody></table></div>
+   <p class="sub">Prix de l'atelier = total HT du devis client de Christophe ; matière = commandes du dossier ATELIER/ÉLÉMENTS VALIDÉS (Technal, accessoires, Foussier, vitrages) ; heures = heures notées (les heures prévues tant que moins de la moitié est notée). Objectif : ${eur(O.taux)} de marge par heure, comme la pose.</p>`}
+document.addEventListener("click",e=>{const v=e.target.closest&&e.target.closest("[data-atsv],[data-atsadd]");if(!v)return;
+  if(v.dataset.atsv){ats.vue=v.dataset.atsv;atsRender();return}
+  ats.add=v.dataset.atsadd&&ats.add!==v.dataset.atsadd?v.dataset.atsadd:null;atsRender()});
+document.addEventListener("submit",async e=>{const f=e.target.closest&&e.target.closest("[data-atsform]");if(!f)return;e.preventDefault();
+  const aid=f.dataset.atsform,a=atl.rows.get(aid)||{},h=+String(f.h.value).replace(",",".");if(!(h>0&&h<=12)){toast("Nombre d'heures entre 0 et 12.");return}
+  const row={poseur:f.p.value,jour:f.j.value||today(),chantier:a.chantier||null,atelier:aid,tache:f.t.value,heures:h,note:"ajouté par "+((window.mgdsProfil||{}).nom||"Christophe")};
+  const{error}=await window.sbClient.from("heures").insert(row);
+  if(error){toast(/row-level|policy|permission/i.test(error.message||"")?"Ajout refusé par la base : le SQL outil/atelier-suivi.sql n'est pas encore lancé.":"Ajout impossible, réessayez.");return}
+  toast("Heures ajoutées.");ats.add=null;ats.ok=false;atsRender()});
 function atlRow(a){
   const ss=atlStepsOf(a),c=atlCur(a),p=atlPlan(a),al=atlAlerts(a),red=al.some(x=>x[0]==="r"),fin=atlD(a,"fin");
   const st=k=>atlD(a,k)?"done":a.bloque&&k===c?"blk":p.L[k]&&p.L[k]<today()?"late":"";
