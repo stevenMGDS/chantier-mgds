@@ -4180,17 +4180,20 @@ function atlRender(){
 // comprises ; Christophe complète les heures manquantes (outil/atelier-suivi.sql). Manu : projection et heures, sans prix.
 const ats={vue:"proj",ok:false,loading:false,hs:[],noms:new Map(),dir:new Map(),add:null};
 const atsChef=()=>atlRole()==="editeur"||(atlRole()==="atelier"&&(window.mgdsProfil||{}).reserve_stock===true);
+// rentabilité de l'atelier : Steven, Marine, Christophe et Stéphanie (pas Yannick, pas Manu) — outil/atelier-suivi.sql
+const ATS_RENTA_IDS=["9ed183c3-5699-4142-bd5d-b27e521f2ff0"];
+const atsRentaOk=()=>atsChef()||ATS_RENTA_IDS.includes((window.mgdsProfil||{}).id||me||"");
 const atsMois=n=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")};
 const atsML=m=>PL_MOIS[+m.slice(5,7)-1]+" "+m.slice(2,4);
 async function atsLoad(){if(ats.loading)return;ats.loading=true;const sb=window.sbClient;
   try{const de=atsMois(-12)+"-01";
     const[a,b,c]=await Promise.all([sb.from("heures").select("id,poseur,jour,atelier,tache,heures,valide_le").not("atelier","is",null).gte("jour",de).limit(20000),
       sb.from("profils").select("id,nom,role"),
-      atsChef()?sb.from("direction").select("id,data").like("id","atl%"):Promise.resolve({data:[]})]);
+      atsRentaOk()?sb.from("direction").select("id,data").like("id","atl%"):Promise.resolve({data:[]})]);
     ats.hs=a.data||[];ats.noms=new Map((b.data||[]).map(p=>[p.id,p]));ats.dir=new Map((c.data||[]).map(r=>[r.id,r.data]));ats.ok=true}
   catch(_){ats.ok=true}ats.loading=false;atsRender()}
 function atsRender(){const el=$("atlSuivi");if(!el)return;if(!ats.ok){el.innerHTML=`<span class="sub">Chargement…</span>`;atsLoad();return}
-  const V=[["proj","Projection 12 mois"],["heures","Heures 12 mois"],...(atsChef()?[["renta","Rentabilité 12 mois"]]:[])];
+  const V=[["proj","Projection 12 mois"],["heures","Heures 12 mois"],...(atsRentaOk()?[["renta","Rentabilité 12 mois"]]:[])];
   if(!V.some(v=>v[0]===ats.vue))ats.vue="proj";
   el.innerHTML=`<div class="tools">${V.map(([k,l])=>`<button class="chip" data-atsv="${k}" aria-pressed="${ats.vue===k}">${l}</button>`).join("")}</div>`+(ats.vue==="proj"?atsProj():ats.vue==="heures"?atsHeures():atsRenta())}
 function atsNoteH(){const N=new Map();for(const h of ats.hs){const k=h.atelier;N.set(k,(N.get(k)||0)+(+h.heures||0))}return N}
@@ -4204,7 +4207,7 @@ function atsProj(){const all=[...atl.rows.entries()].map(([id,a])=>({id,...a})),
   const mx=Math.max(...M.map(x=>Math.max(x.cap,x.c+x.d)),1),h1=v=>String(Math.round(v)).replace(".",",");
   return`<div class="tbl"><table class="rttab"><thead><tr><th>Mois</th><th class="n">Commandes</th><th class="n">Devis probables</th><th class="n">Capacité</th><th>Charge</th></tr></thead><tbody>${M.map(x=>{const t=x.c+x.d,cl=t>x.cap+.5?"r":t>x.cap*.85?"o":"";
     return`<tr><td>${atsML(x.m)}</td><td class="n">${h1(x.c)} h</td><td class="n">${x.d?h1(x.d)+" h":"–"}</td><td class="n">${h1(x.cap)} h</td><td><span class="g atsg"><i class="${cl}" style="width:${Math.min(100,x.c/mx*100)}%"></i><i class="d" style="width:${Math.min(100,x.d/mx*100)}%"></i><b style="left:${Math.min(100,x.cap/mx*100)}%"></b></span></td></tr>`}).join("")}</tbody></table></div>
-   <p class="sub">Commandes en cours : temps de production restant, placé comme la charge de l'atelier. Devis probables : heures d'atelier des devis en attente × chance de signature, au mois de pose souhaité${atsChef()?"":" (visibles par Christophe et Steven)"}. Capacité : ${ATL_H_SEM} h par semaine, hors renfort des poseurs.</p>`}
+   <p class="sub">Commandes en cours : temps de production restant, placé comme la charge de l'atelier. Devis probables : heures d'atelier des devis en attente × chance de signature, au mois de pose souhaité. Capacité : ${ATL_H_SEM} h par semaine, hors renfort des poseurs.</p>`}
 // heures : par commande (12 mois, livrées comprises), prévu / noté, par personne ; Christophe ajoute les heures manquantes
 function atsCmds(){const de=atsMois(-12),N=atsNoteH();
   return[...atl.rows.entries()].map(([id,a])=>({id,...a})).filter(a=>{const f=atlD(a,"fin")||atlD(a,"livre")||"";return!f||f.slice(0,7)>=de||N.has(a.id)})

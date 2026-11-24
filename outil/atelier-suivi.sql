@@ -6,7 +6,18 @@
 --    atelier avec une tâche. Une ligne validée par Marine ne bouge plus.
 -- 2. Christophe lit la rentabilité de l'atelier : prix de l'atelier et matière (direction/atl_<commande>), et peut saisir
 --    le prix de l'atelier à la main (direction/atlv_<chantier>). Le reste de la table direction reste à Steven seul.
+-- 3. Le bureau (Marine, Stéphanie, Yannick) voit la projection et les heures de l'atelier ; la rentabilité de l'atelier
+--    est lue par Steven, Christophe, Marine et Stéphanie (pas Yannick, pas Manu) (Steven, 24/11/2026).
 -- Manu (atelier sans reserve_stock) lit déjà toutes les heures d'atelier (heures-atelier.sql) : rien à changer pour lui.
+
+-- qui lit la rentabilité de l'atelier : éditeurs (Steven, Marine), Christophe, Stéphanie
+create or replace function public.est_renta_atelier() returns boolean
+language sql stable security definer set search_path = public as
+$$ select public.est_editeur() or public.est_reservant() or auth.uid() = '9ed183c3-5699-4142-bd5d-b27e521f2ff0'::uuid $$;
+
+drop policy if exists "heures atelier lues par le bureau" on public.heures;
+create policy "heures atelier lues par le bureau" on public.heures for select to authenticated
+  using (atelier is not null and tache is not null and public.est_terrain());
 
 create or replace function public.garde_heures() returns trigger
 language plpgsql security definer set search_path = public as
@@ -41,11 +52,14 @@ create policy "heures atelier retirées par Christophe" on public.heures for del
   using (public.est_reservant() and atelier is not null and tache is not null and valide_le is null);
 
 drop policy if exists "rentabilite atelier lue par Christophe" on public.direction;
-create policy "rentabilite atelier lue par Christophe" on public.direction for select to authenticated
-  using (public.est_reservant() and (id like 'atl\_%' or id like 'atlv\_%'));
+drop policy if exists "rentabilite atelier lue" on public.direction;
+create policy "rentabilite atelier lue" on public.direction for select to authenticated
+  using (public.est_renta_atelier() and (id like 'atl\_%' or id like 'atlv\_%'));
 drop policy if exists "prix atelier saisi par Christophe" on public.direction;
-create policy "prix atelier saisi par Christophe" on public.direction for insert to authenticated
-  with check (public.est_reservant() and id like 'atlv\_%');
+drop policy if exists "prix atelier saisi" on public.direction;
+create policy "prix atelier saisi" on public.direction for insert to authenticated
+  with check (public.est_renta_atelier() and id like 'atlv\_%');
 drop policy if exists "prix atelier corrigé par Christophe" on public.direction;
-create policy "prix atelier corrigé par Christophe" on public.direction for update to authenticated
-  using (public.est_reservant() and id like 'atlv\_%') with check (public.est_reservant() and id like 'atlv\_%');
+drop policy if exists "prix atelier corrigé" on public.direction;
+create policy "prix atelier corrigé" on public.direction for update to authenticated
+  using (public.est_renta_atelier() and id like 'atlv\_%') with check (public.est_renta_atelier() and id like 'atlv\_%');
