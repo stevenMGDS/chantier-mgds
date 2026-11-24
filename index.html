@@ -4916,12 +4916,12 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
 // ---------- Calculateur de frais (pré-chiffrage, Steven 24/11/2026) ----------
 // Avant de faire le devis : lieu, équipe, jours sur place, retours, livraison, métré -> frais de déplacement et de livraison
 // (coût et vente conseillée au coefficient 1,2) à intégrer au chiffrage. Rien n'est enregistré dans la base (gardé sur l'appareil).
-let DV_CALC=(()=>{try{return JSON.parse(localStorage.getItem("dvCalc")||"null")}catch(_){return null}})()||{id:"calc",jp:"",periode:"",dep:{pers:2,retours:"we",liv:"",metre:false}};
+let DV_CALC=(()=>{try{return JSON.parse(localStorage.getItem("dvCalc")||"null")}catch(_){return null}})()||{id:"calc",jp:"",periode:"",dep:{pers:2,retours:"we",liv:"",metre:true}};
 const dvCalcSave=()=>{try{localStorage.setItem("dvCalc",JSON.stringify(DV_CALC))}catch(_){}};
 function dvCalcHtml(){const c=DV_CALC,x=c.dep||{},A=dvAnnexes(c),r=A&&A.r;const sel=(k,opts,v)=>`<select data-calc="${k}">${opts.map(([a,b])=>`<option value="${a}" ${String(v??"")===a?"selected":""}>${b}</option>`).join("")}</select>`;
   const F=(l,inner,cls="")=>`<label class="dvfl ${cls}"><span>${l}</span>${inner}</label>`;
   const res=!x.lieu?`<p class="sub" style="margin:0">Saisissez le lieu et les jours sur place pour obtenir les frais à intégrer au devis.</p>`:x.km===""||x.km==null?`<p class="sub" style="margin:0">${x.src==="cherche"?"Recherche de la distance…":"Commune introuvable : saisissez les km, le péage et le temps de route ci-dessous."}</p>`:!A?`<p class="sub" style="margin:0">Jours sur place à saisir.</p>`
-   :`<div class="dvpills"><span class="dvpill"><b>${plNf(r.jt)} j</b> temps total</span><span class="dvpill"><b>${plNf(r.jr)} j</b> de route · ${r.ar} A/R</span>${r.nuits?`<span class="dvpill"><b>${r.nuits}</b> nuit${r.nuits>1?"s":""}</span>`:""}<span class="dvpill c"><b>${plEur(A.venteDep)}</b> déplacement à vendre (coût ${plEur(A.dep)})</span>${A.liv?`<span class="dvpill c"><b>${plEur(A.venteLiv)}</b> transport à vendre (coût ${plEur(A.liv)})</span>`:""}</div>
+   :`<div class="dvpills"><span class="dvpill"><b>${plNf(r.jt)} j</b> temps total</span><span class="dvpill"><b>${plNf(r.jr)} j</b> de route · ${r.ar} A/R</span>${r.nuits?`<span class="dvpill"><b>${r.nuits}</b> nuit${r.nuits>1?"s":""}</span>`:""}<span class="dvpill c"><b>${plEur(A.venteDep)}</b> déplacement à vendre (coût ${plEur(A.dep)})</span>${A.venteMet?`<span class="dvpill c"><b>${plEur(A.venteMet)}</b> métré à vendre (${plNf(A.mh)} h + ${plEur(A.met)} de frais)</span>`:""}${A.liv?`<span class="dvpill c"><b>${plEur(A.venteLiv)}</b> transport à vendre (coût ${plEur(A.liv)})</span>`:""}</div>
     <pre class="dvannexp">${esc(dvAnnexTexte(c))}</pre><div><button type="button" class="btn ghost" data-calccopy="1">Copier les lignes pour le devis</button> <button type="button" class="btn ghost" data-calcraz="1">Effacer</button></div>`;
   return`<details class="dvcalc" ${x.lieu?"open":""} id="dvcalc"><summary><b>🧮 Calculateur de frais (pré-chiffrage)</b><span class="sub">déplacement, découchers et livraison à intégrer au devis, avant de le créer</span></summary>
    <div class="dvf">${F("Lieu du chantier",`<input type="text" list="depVilles" data-calc="lieu" value="${esc(x.lieu||"")}" placeholder="ville">`)}${F("Équipe (pers.)",`<input type="number" min="1" step="1" inputmode="numeric" data-calc="pers" value="${esc(x.pers||2)}">`)}
@@ -4940,13 +4940,14 @@ async function dvCalcChange(t){const k=t.dataset.calc,c=DV_CALC,x={...(c.dep||{}
 function dvCalcMaj(){const el=document.getElementById("dvcalc");if(!el)return;const w=document.createElement("div");w.innerHTML=dvCalcHtml();const n=w.firstElementChild;n.open=true;el.replaceWith(n)}
 document.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.calc)dvCalcChange(t)});
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-calccopy],[data-calcraz]");if(!b)return;
-  if(b.dataset.calcraz){DV_CALC={id:"calc",jp:"",periode:"",dep:{pers:2,retours:"we",liv:"",metre:false}};dvCalcSave();dvCalcMaj();return}
+  if(b.dataset.calcraz){DV_CALC={id:"calc",jp:"",periode:"",dep:{pers:2,retours:"we",liv:"",metre:true}};dvCalcSave();dvCalcMaj();return}
   navigator.clipboard.writeText(dvAnnexTexte(DV_CALC)).then(()=>toast("Lignes copiées : à coller dans le devis.")).catch(()=>toast("Copie impossible sur cet appareil."))});
 function dvAnnexTexte(d){const A=dvAnnexes(d);if(!A)return"";const r=A.r,x=d.dep||{},p=Math.max(1,+x.pers||2),e=n=>plEur(n).replace(/\u202f|\u00a0/g," ");
   const L=[];if(A.dep>0){L.push(`Frais de déplacement : ${e(A.venteDep)} HT`);
     if(r.P.logement)L.push(`  Hôtel : ${r.nuits} nuit${r.nuits>1?"s":""} × ${p} pers. = ${e(r.P.logement)}`);if(r.P.prime)L.push(`  Primes de découcher : ${r.nuits} × ${p} × ${e(DEP_T.prime)} = ${e(r.P.prime)}`);
-    L.push(`  Carburant et usure : ${e(r.P.camion)}${r.P.peage?` · péages : ${e(r.P.peage)}`:""} (${Math.round(+x.km)} km, ${r.ar} aller${r.ar>1?"s":""}-retour${r.ar>1?"s":""})`);if(r.mf)L.push(`  Métré sur place : ${e(r.mf)}`);
+    L.push(`  Carburant et usure : ${e(r.P.camion)}${r.P.peage?` · péages : ${e(r.P.peage)}`:""} (${Math.round(+x.km)} km, ${r.ar} aller${r.ar>1?"s":""}-retour${r.ar>1?"s":""})`);
     L.push(`  Coût ${e(A.dep)} × ${String(DEP_COEF).replace(".",",")}`)}
+  if(A.venteMet)L.push(`Métré sur place (1 personne) : ${e(A.venteMet)} HT`,`  Temps : ${String(Math.round(A.mh*10)/10).replace(".",",")} h (route aller-retour + ½ j sur place) × ${e(rtObj().taux)}/h = ${e(A.mt)}`,`  Frais : ${e(A.met)}${r.mn?" (nuit sur place comprise)":""} × ${String(DEP_COEF).replace(".",",")}`);
   if(A.liv>0)L.push(`Transport (livraison semi ${r.liv.lab}) : ${e(A.venteLiv)} HT`,`  ${Math.round(r.liv.km)} km · coût ${e(A.liv)} × ${String(DEP_COEF).replace(".",",")}`);
   return L.join("\n")}
 function dvAnnexHtml(d){const A=dvAnnexes(d),id=esc(d.id),ro=plW()?"":"disabled";if(!A||!A.cout)return"";
@@ -5064,8 +5065,11 @@ function dvFrais(d){const r=dvDepRes(d);return r?r.total:0}
 // montre les frais calculés pour contrôle. Case « frais pas dans le devis » (anciens devis, remise négative type Masquin) :
 // le coût calculé est alors déduit de la marge.
 const DEP_COEF=1.2;
-function dvAnnexes(d){const r=dvDepRes(d);if(!r)return null;const liv=r.liv&&r.liv.cout?r.liv.cout:0,dep=r.total-liv,hors=!!(d.dep&&d.dep.horsDevis);
-  return{r,dep,liv,cout:r.total,hors,venteDep:Math.round(dep*DEP_COEF),venteLiv:Math.round(liv*DEP_COEF),get vente(){return this.venteDep+this.venteLiv}}}
+// Métré (Steven, 24/11/2026) : vendu à part, temps d'une personne (route aller-retour + ½ j sur place) au taux horaire de
+// la page Rentabilité + ses frais (carburant, péage, nuit si loin) × DEP_COEF.
+function dvAnnexes(d){const r=dvDepRes(d);if(!r)return null;const liv=r.liv&&r.liv.cout?r.liv.cout:0,met=r.mf||0,dep=r.total-liv-met,hors=!!(d.dep&&d.dep.horsDevis);
+  const mh=(r.mj||0)*PL_H,mt=mh*rtObj().taux;
+  return{r,dep,liv,met,mh,mt,cout:r.total,hors,venteDep:Math.round(dep*DEP_COEF),venteLiv:Math.round(liv*DEP_COEF),venteMet:r.mj?Math.round((mt+met*DEP_COEF)/10)*10:0,get vente(){return this.venteDep+this.venteLiv+this.venteMet}}}
 function dvSupp(d){return 0}
 function dvTotal(d){return +d.montant||0}
 // coût des frais à retirer de la marge : seulement s'ils ne sont pas dans le devis
