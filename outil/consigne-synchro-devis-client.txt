@@ -12,5 +12,9 @@ modifier ni supprimer sur le serveur. Claude (session cloud, passages de 12 h 27
 « ARC atelier <AT…> - <client> v<n>.pdf » et le dépose dans vers-serveur/<dossier>/FOURNISSEURS/ARC/ : tu le recopies
 dans FOURNISSEURS/ARC du chantier (règle habituelle de vers-serveur, sans écraser). Yannick le contrôle et le range dans
 FOURNISSEURS/ARC/ARC VALIDE : tu le ramènes dans l'appli comme les autres ARC validés.
+Rentabilité de l'atelier (consigne de Steven du 24/11/2026, même passage) : recopie aussi les PDF des sous-dossiers
+« ÉLÉMENTS VALIDÉS » de ATELIER (ÉLÉMENTS VALIDÉS, ÉLÉMENTS VALIDÉS T1, T2…, avec leurs sous-dossiers sauf PLANS VALIDÉS)
+vers documents, chemin serveur/<dossier>/ATELIER/<même sous-dossier>/<nom du fichier>, sans rien modifier ni supprimer
+sur le serveur. Claude y lit seulement le total HT de chaque commande validée pour la page Direction.
 Plus tard (pas encore) : pour un client extérieur, le dossier sera dans CLIENT/ATELIER et non dans 3. CHANTIERS.
 --- fin ---

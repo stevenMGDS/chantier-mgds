@@ -3705,11 +3705,7 @@ function rtData(){
     else if(h.chantier&&!h.tache&&jobs.has(h.chantier)&&!staff.has(h.poseur))get(h.chantier).poseH+=n}
   const pj=new Map();(dirH.pl||[]).forEach(p=>pj.set(p.chantier,(pj.get(p.chantier)||0)+1));
   for(const[id,n]of pj){const o=A.get(id);if(o&&!o.jPrev){o.jPrev=n/2;o.jSrc="planning"}}
-  const fac={},facA={},atlFour=new Map();
-  // fournisseurs de la matière d'atelier (Steven, 24/11/2026) : Technal, Foussier et ceux notés dans les commandes atelier du chantier
-  for(const[aid,c]of cmd){const a=atl.rows.get(aid)||{};const S=atlFour.get(c)||new Set();Object.keys(ATL_CMDS).forEach(k=>{const f=(atlCmd(a,k).four||"").trim().toLowerCase();if(f)S.add(f)});atlFour.set(c,S)}
-  const estAtl=(aff,four)=>{const f=String(four||"").toLowerCase();return atlFour.has(aff)&&(/technal|foussier/.test(f)||[...atlFour.get(aff)].some(x=>x.length>2&&(f.includes(x)||x.includes(f))))};
-  dirLines().forEach(l=>{if(!jobs.has(l.aff))return;fac[l.aff]=(fac[l.aff]||0)+(l.ht||0);if(estAtl(l.aff,l.four))facA[l.aff]=(facA[l.aff]||0)+(l.ht||0)});
+  const fac={};dirLines().forEach(l=>{if(jobs.has(l.aff))fac[l.aff]=(fac[l.aff]||0)+(l.ht||0)});
   return[...A.values()].map(o=>{
     const v=dirDocs.get("vente_"+o.id)||{},arcs=(dirDocs.get("achat_"+o.id)||{}).arcs||[],pv=(dirDocs.get("prev_"+o.id)||{}).achat;
     const arc=arcs.reduce((s,a)=>s+(+a.ht||0),0),f=fac[o.id]||0;
@@ -3729,14 +3725,15 @@ function rtData(){
     if(o.fin){const hR=o.jReel*PL_EQ+o.atlH;o.mjAct=mj(o.achR||achPm,hR||o.hPrev)}
     // ---- rentabilité séparée (Steven, 24/11/2026) : atelier = production seule, pose = tout le reste (frais compris) ----
     // vente atelier = total HT du devis client de Christophe (direction/atl_<commande>, lu par rentabilite.py) ou saisi (atlv_<chantier>)
-    const aids=[...cmd].filter(([,c])=>c===o.id).map(([a])=>a),lus=aids.map(a=>dirDocs.get("atl_"+a)).filter(x=>x&&x.ht!=null),vm=dirDocs.get("atlv_"+o.id);
+    const aids=[...cmd].filter(([,c])=>c===o.id).map(([a])=>a),AT=aids.map(a=>dirDocs.get("atl_"+a)).filter(Boolean),lus=AT.filter(x=>x.ht!=null),vm=dirDocs.get("atlv_"+o.id);
     o.aids=aids;o.vAtl=vm&&vm.man?+vm.ht:lus.length?lus.reduce((s,x)=>s+(+x.ht||0),0):null;o.vAtlMan=!!(vm&&vm.man);o.vAtlDoc=lus.map(x=>x.doc).join(", ");
     o.hasAtl=aids.length>0||o.atlP>0||o.atlH>0;o.hA=Math.max(o.atlP,o.atlH+o.posAtlH);o.hP=Math.max(o.jPrev*PL_EQ,o.poseH);
     if(o.fin){o.hA=(o.atlH+o.posAtlH)||o.atlP;o.hP=o.poseH||o.jPrev*PL_EQ}
-    const fA=facA[o.id]||0,fP=(fac[o.id]||0)-fA,split=!o.hasAtl||o.vAtl!=null;
-    // atelier : matière = factures des fournisseurs de l'atelier (le devis de Christophe ne détaille pas sa matière :
-    // pas de marge atelier inventée avant les factures)
-    o.matA=o.vAtl!=null&&fA>0?fA:null;o.matAPart=!o.fin;
+    // atelier : matière = pièces validées du dossier ATELIER/ÉLÉMENTS VALIDÉS (Steven, 24/11/2026 : commandes Technal,
+    // accessoires, Foussier, vitrages… ; un produit acheté tout fait comme K-Line est de la pose), lues par rentabilite.py
+    const M=AT.filter(x=>x.mat!=null);o.matA=o.vAtl!=null&&M.length?M.reduce((s,x)=>s+(+x.mat||0),0):null;
+    o.matDocs=M.flatMap(x=>x.matDocs||[]).map(x=>x.doc).join(", ");o.matIllis=M.flatMap(x=>x.matIllis||[]);
+    const fP=Math.max(0,(fac[o.id]||0)-(o.matA||0)),split=!o.hasAtl||o.vAtl!=null;
     o.mA=o.matA!=null?o.vAtl-o.matA:null;o.mjA=o.mA!=null&&o.hA>0?o.mA/o.hA*PL_EQ:null;
     // pose : vente − prix de l'atelier ; achats prévus (capture) − prix de l'atelier, ou ARC et factures des autres fournisseurs
     o.vP=split&&o.vente?o.vente-(o.vAtl||0):null;
@@ -3817,7 +3814,7 @@ function rtHtml(){
    <div class="chart"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3>Marge jour par chantier</h3>
      <div class="dhleg"><span><i class="sw rtok"></i>Au-dessus de l'objectif</span><span><i class="sw rtr0"></i>En dessous</span><span><i class="sw prev"></i>Prévu au devis</span><span><i class="sw rtobj"></i>Objectif ${eur(O.obj)}</span></div></div>
      <p class="sub">Une heure de production vaut une heure, en pose comme à l'atelier. Marge jour = (vente HT − achats de matière) ÷ toutes les heures du chantier × ${h1(PL_EQ)} h (une journée d'équipe de 2) ; la main-d'œuvre d'atelier comprise dans le prix de Christophe (${eur(O.tauxAtl)}/h) n'est pas un achat. Objectif : ${eur(O.taux)} par heure. Chantier en cours : le plus grand du prévu et du réalisé.</p>
-     <p class="sub"><b>Pose et atelier séparés</b> (marge ramenée à ${h1(PL_EQ)} h pour comparer) : l'atelier vend au chantier le prix du devis de Christophe ; sa marge = ce prix − la matière (factures Technal, Foussier et fournisseurs de ses commandes affectées au chantier) ÷ ses heures ; elle s'affiche dès les premières factures. La pose = vente du chantier − prix de l'atelier − tous les autres achats et frais ÷ ses heures. Total = les deux ensemble.</p>
+     <p class="sub"><b>Pose et atelier séparés</b> (marge ramenée à ${h1(PL_EQ)} h pour comparer) : l'atelier vend au chantier le prix du devis de Christophe ; sa marge = ce prix − la matière (pièces du dossier ATELIER/ÉLÉMENTS VALIDÉS : commandes Technal, accessoires, Foussier, vitrages) ÷ ses heures. Un produit acheté tout fait (K-Line…) est de la pose. Les factures du chantier, moins cette matière, sont les achats de la pose. La pose = vente du chantier − prix de l'atelier − tous les autres achats et frais ÷ ses heures. Total = les deux ensemble.</p>
      <div class="tools"><button class="chip" id="rtTout" aria-pressed="${rt.tout}">Afficher aussi les chantiers terminés</button></div>
      <div class="tbl"><table class="rttab"><thead><tr><th>Chantier</th><th class="n">Vente HT</th><th class="n">Achats</th><th class="n">Atelier</th><th class="n">Pose (journées d'équipe)</th><th class="n">Marge jour<br><small>pose · atelier · total</small></th><th class="rtbc">Face à l'objectif</th></tr></thead><tbody>
      ${L.map(o=>`<tr><td><button class="lnk" data-open="${esc(o.id)}">${esc(o.j?o.j.client:o.id)}</button>${o.manque.length?`<br><small class="rtm">à compléter : ${o.manque.join(", ")}</small>`:""}</td>
@@ -3825,7 +3822,7 @@ function rtHtml(){
        <td class="n"><input type="number" min="0" step="1" inputmode="decimal" data-prev="${esc(o.id)}" value="${o.achPSrc==="prévu"?Math.round(o.achP):""}" placeholder="${o.achAct?Math.round(o.achAct):"à saisir"}" aria-label="Achats prévus HT de ${esc(o.j?o.j.client:o.id)}" title="Achats prévus HT (déboursé matière du devis). Sans saisie : ARC lus, puis factures affectées." style="max-width:110px;text-align:right">${o.achRSrc||o.achPSrc?`<br><small class="sub">${esc(o.achRSrc==="factures"?"factures "+eur(o.achR):o.achPSrc==="prévu"?(o.achRSrc==="ARC"?"saisi · ARC "+eur(o.achR):"saisi"):"ARC")}</small>`:""}</td>
        <td class="n">${o.atlAct?h1(o.atlAct)+" h":"–"}${o.atlP||o.atlH?`<br><small class="sub">${h1(o.atlH)} / ${h1(o.atlP)} h</small>`:""}${o.hasAtl?`<br><input type="number" min="0" step="any" inputmode="decimal" data-rtatl="${esc(o.id)}" value="${o.vAtl!=null?Math.round(o.vAtl):""}" placeholder="prix atelier" aria-label="Prix de l'atelier HT pour ${esc(o.j?o.j.client:o.id)}" title="${esc(o.vAtlMan?"Saisi à la main (vider la case pour revenir au devis de Christophe)":o.vAtlDoc?"Lu dans : "+o.vAtlDoc:"Devis client de Christophe pas encore lu : à saisir")}" style="max-width:100px;text-align:right">${o.vAtlMan?`<small class="sub"> saisi</small>`:""}`:""}</td>
        <td class="n">${o.jAct?fmtJ(o.jAct):"–"}<br><small class="sub">${h1(o.jReel)} faits${o.posAtlH?" dont "+h1(o.posAtlH/PL_EQ)+" atelier":""} / ${o.jPrev?h1(o.jPrev)+(o.jSrc==="planning"?" au planning":" prévus"):"prévu à saisir"}</small></td>
-       <td class="n">${o.hasAtl?`<small class="sub">pose</small> <b class="rtv ${rtCls(o.mjP,O)}">${o.mjP!=null?eur(o.mjP):"–"}</b><br><small class="sub">atelier</small> <b class="rtv ${rtCls(o.mjA,O)}">${o.mjA!=null?eur(o.mjA):o.vAtl==null?"prix à saisir":"factures matière à venir"}</b>${o.mjA!=null&&o.matAPart?`<small class="sub"> (factures à ce jour)</small>`:""}<br><small class="sub">total</small> `:""}<b class="rtv ${rtCls(o.mjAct,O)}">${o.mjAct!=null?eur(o.mjAct):"–"}</b>${o.mjPrev!=null?`<br><small class="sub">prévu ${eur(o.mjPrev)}</small>`:""}</td>
+       <td class="n">${o.hasAtl?`<small class="sub">pose</small> <b class="rtv ${rtCls(o.mjP,O)}">${o.mjP!=null?eur(o.mjP):"–"}</b><br><small class="sub">atelier</small> <b class="rtv ${rtCls(o.mjA,O)}" title="${esc(o.matDocs?"Matière lue dans : "+o.matDocs:"")}">${o.mjA!=null?eur(o.mjA):o.vAtl==null?"prix à saisir":"éléments validés à lire"}</b>${o.matIllis&&o.matIllis.length?`<small class="rtm"> ${o.matIllis.length} pièce(s) illisible(s)</small>`:""}<br><small class="sub">total</small> `:""}<b class="rtv ${rtCls(o.mjAct,O)}">${o.mjAct!=null?eur(o.mjAct):"–"}</b>${o.mjPrev!=null?`<br><small class="sub">prévu ${eur(o.mjPrev)}</small>`:""}</td>
        <td class="rtbc">${bar(o)}</td></tr>`).join("")}</tbody></table></div></div>
    <div class="chart"><h3>Journées d'équipe des poseurs par mois</h3>
      <p class="sub">${h1(O.poseurs*O.jours/2)} journées d'équipe disponibles par mois. Pose et atelier comptent pareil, s'ils sont payés par un chantier. L'objectif prévoit ${O.nonTrav} % de journées « autres » (SAV, trous, glissements), soit ${h1(O.poseurs*O.jours/2*O.nonTrav/100)} par mois ; au-delà, chacune coûte ${eur(O.obj)} de marge.</p>

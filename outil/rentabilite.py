@@ -78,24 +78,64 @@ def devis_atelier(a, liens):
     return sorted(cand)[-1] if cand else None
 
 
+def ls_tout(prefix, prof=3):
+    """fichiers sous prefix, sous-dossiers compris (le stockage liste un niveau à la fois)"""
+    out = []
+    for x in ls(prefix):
+        if x.get("id") is None and prof > 0: out += ls_tout(x["chemin"] + "/", prof - 1)
+        elif x.get("id") is not None: out.append(x)
+    return out
+
+
+# Matière de l'atelier (Steven, 24/11/2026) : uniquement les pièces du dossier ATELIER/ÉLÉMENTS VALIDÉS… du chantier
+# (commandes Technal, accessoires, Foussier, vitrages, offres validées), recopiées par l'iMac dans
+# documents/serveur/<dossier>/ATELIER/ELEMENTS VALIDES…/ ; pas les plans, ni les devis (le devis de Christophe est la vente),
+# ni les études ou demandes de prix. Un matériau acheté tout fait (K-Line…) est forcément de la pose.
+def est_cout(chemin):
+    n = chemin.rsplit("/", 1)[-1]; u = chemin.upper()
+    if not n.lower().endswith(".pdf") or "PLAN" in u.split("ATELIER/", 1)[-1]: return False
+    if re.search(r"^devis|demande|étude|etude|\bPV\b|résumé|resume|fiche", n, re.I): return False
+    return True
+
+
 def atelier(direction, essai, le):
-    """Rentabilité séparée pose / atelier (Steven, 24/11/2026) : prix de vente de l'atelier = total HT du devis client de
-    Christophe (ce que l'atelier « vend » au chantier). Rangé dans direction/atl_<commande> ; une saisie à la main n'est jamais écrasée."""
+    """Rentabilité séparée pose / atelier (Steven, 24/11/2026) : vente de l'atelier = total HT du devis client de Christophe
+    (DEVIS CLIENT, sinon le « Devis … » des ÉLÉMENTS VALIDÉS) ; matière = total des pièces validées du dossier ATELIER.
+    Rangé dans direction/atl_<commande> ; une saisie à la main n'est jamais écrasée."""
     try: liens = (json.loads(req("GET", "/storage/v1/object/documents/serveur/_liens.json", raw=True)) or {}).get("chantiers") or {}
     except Exception: liens = {}
     for a in req("GET", "/rest/v1/atelier?select=id,data"):
         d = a["data"]
         if not d.get("chantier"): continue
+        c = liens.get(d["chantier"]) or {}; dos = c.get("chemin") or c.get("dossier") or ""
+        valides = []
+        if dos:
+            try: valides = [x for x in ls_tout(f"serveur/{dos}/ATELIER/") if "VALID" in x["chemin"].upper()]
+            except Exception: valides = []
         s = devis_atelier(a, liens)
-        if not s: continue
-        try:
-            t = texte(s[1]); m = re.findall(r"Total HT\s*:?\s*\n?\s*([\d\s.,]+)\s*€", t); v = nombre(m[-1].strip()) if m else None
-        except Exception: v = None
-        print(f"atelier {a['id']:<10} {d.get('chantier'):<14} devis client {s[2]} : {'illisible' if v is None else f'{v:,.2f}'}")
+        if not s:
+            dv = sorted((x.get("updated_at") or "", x["chemin"], x["name"]) for x in valides if re.match(r"devis", x["name"], re.I) and x["name"].lower().endswith(".pdf") and "vitr" not in x["name"].lower())
+            s = dv[-1] if dv else None
+        v = None
+        if s:
+            try:
+                t = texte(s[1]); m = re.findall(r"Total HT\s*:?\s*\n?\s*([\d\s.,]+)\s*€", t); v = nombre(m[-1].strip()) if m else None
+            except Exception: v = None
+        mat, lus, illis = 0.0, [], []
+        for x in valides:
+            if not est_cout(x["chemin"]): continue
+            try: m = total_arc(texte(x["chemin"]))
+            except Exception: m = None
+            if m is None: illis.append(x["name"])
+            else: mat += m; lus.append({"doc": x["name"], "ht": round(m, 2)})
+        print(f"atelier {a['id']:<10} {d.get('chantier'):<14} vente {'–' if v is None else f'{v:,.2f}'} ({s[2] if s else 'pas de devis client'})"
+              f" · matière {mat:,.2f} ({len(lus)} pièce(s){', illisibles : ' + ', '.join(illis) if illis else ''})")
         old = direction.get("atl_" + a["id"]) or {}
-        if essai or v is None or old.get("man"): continue
-        req("POST", "/rest/v1/direction", {"id": "atl_" + a["id"], "data": {"kind": "atelier", "chantier": d["chantier"], "ht": round(v, 2), "doc": s[2], "le": le}},
-            {"Prefer": "resolution=merge-duplicates"})
+        if essai or old.get("man") or (v is None and not lus): continue
+        data = {"kind": "atelier", "chantier": d["chantier"], "le": le}
+        if v is not None: data.update({"ht": round(v, 2), "doc": s[2]})
+        if lus or illis: data.update({"mat": round(mat, 2), "matDocs": lus, "matIllis": illis})
+        req("POST", "/rest/v1/direction", {"id": "atl_" + a["id"], "data": data}, {"Prefer": "resolution=merge-duplicates"})
 
 
 def main(essai):
