@@ -652,14 +652,17 @@ function arcSync(arcs){
   return {arcs,steps,livraison:ls.length>1?"mixte":ls[0]||""};
 }
 // Poses en plusieurs fois (phases prévues ou matériel manquant) : l'étape « Posé » se coche quand toutes sont posées
-const MOTIFS={phase:"Phase prévue",manque:"Matériel manquant",autre:"Autre"};
+// « En attente » (Steven, 24/11/2026, La Mare aux oiseaux : un châssis attend l'architecte) : pas une alerte, le chantier
+// avance (« Posé » se coche avec les autres poses) et la pose en attente reste affichée en bleu jusqu'à ce qu'elle soit faite.
+const MOTIFS={phase:"Phase prévue",manque:"Matériel manquant",attente:"En attente (client, architecte)",autre:"Autre"};
+const phAtt=x=>x.motif==="attente"&&!(x.pose&&x.pose.d);
 const phasesOf=j=>j.phases||[];
 const hasPhases=j=>phasesOf(j).length>0;
 // Factures : partielles (situations) puis solde ; « Facturé » = solde émis, « Payé » = tout encaissé
 const facsOf=j=>j.factures||[];
 const hasFacs=j=>facsOf(j).length>0;
 const maxD=xs=>xs.length?[...xs].sort().slice(-1)[0]:"";
-function phaseSync(ph){return{phases:ph,steps:{pose:ph.length&&ph.every(x=>x.pose&&x.pose.d)?{d:maxD(ph.map(x=>x.pose.d)),by:""}:null}}}
+function phaseSync(ph){const P=ph.filter(x=>x.pose&&x.pose.d);return{phases:ph,steps:{pose:P.length&&ph.every(x=>(x.pose&&x.pose.d)||phAtt(x))?{d:maxD(P.map(x=>x.pose.d)),by:""}:null}}}
 function facSync(fs){const so=fs.find(f=>f.solde&&f.fac&&f.fac.d);
   return{factures:fs,steps:{facture:so?{d:so.fac.d,by:""}:null,paye:so&&fs.every(f=>f.paye&&f.paye.d)?{d:maxD(fs.map(f=>f.paye.d)),by:""}:null}}}
 function nPosed(j){return phasesOf(j).filter(x=>x.pose&&x.pose.d).length}
@@ -891,7 +894,7 @@ function nextOf(j,c){
 function row(j){
   const c=curStep(j),ss=stepsOf(j),lt=late(j),md=mailsDue(j),nd=newDocs(j);
   const bar=ss.map(st=>`<i class="${stateOf(j,st.k)} ${st.k===c?"cur":""}" title="${esc(lab(j,st))}${sd(j,st.k)?" : "+(st.k==="livprev"?sem(sd(j,st.k)):fr(sd(j,st.k))):""}"></i>`).join("");
-  const flags=[j.bloque?`<span class="flag r">Bloqué : ${esc(j.bloque)}</span>`:"",lt?`<span class="flag o">${esc(lt)}</span>`:"",...logiDue(j).map(x=>{const n=-days(logiPour(j,x));return `<span class="flag ${n<0?"r":"o"}">À commander : ${esc(LOGI[x.type]?LOGI[x.type][0]:x.type)}${x.t?" ("+esc(x.t)+")":""} · ${n<0?"date dépassée":n===0?"aujourd'hui":"besoin dans "+n+" j"}</span>`}),md?`<span class="flag b">${md} email${md>1?"s":""} client</span>`:"",nd?`<span class="flag b">${nd} document${nd>1?"s":""} à traiter par Claude</span>`:"",partial(j)?`<span class="flag o">Pose partielle ${nPosed(j)}/${phasesOf(j).length}</span>`:"",phasesOf(j).some(x=>x.motif==="manque"&&!(x.pose&&x.pose.d))?`<span class="flag r">Matériel manquant</span>`:"",sd(j,"pose")||partial(j)?"":poseOk(j)?`<span class="flag g">Pose validée le ${fr(poseOk(j))}</span>`:poseDates(j).length?`<span class="flag b">Pose proposée : ${poseDates(j).sort().map(fr).join(" ou ")}</span>`:""].join("");
+  const flags=[j.bloque?`<span class="flag r">Bloqué : ${esc(j.bloque)}</span>`:"",...phasesOf(j).filter(phAtt).map(x=>`<span class="flag b">En attente : ${esc(x.t||"une pose")}</span>`),lt?`<span class="flag o">${esc(lt)}</span>`:"",...logiDue(j).map(x=>{const n=-days(logiPour(j,x));return `<span class="flag ${n<0?"r":"o"}">À commander : ${esc(LOGI[x.type]?LOGI[x.type][0]:x.type)}${x.t?" ("+esc(x.t)+")":""} · ${n<0?"date dépassée":n===0?"aujourd'hui":"besoin dans "+n+" j"}</span>`}),md?`<span class="flag b">${md} email${md>1?"s":""} client</span>`:"",nd?`<span class="flag b">${nd} document${nd>1?"s":""} à traiter par Claude</span>`:"",partial(j)&&!sd(j,"pose")?`<span class="flag o">Pose partielle ${nPosed(j)}/${phasesOf(j).length}</span>`:"",phasesOf(j).some(x=>x.motif==="manque"&&!(x.pose&&x.pose.d))?`<span class="flag r">Matériel manquant</span>`:"",sd(j,"pose")||partial(j)?"":poseOk(j)?`<span class="flag g">Pose validée le ${fr(poseOk(j))}</span>`:poseDates(j).length?`<span class="flag b">Pose proposée : ${poseDates(j).sort().map(fr).join(" ou ")}</span>`:""].join("");
   const typ=j.type==="neuf"?"Neuf":"Rénovation";
   return `<button class="row ${j.bloque?"blocked":lt||anyPart(j)?"late":""}" data-open="${esc(j.id)}">
     <div><div class="client">${esc(j.client)}</div><div class="mono">${esc(j.id)}${j.ville?" · "+esc(j.ville):""}</div><div class="sub">${typ}${j.plans?" · plans d'exé":""}${hasArcs(j)?" · "+arcsOf(j).length+" ARC":""}${LIEUX[j.livraison]?" · livraison "+LIEUX[j.livraison]:""} · ${esc(j.commercial||"?")} / suivi ${esc(j.suivi||"à désigner")}</div></div>
@@ -993,7 +996,7 @@ async function renderSheet(){
      ${a.adr?`<div class="sub">Adresse de livraison lue sur l'ARC : ${esc(a.adr)} ${a.adrok===false?'<span class="state blk">ne correspond pas</span>':a.adrok?'<span class="state ok">conforme</span>':""}</div>`:""}
      ${!a.lieu?`<div class="sub"><span class="state late">lieu de livraison à préciser</span></div>`:""}</li>`}).join("");
   const phases=phasesOf(j).map((x,i)=>{const ok=x.pose&&x.pose.d;
-    return `<li class="arc ${ok?"ok":x.motif==="manque"?"part":""}"><div class="arch"><b>${esc(x.t||"Pose "+(i+1))}</b><span class="sub">${MOTIFS[x.motif]||""}</span>${canWrite?`<button class="x" data-delph="${i}" aria-label="Retirer cette pose">×</button>`:""}</div>
+    return `<li class="arc ${ok?"ok":x.motif==="manque"?"part":""}"><div class="arch"><b>${esc(x.t||"Pose "+(i+1))}</b>${phAtt(x)?`<span class="state">en attente, pas une alerte</span>`:""}<span class="sub">${MOTIFS[x.motif]||""}</span>${canWrite?`<button class="x" data-delph="${i}" aria-label="Retirer cette pose">×</button>`:""}</div>
      <div class="arcf"><label>Motif<select data-phfield="motif" data-i="${i}" ${ro}>${Object.entries(MOTIFS).map(([v,t])=>`<option value="${v}" ${v===x.motif?"selected":""}>${t}</option>`).join("")}</select></label>
       <label>Date prévue<input type="date" min="2000-01-01" max="2099-12-31" data-phfield="prev" data-i="${i}" value="${x.prev||""}" ${ro}></label>
       <span class="arck"><button class="box" role="checkbox" aria-checked="${!!ok}" data-ph="${i}" aria-label="${esc(x.t)} posé" ${ro}>${ok?tick:""}</button>Posé<span class="mono">${fr(ok)}</span></span></div></li>`}).join("");
