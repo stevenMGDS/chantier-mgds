@@ -1,7 +1,7 @@
 """Captures du chiffrage déposées sur les devis en attente (Planning > Charge), lues par Claude.
 
   python3 -I chiffrage.py liste <dossier>     télécharge les captures pas encore lues dans <dossier> et les liste
-  python3 -I chiffrage.py note <devis> <json> écrit ce que Claude a lu : {"client", "montant", "achats", "mo", "moMet", "marge", "jp", "ha", "alerte"} (moMet : ligne main-d'œuvre Métré, séparée de la pose)
+  python3 -I chiffrage.py note <devis> <json> écrit ce que Claude a lu : {"client", "montant", "achats", "mo", "marge", "jp", "ha", "alerte"}
                                               (seules les clés données sont écrites ; lu = vrai ; le client seulement
                                               pour un devis créé depuis une capture, « Devis à lire (capture) »)
   python3 -I chiffrage.py report              devis signés rattachés à un chantier : achats prévus -> Direction (prev_)
@@ -15,8 +15,9 @@ marge prévue ; jours de pose = main-d'œuvre de pose ÷ environ 1 000 € par j
 Steven du 18/11/2026). « achats » = achat du tableau sans la ligne Pose (produits + divers) : pour un produit fabriqué
 chez nous, il comprend la main-d'œuvre d'atelier de Christophe, que l'appli rajoute à la marge (heures d'atelier × 60 €). Un montant HT de la capture
 différent de celui saisi sur la ligne est signalé dans « alerte », sans écraser la saisie.
-Ligne Métré (Steven, 24/11/2026) : si le tableau a une ligne main-d'œuvre « Métré » (ou « Maîtrise »), son ACHAT va dans
-moMet, ni dans mo ni dans achats ; les jours de pose se calculent sur mo seul (la ligne Pose), jamais avec le métré.
+Ligne Métré (Steven, 24/11/2026, simplifié) : si le tableau a une ligne main-d'œuvre « Métré » (ou « Maîtrise »), ajoute
+son ACHAT à mo (jamais aux achats). Pour l'alerte des jours de pose, retire d'abord ce montant de mo avant de diviser
+par 1 000 € : le métré n'est pas de la pose (il est déjà compté à part dans le temps total de l'appli).
 """
 import json, os, sys, urllib.parse, urllib.request
 
@@ -67,15 +68,15 @@ def note(devis, valeurs):
         if k == "client":
             if str(d.get("client", "")).startswith("Devis à lire") and v: d["client"] = v
             continue
-        if k in ("achats", "mo", "moMet") and d.get(k) not in (None, "") and v not in (None, "") and abs(float(d[k]) - float(v)) > max(20, 0.02 * float(v)):
+        if k in ("achats", "mo") and d.get(k) not in (None, "") and v not in (None, "") and abs(float(d[k]) - float(v)) > max(20, 0.02 * float(v)):
             ecarts.append(f"{ {'achats': 'achats', 'mo': 'pose'}.get(k, 'métré') } saisis {float(d[k]):,.0f} €, capture {float(v):,.0f} €".replace(",", " "))
-        if k in ("montant", "achats", "mo", "moMet", "marge", "jp", "ha", "alerte") and v not in (None, ""):
+        if k in ("montant", "achats", "mo", "marge", "jp", "ha", "alerte") and v not in (None, ""):
             if k in ("jp", "ha") and d.get(k) not in (None, ""): continue   # ce que l'équipe a saisi reste
             d[k] = v
     if ecarts: d["alerte"] = "; ".join(x for x in [d.get("alerte"), "écart avec la saisie : " + ", ".join(ecarts)] if x)
     d["lu"] = True
     req("POST", "/rest/v1/devis", {"id": devis, "data": d}, {"Prefer": "resolution=merge-duplicates"})
-    print(devis, "noté :", {k: d.get(k) for k in ("montant", "achats", "mo", "moMet", "marge", "jp", "ha", "alerte")})
+    print(devis, "noté :", {k: d.get(k) for k in ("montant", "achats", "mo", "marge", "jp", "ha", "alerte")})
 
 
 def controle():
@@ -118,7 +119,7 @@ def report():
         if d.get("etat") != "signe" or not d.get("chantier") or d.get("achats") in (None, ""): continue
         if "prev_" + d["chantier"] in have: continue
         prev = {"kind": "prevu", "achat": d["achats"], "source": "devis en attente " + r["id"]}
-        for k in ("mo", "moMet", "marge"):
+        for k in ("mo", "marge"):
             if d.get(k) not in (None, ""): prev[k] = d[k]
         if d.get("montant") not in (None, ""): prev["vente_capture"] = d["montant"]
         req("POST", "/rest/v1/direction", {"id": "prev_" + d["chantier"], "data": prev}, {"Prefer": "resolution=merge-duplicates"})
@@ -131,7 +132,7 @@ def chantier(cid, doc_id, valeurs):
     r = req("GET", "/rest/v1/chantiers?select=id,data,version&id=eq." + urllib.parse.quote(cid))
     if not r: sys.exit("chantier introuvable : " + cid)
     row = r[0]; d = row["data"]
-    prev = {"kind": "prevu", **{k: valeurs[k] for k in ("mo", "moMet", "marge") if valeurs.get(k) not in (None, "")}}
+    prev = {"kind": "prevu", **{k: valeurs[k] for k in ("mo", "marge") if valeurs.get(k) not in (None, "")}}
     if valeurs.get("achats") not in (None, ""): prev["achat"] = valeurs["achats"]
     if valeurs.get("montant") not in (None, ""): prev["vente_capture"] = valeurs["montant"]
     req("POST", "/rest/v1/direction", {"id": "prev_" + cid, "data": prev}, {"Prefer": "resolution=merge-duplicates"})

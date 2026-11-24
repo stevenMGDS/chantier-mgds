@@ -4895,7 +4895,7 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
   const num=(k,step,ph="",mode="decimal")=>`<input type="number" min="0" step="any" inputmode="${mode}" id="dv-${k}-${id}" ${a} data-k="${k}" value="${v(k)}" placeholder="${ph}" ${ro}>`;
   // nouveau devis (Steven, 23/11/2026 : tout saisir d'un coup, sans revenir sur la carte) : chiffrage complet + déplacement
   if(!d)return`<form class="pldvr dvnew" data-dvadd="1" novalidate><div class="dvnewh"><b>＋ Nouveau devis</b><span class="sub">tout se remplit ici, ou glissez la capture du chiffrage</span></div>
-   <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">${F("Client, affaire",`<input type="text" id="dv-client-new" data-k="client" placeholder="ex. DUPONT – baie coulissante" ${ro}>`,"w2")}${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}${F("Métré, main-d'œuvre HT",num("moMet",1,"ligne Métré"),"fpose")}
+   <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">${F("Client, affaire",`<input type="text" id="dv-client-new" data-k="client" placeholder="ex. DUPONT – baie coulissante" ${ro}>`,"w2")}${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
     ${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-new" data-k="periode" ${ro}>${dvMois("")}</select>`)}</div></div>
    <div class="dvsec"><h4>Déplacement et livraison</h4><div class="dvf">${F("Lieu du chantier",`<input type="text" list="depVilles" data-k="lieu" placeholder="ville (vide = pas de déplacement)" ${ro}>`)}${F("Équipe (pers.)",`<input type="number" min="1" step="1" inputmode="numeric" data-k="pers" value="2" ${ro}>`)}
     ${F("Retours à Orléans",`<select data-k="retours" ${ro}>${[["we","chaque week-end"],["0","aucun (reste sur place)"],...[1,2,3,4,5,6].map(n=>[String(n),n+" fois pendant le chantier"])].map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select>`)}
@@ -4910,7 +4910,7 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
     <div class="acts">${plW()?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">✓ Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:""}</div></div>
    ${dvSug(d)}
    <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">
-    ${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}${F("Métré, main-d'œuvre HT",num("moMet",1,"ligne Métré"),"fpose")}
+    ${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
     ${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d.periode||"")}</select>`)}
    </div>${dvChif(d)}</div>
    <div class="dvsec"><h4>Déplacement et livraison</h4>${dvDep(d)}${dvAnnexHtml(d)}</div></div>`}
@@ -4948,13 +4948,12 @@ function dvAnnexTexte(d){const A=dvAnnexes(d);if(!A)return"";const r=A.r,x=d.dep
     if(r.P.logement)L.push(`  Hôtel : ${r.nuits} nuit${r.nuits>1?"s":""} × ${p} pers. = ${e(r.P.logement)}`);if(r.P.prime)L.push(`  Primes de découcher : ${r.nuits} × ${p} × ${e(DEP_T.prime)} = ${e(r.P.prime)}`);
     L.push(`  Carburant et usure : ${e(r.P.camion)}${r.P.peage?` · péages : ${e(r.P.peage)}`:""} (${Math.round(+x.km)} km, ${r.ar} aller${r.ar>1?"s":""}-retour${r.ar>1?"s":""})`);
     L.push(`  Coût ${e(A.dep)} × ${String(DEP_COEF).replace(".",",")}`)}
-  if(A.venteMet)L.push(`Métré sur place (1 personne) : ${e(A.venteMet)} HT`,`  → dans le devis : ${e(A.mt)} en main-d'œuvre (ligne Métré), ${e(Math.round(A.met*DEP_COEF))} avec les frais de déplacement`,`  Temps : ${String(Math.round(A.mh*10)/10).replace(".",",")} h (route aller-retour + ½ j sur place) × ${e(rtObj().taux)}/h = ${e(A.mt)}`,`  Frais : ${e(A.met)}${r.mn?" (nuit sur place comprise)":""} × ${String(DEP_COEF).replace(".",",")}`);
+  if(A.venteMet)L.push(`Métré sur place (1 personne) : ${e(A.venteMet)} HT`,`  → dans le devis : ${e(A.mt)} de main-d'œuvre (avec la pose ou à part, au choix), ${e(Math.round(A.met*DEP_COEF))} avec les frais de déplacement`,`  Temps : ${String(Math.round(A.mh*10)/10).replace(".",",")} h (route aller-retour + ½ j sur place) × ${e(rtObj().taux)}/h = ${e(A.mt)}`,`  Frais : ${e(A.met)}${r.mn?" (nuit sur place comprise)":""} × ${String(DEP_COEF).replace(".",",")}`);
   if(A.liv>0)L.push(`Transport (livraison semi ${r.liv.lab}) : ${e(A.venteLiv)} HT`,`  ${Math.round(r.liv.km)} km · coût ${e(A.liv)} × ${String(DEP_COEF).replace(".",",")}`);
   return L.join("\n")}
 function dvAnnexHtml(d){const A=dvAnnexes(d),id=esc(d.id),ro=plW()?"":"disabled";if(!A||!A.cout)return"";
-  const mm=+d.moMet||0,mmTxt=A.venteMet?(mm?(mm<A.mt*.9?` · <span class="dvwarn">métré saisi ${plEur(mm)}, conseillé ${plEur(A.mt)}</span>`:` · métré ${plEur(mm)} ✓`):` · métré à saisir (conseillé ${plEur(A.mt)})`):(mm?` · <span class="dvwarn">métré saisi ${plEur(mm)} mais case métré décochée</span>`:"");
   const chk=`<label class="dvmet"><input type="checkbox" data-dvdep="horsDevis" data-id="${id}" ${A.hors?"checked":""} ${ro}> Frais pas dans le devis (ancien devis, remise négative) : déduire leur coût de la marge</label>`;
-  return`<details class="dvannex ${A.hors?"inc":""}"><summary class="dvannexh"><b>Contrôle des frais annexes : vente conseillée ${plEur(A.vente)} HT</b><span class="sub">coût ${plEur(A.cout)} · à retrouver dans les lignes Frais de déplacement, Métré et Transport du devis${mmTxt}${A.hors?" · coût déduit de la marge":""}</span></summary>
+  return`<details class="dvannex ${A.hors?"inc":""}"><summary class="dvannexh"><b>Contrôle des frais annexes : vente conseillée ${plEur(A.vente)} HT</b><span class="sub">coût ${plEur(A.cout)} · à retrouver dans le devis (frais de déplacement, métré, transport)${A.hors?" · coût déduit de la marge":""}</span></summary>
    <pre class="dvannexp">${esc(dvAnnexTexte(d))}</pre><div class="dvannexh"><button type="button" class="btn ghost" data-dvannexcopy="${id}">Copier les lignes</button></div>${chk}</details>`}
 // Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
 // (outil/chiffrage.py) qui remplit achats, main-d'œuvre, marge prévue et jours de pose. Marge jour prévue =
@@ -5152,7 +5151,7 @@ function dvSug(d){const m=dvMatch(d);if(!m||m.sur)return"";return`<div class="dv
 // Stéphanie recopie deux cases du tableau « Analyse des marges » et la marge jour se calcule tout de suite ; la capture reste
 // le contrôle (Claude la relit aux passages de 12 h 27 et 18 h 27 et signale les écarts).
 function dvAch(d){const id=esc(d.id),ro=plW()?"":"disabled";
-  return`<div class="dvach"><label>Achats HT<input type="number" min="0" step="1" inputmode="decimal" data-dv="${id}" data-k="achats" value="${esc(d.achats??"")}" placeholder="Produit + Divers" ${ro}></label><label>Pose (main-d'œuvre HT)<input type="number" min="0" step="1" inputmode="decimal" data-dv="${id}" data-k="mo" value="${esc(d.mo??"")}" placeholder="ligne Pose" ${ro}></label><label>Métré (main-d'œuvre HT)<input type="number" min="0" step="1" inputmode="decimal" data-dv="${id}" data-k="moMet" value="${esc(d.moMet??"")}" placeholder="ligne Métré" ${ro}></label><span class="sub">colonne ACHAT du tableau « Analyse des marges » : la marge jour se calcule tout de suite</span></div>`}
+  return`<div class="dvach"><label>Achats HT<input type="number" min="0" step="1" inputmode="decimal" data-dv="${id}" data-k="achats" value="${esc(d.achats??"")}" placeholder="Produit + Divers" ${ro}></label><label>Pose (main-d'œuvre HT)<input type="number" min="0" step="1" inputmode="decimal" data-dv="${id}" data-k="mo" value="${esc(d.mo??"")}" placeholder="ligne Pose" ${ro}></label><span class="sub">colonne ACHAT du tableau « Analyse des marges » : la marge jour se calcule tout de suite</span></div>`}
 function dvChif(d){const id=esc(d.id),c=d.chif;
   const up=plW()?`<span class="dvups"><label class="btn ghost dvup">📷 ${c?"Nouvelle photo":"Photo"}<input type="file" accept="image/*" capture="environment" data-dvchif="${id}" hidden></label><label class="btn ghost dvup">${c?"Remplacer le fichier":"Fichier ou capture"}<input type="file" accept="image/*,application/pdf" data-dvchif="${id}" hidden></label></span>`:"";
   const al=d.alerte&&!(d.dep&&d.dep.lieu&&/frais de d[ée]placement/i.test(d.alerte))&&!(+d.ha>0&&/heures d'atelier/i.test(d.alerte))?`<div class="dvalert">⚠ ${esc(d.alerte)}</div>`:"";
@@ -5183,7 +5182,7 @@ document.addEventListener("mouseover",e=>{const hit=e.target.closest&&e.target.c
 function plDetToggle(bar){const d=bar.querySelector(".pldet"),o=d.hidden;d.hidden=!o;bar.setAttribute("aria-expanded",o);const t=bar.querySelector(".pldt");if(t)t.textContent=o?"masquer les chantiers":"voir les chantiers"}
 document.addEventListener("keydown",e=>{const bar=e.target.matches&&e.target.matches("[data-pldet]")?e.target:null;if(bar&&(e.key==="Enter"||e.key===" ")){e.preventDefault();plDetToggle(bar);return}
   const hit=e.target.closest&&e.target.closest(".hit[data-ym]");if(hit&&(e.key==="Enter"||e.key===" ")){e.preventDefault();plYearShow(hit.dataset.ym,+hit.dataset.i)}});
-document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.dv)return;const k=t.dataset.k,v=["montant","jp","ha","achats","mo","moMet"].includes(k)?(t.value===""?"":Math.max(0,+String(t.value).replace(",",".")||0)):t.value.trim();
+document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.dv)return;const k=t.dataset.k,v=["montant","jp","ha","achats","mo"].includes(k)?(t.value===""?"":Math.max(0,+String(t.value).replace(",",".")||0)):t.value.trim();
   const P={[k]:v},d0=dvVue(t.dataset.dv);if(k==="ha"&&+v>0&&/heures d'atelier/i.test(d0.alerte||""))P.alerte="";
   dvBr(t.dataset.dv,P);dvKeep(planRender)});
 document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.dataset.dvadd)return;e.preventDefault();
@@ -5191,7 +5190,7 @@ document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.datase
   const num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0),id="DV"+Date.now().toString(36),btn=f.querySelector("button");if(btn)btn.disabled=true;
   (async()=>{const dep={pers:Math.max(1,num("pers")||2),retours:g("retours")||"we",liv:g("liv"),metre:!!(q("metre")&&q("metre").checked)};
     if(g("lieu"))await depDuLieu(g("lieu"),dep);
-    const ok=await dvSave(id,{client,montant:num("montant"),achats:num("achats"),mo:num("mo"),moMet:num("moMet"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),dep,etat:"attente",cree:today(),par:me||""});
+    const ok=await dvSave(id,{client,montant:num("montant"),achats:num("achats"),mo:num("mo"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),dep,etat:"attente",cree:today(),par:me||""});
     // formulaire vidé avant le redessin (sinon il garde les chiffres et on croit que rien ne s'est passé), puis la nouvelle carte est montrée
     if(ok)f.querySelectorAll("input,select").forEach(i=>{if(i.type==="checkbox")i.checked=i.defaultChecked;else if(i.tagName==="SELECT")[...i.options].forEach(o=>o.selected=o.defaultSelected);else i.value=i.defaultValue});
     if(btn)btn.disabled=false;planRender();
