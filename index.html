@@ -3739,7 +3739,7 @@ function rtMoisData(O,L){
   for(const o of L){const m=ix.get(o.mois);if(!m)continue;
     if(o.fin&&o.margeR!=null){m.r+=o.margeR;m.it.push({k:"r",o})}else if(o.margeP!=null){m.p+=o.margeP;m.it.push({k:"p",o})}else{m.manque++;m.it.push({k:"x",o})}}
   const DV=typeof dvLive==="function"?dvLive():[];
-  for(const d of DV){const m=ix.get(d.periode||"");if(!m)continue;const mg=+d.montant&&+d.achats?(+d.montant-+d.achats-(typeof dvFrais==="function"?dvFrais(d):0)+(+d.ha||0)*O.tauxAtl):null,ch=(DV_CH[d.chance]||DV_CH.moyenne)[1];
+  for(const d of DV){const m=ix.get(d.periode||"");if(!m)continue;const mg=+d.montant&&+d.achats?(+d.montant+(typeof dvSupp==="function"?dvSupp(d):0)-+d.achats-(typeof dvFrais==="function"?dvFrais(d):0)+(+d.ha||0)*O.tauxAtl):null,ch=(DV_CH[d.chance]||DV_CH.moyenne)[1];
     if(mg!=null)m.d+=mg*ch;m.it.push({k:"d",d,mg,ch})}
   return M}
 function rtChart(O,L){
@@ -4615,6 +4615,8 @@ button.plc{cursor:pointer}
 .pldvr input,.pldvr select{font:14px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
 .pldvr .acts{display:flex;gap:6px}
 .dvdep{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end;font-size:13px}.dvdep>label{width:auto;flex:0 1 170px}.dvdep>label:nth-child(2){flex-basis:90px}.dvdepx{flex:1 1 100%}.dvdepx summary{cursor:pointer;color:var(--muted);font-size:12.5px}.dvdepx[open]{display:flex;flex-wrap:wrap;gap:6px 10px}.dvdepx label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 150px}.dvach{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end}.dvach label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 170px}.dvach .sub{font-size:12px;flex:1 1 200px}
+.dvcard.dvneuf{box-shadow:0 0 0 3px var(--pose,#2a78d6)}
+.dvannex{grid-column:1/-1;display:grid;gap:6px;border:1px solid var(--pose,#2a78d6);border-radius:10px;padding:10px 12px;background:var(--pose-bg,#E3EEFB)}.dvannex.inc{border-color:var(--line);background:var(--sunk)}.dvannexh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}.dvannexh .btn{margin-left:auto;padding:4px 10px;font-size:13px}.dvannexp{margin:0;font:12.5px/1.45 var(--f-mono);white-space:pre-wrap;color:var(--ink)}
 .dvmet{display:flex!important;align-items:center;gap:6px;font-size:13px;color:var(--ink);flex:0 1 auto!important}.dvmet input{width:auto}.dvdepr{flex:1 1 100%;color:var(--muted)}.dvdepr b{color:var(--ink)}
 .dvch{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}.dvch.warn{color:var(--s-orange,#E08A52);font-weight:600}
 .dvup{cursor:pointer;font-size:13px}.dvups{display:flex;gap:6px;flex-wrap:wrap}.pldvr.dvover{outline:2px dashed var(--accent);outline-offset:2px;border-radius:6px}.dvmj.ok{color:var(--s-vert,#2f7d4a)}.dvmj.o{color:var(--s-orange,#E08A52)}.dvmj.r{color:var(--s-rouge,#CC4141)}
@@ -4863,7 +4865,7 @@ function plYearShow(id,i){const {M,key,nom}=plYear.d[id],o=M[i][key],el=$(id);if
 function plYearBind(){for(const id in plYear.d)if($(id))plYearShow(id,Math.min(1,plYear.d[id].M.length-1))}
 function plChgHtml(){
   const W=plCharge(57),M=plMonths(W),DV=dvLive(),pr=d=>(DV_CH[d.chance]||DV_CH.moyenne)[1];
-  const tot=DV.reduce((s,d)=>s+(+d.montant||0),0),prob=DV.reduce((s,d)=>s+(+d.montant||0)*pr(d),0),jp=DV.reduce((s,d)=>s+dvJT(d)*pr(d),0),ha=DV.reduce((s,d)=>s+(+d.ha||0)*pr(d),0);
+  const tot=DV.reduce((s,d)=>s+dvTotal(d),0),prob=DV.reduce((s,d)=>s+dvTotal(d)*pr(d),0),jp=DV.reduce((s,d)=>s+dvJT(d)*pr(d),0),ha=DV.reduce((s,d)=>s+(+d.ha||0)*pr(d),0);
   let h=`<div class="pltiles"><div class="pltile"><b>${plEur(tot)}</b><span>chiffrés, en attente de signature (${DV.length} devis)</span></div><div class="pltile"><b>${plEur(prob)}</b><span>probables, selon la chance de signature</span></div><div class="pltile"><b>${plNf(jp)} j</b><span>de pose probables pour une équipe</span></div><div class="pltile"><b>${plNf(ha)} h</b><span>d'atelier probables</span></div></div>
    <div class="legcode"><span><i style="background:var(--pose)"></i>Pose</span><span><i style="background:var(--atl)"></i>Atelier</span><span class="sub" style="font-weight:400">foncé = confirmé / à produire · moyen = prévu · clair = estimé · hachuré = devis probables · rouge = en retard</span></div>
    <div class="leg"><span><i class="sw pk1"></i>Confirmé</span><span><i class="sw pk2"></i>Prévu</span><span><i class="sw pk3"></i>Estimé</span><span><i class="sw pk5"></i>Atelier en retard sur la pose</span><span><i class="sw pk4"></i>Devis en attente (probables)</span><span><i class="sw" style="width:2px;background:var(--ink)"></i>Heures disponibles</span></div>
@@ -4898,18 +4900,30 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
   const mj=dvMj(d),O=rtObj(),cls=dvCls(mj);
   return`<div class="pldvr dvcard ${cls}">
    <div class="dvhd"><input type="text" class="dvcli" id="dv-client-${id}" ${a} data-k="client" value="${v("client")}" aria-label="Client, affaire" ${ro}>
-    <div class="dvmjbox ${cls}"><b>${mj!=null?plEur(mj):"—"}</b><span>${mj!=null?"marge jour · objectif "+plEur(O.obj):"marge jour : achats à saisir"}</span></div>
+    <div class="dvmjbox ${cls}"><b>${mj!=null?plEur(mj):"—"}</b><span>${mj!=null?"marge jour · objectif "+plEur(O.obj):"marge jour : achats à saisir"}${dvSupp(d)?` · total ${plEur(dvTotal(d))} HT avec frais`:""}</span></div>
     <div class="acts">${plW()?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">✓ Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:""}</div></div>
    ${dvSug(d)}
    <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">
-    ${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
+    ${F("Montant HT hors frais annexes (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
     ${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d.periode||"")}</select>`)}
    </div>${dvChif(d)}</div>
-   <div class="dvsec"><h4>Déplacement et livraison</h4>${dvDep(d)}</div></div>`}
+   <div class="dvsec"><h4>Déplacement et livraison</h4>${dvDep(d)}${dvAnnexHtml(d)}</div></div>`}
+function dvAnnexTexte(d){const A=dvAnnexes(d);if(!A)return"";const r=A.r,x=d.dep||{},p=Math.max(1,+x.pers||2),e=n=>plEur(n).replace(/\u202f|\u00a0/g," ");
+  const L=[];if(A.dep>0){L.push(`Frais de déplacement : ${e(A.venteDep)} HT`);
+    if(r.P.logement)L.push(`  Hôtel : ${r.nuits} nuit${r.nuits>1?"s":""} × ${p} pers. = ${e(r.P.logement)}`);if(r.P.prime)L.push(`  Primes de découcher : ${r.nuits} × ${p} × ${e(DEP_T.prime)} = ${e(r.P.prime)}`);
+    L.push(`  Carburant et usure : ${e(r.P.camion)}${r.P.peage?` · péages : ${e(r.P.peage)}`:""} (${Math.round(+x.km)} km, ${r.ar} aller${r.ar>1?"s":""}-retour${r.ar>1?"s":""})`);if(r.mf)L.push(`  Métré sur place : ${e(r.mf)}`);
+    L.push(`  Coût ${e(A.dep)} × ${String(DEP_COEF).replace(".",",")}`)}
+  if(A.liv>0)L.push(`Transport (livraison semi ${r.liv.lab}) : ${e(A.venteLiv)} HT`,`  ${Math.round(r.liv.km)} km · coût ${e(A.liv)} × ${String(DEP_COEF).replace(".",",")}`);
+  return L.join("\n")}
+function dvAnnexHtml(d){const A=dvAnnexes(d),x=d.dep||{},id=esc(d.id),ro=plW()?"":"disabled";if(!A||!A.cout)return"";
+  const chk=`<label class="dvmet"><input type="checkbox" data-dvdep="fraisInclus" data-id="${id}" ${A.inc?"checked":""} ${ro}> Frais déjà compris dans le montant saisi (ancien devis)</label>`;
+  if(A.inc)return`<div class="dvannex inc">${chk}<span class="sub">Les ${plEur(A.cout)} de frais sont seulement déduits de la marge : rien n'est ajouté au prix.</span></div>`;
+  return`<div class="dvannex"><div class="dvannexh"><b>À ajouter au devis : ${plEur(A.vente)} HT</b><span class="sub">frais annexes vendus au coefficient ${String(DEP_COEF).replace(".",",")} · total du devis ${plEur(dvTotal(d))} HT</span><button type="button" class="btn ghost" data-dvannexcopy="${id}">Copier les lignes</button></div>
+   <pre class="dvannexp">${esc(dvAnnexTexte(d))}</pre>${chk}</div>`}
 // Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
 // (outil/chiffrage.py) qui remplit achats, main-d'œuvre, marge prévue et jours de pose. Marge jour prévue =
 // (montant HT − achats) ÷ (jours de pose + heures d'atelier ÷ 17,5), face à l'objectif de la page Direction > Rentabilité.
-const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,h=+d.ha||0,j=dvJT(d)+h/PL_EQ;return m&&a&&j?(m-a-dvFrais(d)+h*rtObj().tauxAtl)/j:null};
+const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,h=+d.ha||0,j=dvJT(d)+h/PL_EQ;return m&&a&&j?(m+dvSupp(d)-a-dvFrais(d)+h*rtObj().tauxAtl)/j:null};
 // ---------- Frais de déplacement par devis (Steven, 23/11/2026) ----------
 // Repris de l'artefact « Frais de déplacement MGDS » : départ Orléans, camion type Crafter, organisation automatique
 // selon le temps de route (retour chaque soir ≤ 1 h, départ le matin, la veille, ou la veille + retour le lendemain ≥ 4 h),
@@ -5004,6 +5018,16 @@ function dvMetOpt(d){const x=d.dep||{};if(!x.lieu||x.km===""||x.km==null||!(+d.j
 // temps total d'un devis en journées d'équipe de 2 (sur place + route + métré)
 function dvJT(d){const r=dvDepRes(d);return r?r.jt:(+d.jp||0)*Math.max(1,+((d.dep||{}).pers)||2)/2}
 function dvFrais(d){const r=dvDepRes(d);return r?r.total:0}
+// Frais annexes (Steven, 24/11/2026) : l'équipe saisit ce qu'on pose (montant HT hors frais annexes, achats) et le temps ;
+// l'appli calcule déplacement (hôtel, primes de découcher, carburant, péage, métré) et livraison, et les AJOUTE au prix en
+// supplément au coefficient DEP_COEF : c'est ce total qu'on recopie dans le devis (lignes « Frais de déplacement » et
+// « Transport »). Case « frais déjà compris dans le montant » (anciens devis, remise négative type Masquin) : pas de
+// supplément, les frais sont seulement déduits de la marge comme avant.
+const DEP_COEF=1.2;
+function dvAnnexes(d){const r=dvDepRes(d);if(!r)return null;const liv=r.liv&&r.liv.cout?r.liv.cout:0,dep=r.total-liv,inc=!!(d.dep&&d.dep.fraisInclus);
+  return{r,dep,liv,cout:r.total,inc,venteDep:inc?0:Math.round(dep*DEP_COEF),venteLiv:inc?0:Math.round(liv*DEP_COEF),get vente(){return this.venteDep+this.venteLiv}}}
+function dvSupp(d){const A=dvAnnexes(d);return A?A.vente:0}
+function dvTotal(d){return(+d.montant||0)+dvSupp(d)}
 // lieu hors de la liste : commune trouvée par la Base adresse nationale (api-adresse.data.gouv.fr, seul le nom de la commune
 // est envoyé), distance à vol d'oiseau depuis Orléans × 1,25, temps et péage estimés : à corriger à la main si besoin
 async function depEstime(lieu){
@@ -5040,9 +5064,12 @@ async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=PLN.devi
   else if(k==="metre")x.metre=t.checked;
   else if(k==="retours")x.retours=t.value;
   else if(k==="liv")x.liv=t.value;
+  else if(k==="fraisInclus")x.fraisInclus=t.checked;
   else{x[k]=k==="zone"?t.value:(t.value===""?"":Math.max(k==="pers"?1:0,+String(t.value).replace(",",".")||0));if(k!=="pers"&&k!=="zone")x.src="saisi"}
   await dvSave(id,{dep:x});dvKeep(planRender)}
 document.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.dvdep)dvDepChange(t)});
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-dvannexcopy]");if(!b)return;const d=PLN.devis.get(b.dataset.dvannexcopy);if(!d)return;
+  navigator.clipboard.writeText(dvAnnexTexte(d)).then(()=>toast("Lignes copiées : à coller dans le devis.")).catch(()=>toast("Copie impossible sur cet appareil."))});
 
 // ---------- Devis signé repéré tout seul (Steven, 23/11/2026 : « Robledo est signé et reste dans les devis à signer ») ----------
 // Un chantier de l'appli qui porte le même n° de devis (à un chiffre près, pour les fautes de frappe) et le même nom :
@@ -5105,7 +5132,11 @@ document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.datase
   (async()=>{const dep={pers:Math.max(1,num("pers")||2),retours:g("retours")||"we",liv:g("liv"),metre:!!(q("metre")&&q("metre").checked)};
     if(g("lieu"))await depDuLieu(g("lieu"),dep);
     const ok=await dvSave(id,{client,montant:num("montant"),achats:num("achats"),mo:num("mo"),chance:g("chance"),jp:num("jp"),ha:num("ha"),periode:g("periode"),dep,etat:"attente",cree:today(),par:me||""});
-    dvKeep(planRender);if(ok)toast(num("achats")!==""?"Devis ajouté : la marge jour est calculée.":"Devis ajouté. Saisissez les achats ou joignez la capture du chiffrage (📷).")})()});
+    // formulaire vidé avant le redessin (sinon il garde les chiffres et on croit que rien ne s'est passé), puis la nouvelle carte est montrée
+    if(ok)f.querySelectorAll("input,select").forEach(i=>{if(i.type==="checkbox")i.checked=i.defaultChecked;else if(i.tagName==="SELECT")[...i.options].forEach(o=>o.selected=o.defaultSelected);else i.value=i.defaultValue});
+    if(btn)btn.disabled=false;planRender();
+    const c=ok&&document.getElementById("dv-client-"+id);if(c){const card=c.closest(".dvcard");if(card){card.scrollIntoView({behavior:"smooth",block:"center"});card.classList.add("dvneuf");setTimeout(()=>card.classList.remove("dvneuf"),2500)}}
+    if(ok)toast(num("achats")!==""?"Devis ajouté : la marge jour est calculée (carte ci-dessous).":"Devis ajouté. Saisissez les achats ou joignez la capture du chiffrage (📷).");else toast("Le devis n'a pas pu être enregistré : réessayez.")})()});
 document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.dvchif)return;const f=t.files&&t.files[0],id=t.dataset.dvchif;t.value="";if(f)dvChifUp(id,f)});
 // une capture d'écran glissée sur la ligne d'un devis ; sur la ligne « Nouveau devis », elle crée le devis (Claude le remplit)
 document.addEventListener("dragover",e=>{const r=e.target.closest&&e.target.closest("#tab-planning .pldvr");if(!r||!plW())return;e.preventDefault();r.classList.add("dvover")});
