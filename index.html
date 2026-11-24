@@ -4615,6 +4615,7 @@ button.plc{cursor:pointer}
 .pldvr input,.pldvr select{font:14px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
 .pldvr .acts{display:flex;gap:6px}
 .dvdep{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end;font-size:13px}.dvdep>label{width:auto;flex:0 1 170px}.dvdep>label:nth-child(2){flex-basis:90px}.dvdepx{flex:1 1 100%}.dvdepx summary{cursor:pointer;color:var(--muted);font-size:12.5px}.dvdepx[open]{display:flex;flex-wrap:wrap;gap:6px 10px}.dvdepx label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 150px}.dvach{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end}.dvach label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 170px}.dvach .sub{font-size:12px;flex:1 1 200px}
+.dvbr{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--atl-bg,#FBE9D6);border-radius:8px;padding:8px 10px;font-size:13.5px}.dvbr span{flex:1 1 260px}.dvcard.dvbrc{border-style:dashed}
 .dvcard.dvneuf{box-shadow:0 0 0 3px var(--pose,#2a78d6)}
 .dvannex{grid-column:1/-1;display:grid;gap:6px;border:1px solid var(--pose,#2a78d6);border-radius:10px;padding:10px 12px;background:var(--pose-bg,#E3EEFB)}.dvannex.inc{border-color:var(--line);background:var(--sunk)}.dvannexh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}.dvannexh .btn{margin-left:auto;padding:4px 10px;font-size:13px}.dvannexp{margin:0;font:12.5px/1.45 var(--f-mono);white-space:pre-wrap;color:var(--ink)}
 .dvmet{display:flex!important;align-items:center;gap:6px;font-size:13px;color:var(--ink);flex:0 1 auto!important}.dvmet input{width:auto}.dvdepr{flex:1 1 100%;color:var(--muted)}.dvdepr b{color:var(--ink)}
@@ -4898,7 +4899,8 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
     <label class="dvmet"><input type="checkbox" data-k="metre" ${ro}> Métré sur place à notre charge (1 personne)</label></div></div>
    <div class="acts"><button class="btn">Ajouter le devis</button></div></form>`;
   const mj=dvMj(d),O=rtObj(),cls=dvCls(mj);
-  return`<div class="pldvr dvcard ${cls}">
+  const br=d._br?`<div class="dvbr"><span><b>Modifications en cours</b> : la marge de cette carte est recalculée, la charge et les plannings ne changent qu'après mise à jour.</span>${plW()?`<button type="button" class="btn" data-dvmaj="${id}">Mettre à jour</button><button type="button" class="btn ghost" data-dvannul="${id}">Annuler</button>`:""}</div>`:"";
+  return`<div class="pldvr dvcard ${cls} ${d._br?"dvbrc":""}">${br}
    <div class="dvhd"><input type="text" class="dvcli" id="dv-client-${id}" ${a} data-k="client" value="${v("client")}" aria-label="Client, affaire" ${ro}>
     <div class="dvmjbox ${cls}"><b>${mj!=null?plEur(mj):"—"}</b><span>${mj!=null?"marge jour · objectif "+plEur(O.obj):"marge jour : achats à saisir"}${dvSupp(d)?` · total ${plEur(dvTotal(d))} HT avec frais`:""}</span></div>
     <div class="acts">${plW()?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">✓ Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:""}</div></div>
@@ -5057,13 +5059,24 @@ function dvDep(d){const id=esc(d.id),x=d.dep||{},ro=plW()?"":"disabled",r=dvDepR
 async function depDuLieu(l,x){const v=depListe(l);
   if(v)return Object.assign(x,{lieu:v[0],lat:(DEP_LL[v[0]]||[])[0],lon:(DEP_LL[v[0]]||[])[1],km:v[1],peage:Math.round(v[2]*DEP_T.peageKm),h:Math.round(v[3]*DEP_T.camion*10)/10,zone:v[4],src:"liste"});
   let e=null;try{e=await depEstime(l)}catch(_){}return Object.assign(x,{lieu:l},e||{km:"",src:"saisi"})}
-async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=PLN.devis.get(id)||{},x={...(d.dep||{})};
+// Brouillon (Steven, 24/11/2026) : on modifie une carte, la marge se recalcule sur la carte seulement ; la charge, les plannings
+// et la Direction ne changent qu'au clic sur « Mettre à jour ». Brouillons gardés sur l'appareil (localStorage) jusqu'à mise à jour.
+const DV_BR=(()=>{try{return new Map(Object.entries(JSON.parse(localStorage.getItem("dvBrouillons")||"{}")))}catch(_){return new Map()}})();
+const dvBrSave=()=>{try{localStorage.setItem("dvBrouillons",JSON.stringify(Object.fromEntries(DV_BR)))}catch(_){}};
+const dvVue=id=>{const d=PLN.devis.get(id)||{},b=DV_BR.get(id);return b?{...d,...b,dep:b.dep?{...(d.dep||{}),...b.dep}:d.dep}:d};
+function dvBr(id,patch){const b={...(DV_BR.get(id)||{})};for(const[k,v]of Object.entries(patch))b[k]=k==="dep"?{...(b.dep||{}),...v}:v;DV_BR.set(id,b);dvBrSave()}
+async function dvMaj(id){const b=DV_BR.get(id);if(!b)return;const d=PLN.devis.get(id)||{},patch={...b};if(b.dep)patch.dep={...(d.dep||{}),...b.dep};
+  const ok=await dvSave(id,patch);if(ok){DV_BR.delete(id);dvBrSave();toast("Devis mis à jour : charge et plannings recalculés.")}dvKeep(planRender)}
+document.addEventListener("click",e=>{const m=e.target.closest&&e.target.closest("[data-dvmaj],[data-dvannul]");if(!m)return;
+  if(m.dataset.dvmaj){dvMaj(m.dataset.dvmaj);return}
+  if(confirm("Abandonner les modifications non mises à jour de ce devis ?")){DV_BR.delete(m.dataset.dvannul);dvBrSave();dvKeep(planRender)}});
+async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=dvVue(id),x={...(d.dep||{})};const dvSave=(i,p)=>{dvBr(i,p);return Promise.resolve(true)};
   if(k==="lieu"){const l=t.value.trim();if(!l){await dvSave(id,{dep:{pers:x.pers||2}});dvKeep(planRender);return}
     const v=depListe(l);
     if(v)Object.assign(x,{lieu:v[0],lat:(DEP_LL[v[0]]||[])[0],lon:(DEP_LL[v[0]]||[])[1],km:v[1],peage:Math.round(v[2]*DEP_T.peageKm),h:Math.round(v[3]*DEP_T.camion*10)/10,zone:v[4],src:"liste"});
     else{Object.assign(x,{lieu:l,km:"",src:"cherche"});await dvSave(id,{dep:x});dvKeep(planRender);
       let e=null;try{e=await depEstime(l)}catch(_){}
-      const y={...((PLN.devis.get(id)||{}).dep||x)};if(e)Object.assign(y,e);else Object.assign(y,{src:"saisi"});await dvSave(id,{dep:y});dvKeep(planRender);return}}
+      const y={...(dvVue(id).dep||x)};if(e)Object.assign(y,e);else Object.assign(y,{src:"saisi"});await dvSave(id,{dep:y});dvKeep(planRender);return}}
   else if(k==="metre")x.metre=t.checked;
   else if(k==="retours")x.retours=t.value;
   else if(k==="liv")x.liv=t.value;
@@ -5071,7 +5084,7 @@ async function dvDepChange(t){const id=t.dataset.id,k=t.dataset.dvdep,d=PLN.devi
   else{x[k]=k==="zone"?t.value:(t.value===""?"":Math.max(k==="pers"?1:0,+String(t.value).replace(",",".")||0));if(k!=="pers"&&k!=="zone")x.src="saisi"}
   await dvSave(id,{dep:x});dvKeep(planRender)}
 document.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.dvdep)dvDepChange(t)});
-document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-dvannexcopy]");if(!b)return;const d=PLN.devis.get(b.dataset.dvannexcopy);if(!d)return;
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-dvannexcopy]");if(!b)return;const d=dvVue(b.dataset.dvannexcopy);if(!d||!d.client)return;
   navigator.clipboard.writeText(dvAnnexTexte(d)).then(()=>toast("Lignes copiées : à coller dans le devis.")).catch(()=>toast("Copie impossible sur cet appareil."))});
 
 // ---------- Devis signé repéré tout seul (Steven, 23/11/2026 : « Robledo est signé et reste dans les devis à signer ») ----------
@@ -5103,7 +5116,7 @@ function dvChif(d){const id=esc(d.id),c=d.chif;
   return`<div class="dvch ${!c&&!d.achats?"warn":""}"><span>${st}</span>${up}</div>${al}`}
 function dvHtml(DV){
   if(PLN.devisOk===false)return `<div class="plcard"><h3>Devis en attente</h3><p class="sub">La liste des devis n'est pas encore activée dans la base : il faut coller <span class="mono">outil/devis.sql</span> dans Supabase (SQL Editor, New query, Run). Les graphiques fonctionnent déjà sans elle.</p></div>`;
-  const L=DV.sort((a,b)=>(a.periode||"9999").localeCompare(b.periode||"9999")||String(a.client||"").localeCompare(String(b.client||"")));
+  const L=DV.map(d=>DV_BR.has(d.id)?{...dvVue(d.id),id:d.id,_br:1}:d).sort((a,b)=>(a.periode||"9999").localeCompare(b.periode||"9999")||String(a.client||"").localeCompare(String(b.client||"")));
   const O=rtObj(),mjs=L.map(d=>[dvMj(d),+d.montant||0]).filter(x=>x[0]!=null),tm=mjs.reduce((s,x)=>s+x[1],0);
   return `<div class="plcard"><h3>Devis en attente</h3>
    <div class="dvobj"><p style="margin:0"><b>Objectif : ${plEur(O.obj)} de marge par journée d'équipe de 2</b>, soit ${plEur(O.taux)} par heure de production, en pose comme à l'atelier.</p>
@@ -5121,14 +5134,14 @@ document.addEventListener("click",e=>{const el=$("tab-planning");if(!el||!el.con
   const v=e.target.closest("[data-pview]");if(v){PLN.view=v.dataset.pview;try{localStorage.setItem("pln-view",PLN.view)}catch(_){}planRender();return}
   const hit=e.target.closest(".hit[data-ym]");if(hit){plYearShow(hit.dataset.ym,+hit.dataset.i);return}
   const bar=e.target.closest("[data-pldet]");if(bar&&!e.target.closest(".pldet button")){plDetToggle(bar);return}
-  const s=e.target.closest("[data-dvset]");if(s){const id=s.dataset.id,et=s.dataset.dvset;dvSave(id,{etat:et,clos:today()}).then(ok=>{if(ok)toast(et==="signe"?"Devis noté signé.":"Devis noté perdu.");dvKeep(planRender)})}});
+  const s=e.target.closest("[data-dvset]");if(s){const id=s.dataset.id,et=s.dataset.dvset,b=DV_BR.get(id);if(b){DV_BR.delete(id);dvBrSave()}dvSave(id,{...(b?{...b,dep:b.dep?{...((PLN.devis.get(id)||{}).dep||{}),...b.dep}:undefined}:{}),etat:et,clos:today()}).then(ok=>{if(ok)toast(et==="signe"?"Devis noté signé.":"Devis noté perdu.");dvKeep(planRender)})}});
 document.addEventListener("mouseover",e=>{const hit=e.target.closest&&e.target.closest(".hit[data-ym]");if(hit)plYearShow(hit.dataset.ym,+hit.dataset.i)});
 function plDetToggle(bar){const d=bar.querySelector(".pldet"),o=d.hidden;d.hidden=!o;bar.setAttribute("aria-expanded",o);const t=bar.querySelector(".pldt");if(t)t.textContent=o?"masquer les chantiers":"voir les chantiers"}
 document.addEventListener("keydown",e=>{const bar=e.target.matches&&e.target.matches("[data-pldet]")?e.target:null;if(bar&&(e.key==="Enter"||e.key===" ")){e.preventDefault();plDetToggle(bar);return}
   const hit=e.target.closest&&e.target.closest(".hit[data-ym]");if(hit&&(e.key==="Enter"||e.key===" ")){e.preventDefault();plYearShow(hit.dataset.ym,+hit.dataset.i)}});
 document.addEventListener("change",e=>{const t=e.target;if(!t.dataset||!t.dataset.dv)return;const k=t.dataset.k,v=["montant","jp","ha","achats","mo"].includes(k)?(t.value===""?"":Math.max(0,+String(t.value).replace(",",".")||0)):t.value.trim();
-  const P={[k]:v},d0=PLN.devis.get(t.dataset.dv)||{};if(k==="ha"&&+v>0&&/heures d'atelier/i.test(d0.alerte||""))P.alerte="";
-  dvSave(t.dataset.dv,P).then(()=>dvKeep(planRender))});
+  const P={[k]:v},d0=dvVue(t.dataset.dv);if(k==="ha"&&+v>0&&/heures d'atelier/i.test(d0.alerte||""))P.alerte="";
+  dvBr(t.dataset.dv,P);dvKeep(planRender)});
 document.addEventListener("submit",e=>{const f=e.target;if(!f.dataset||!f.dataset.dvadd)return;e.preventDefault();
   const q=k=>f.querySelector(`[data-k="${k}"]`),g=k=>{const x=q(k);return x?String(x.value).trim():""},client=g("client");if(!client){toast("Indiquez le client ou l'affaire.");return}
   const num=k=>g(k)===""?"":Math.max(0,+g(k).replace(",",".")||0),id="DV"+Date.now().toString(36),btn=f.querySelector("button");if(btn)btn.disabled=true;
