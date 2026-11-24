@@ -4725,7 +4725,10 @@ function plWeek(mon){
     W.cap+=Math.max(0,avail)}
   return W}
 // jours de pose estimés d'un chantier sans durée connue : 1 jour pour 10 h d'atelier (constaté sur Duman et Godot), 2 jours au moins avec des ARC fournisseurs
-function plJours(id){const j0=jobs.get(id);if(j0&&+j0.jp>0)return +j0.jp;let h=0;for(const [aid,a] of atl.rows)if(a.chantier===id)h+=atlHeures(a);const j=jobs.get(id),four=j&&arcsOf(j).some(a=>!a.aid);return Math.max(four||!h?2:1,Math.ceil(h/10))}
+// chantier signé venu d'un devis en attente avec son déplacement (Steven, 24/11/2026 : « la charge doit être juste ») :
+// même temps total que le devis (sur place + route + métré, en journées d'équipe de 2), avec les jours sur place du chantier
+function plJoursDv(id,jp){try{const M=(typeof PLN!=="undefined"&&PLN.devis)||new Map();for(const d of M.values())if(d&&d.chantier===id&&d.dep&&d.dep.lieu&&typeof dvJT==="function")return dvJT({...d,jp:jp>0?jp:d.jp})}catch(_){}return 0}
+function plJours(id){const j0=jobs.get(id);if(j0&&+j0.jp>0)return Math.max(+j0.jp,plJoursDv(id,+j0.jp));{const t=plJoursDv(id,0);if(t)return t}let h=0;for(const [aid,a] of atl.rows)if(a.chantier===id)h+=atlHeures(a);const j=jobs.get(id),four=j&&arcsOf(j).some(a=>!a.aid);return Math.max(four||!h?2:1,Math.ceil(h/10))}
 // chantiers à poser qui ne sont ni au planning de Marine ni saisis à la main : date validée, proposée ou estimée
 function plAPlacer(){const t=today(),out=[];let sans=0;
   for(const [id,j] of jobs){if(sd(j,"pose"))continue;if(hasPhases(j)&&phasesOf(j).every(x=>x.pose&&x.pose.d))continue;
