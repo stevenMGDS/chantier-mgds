@@ -4942,7 +4942,9 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
   const br=d._br?`<div class="dvbr"><span><b>Modifications en cours</b> : la marge de cette carte est recalculée, la charge et les plannings ne changent qu'après mise à jour.</span>${plW()?`<button type="button" class="btn" data-dvmaj="${id}">Mettre à jour</button><button type="button" class="btn ghost" data-dvannul="${id}">Annuler</button>`:""}</div>`:"";
   return`<div class="pldvr dvcard ${cls} ${d._br?"dvbrc":""}">${br}
    <div class="dvhd"><input type="text" class="dvcli" id="dv-client-${id}" ${a} data-k="client" value="${v("client")}" aria-label="Client, affaire" ${ro}>
-    <div class="dvmjbox ${cls}"><b>${mj!=null?plEur(mj):"—"}</b><span>${mj!=null?"marge jour · objectif "+plEur(O.obj):"marge jour : achats à saisir"}</span></div>
+    ${(()=>{// marge et objectif par jour de l'équipe réelle (Stéphanie, 24/11/2026) : × personnes ÷ 2 (3 pers. : objectif × 1,5)
+      const k=Math.max(1,+((d.dep||{}).pers)||2)/2,eq=k!==1?` (équipe de ${k*2})`:"";
+      return`<div class="dvmjbox ${cls}"><b>${mj!=null?plEur(mj*k):"—"}</b><span>${mj!=null?`marge par jour${eq} · objectif ${plEur(O.obj*k)}`:"marge jour : achats à saisir"}</span></div>`})()}
     <div class="acts">${plW()?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">✓ Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:""}</div></div>
    ${dvSug(d)}
    <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">
@@ -5091,7 +5093,7 @@ function dvDepRes(d){const x=d.dep;if(!x||!x.lieu||x.km===""||x.km==null||!(+d.j
 function dvMetOpt(d){const x=d.dep||{};if(!x.lieu||x.km===""||x.km==null||!(+d.jp>0))return"";
   const sans={...d,dep:{...x,metre:false}},avec={...d,dep:{...x,metre:true}},ra=dvDepRes(avec),ms=dvMj(sans),ma=dvMj(avec);if(!ra||!ra.mj)return"";
   const O=rtObj(),sup=Math.round((ra.mf+ra.mj/2*O.obj)/10)*10,cls=v=>v==null?"":v>=O.obj?"ok":v>=O.obj*.9?"o":"r";
-  return`<div class="dvmetopt">Métré sur place : <b>${plNf(ra.mj)} j</b> à 1 personne + <b>${plEur(ra.mf)}</b> de frais · marge jour <b class="dvmj ${cls(ma)}">${ma!=null?plEur(ma):"–"}</b> avec, <b class="dvmj ${cls(ms)}">${ms!=null?plEur(ms):"–"}</b> sans (métré fait par le maître d'œuvre ou facturé à part) · supplément pour le vendre à part sans baisser la marge jour : <b>≈ ${plEur(sup)} HT</b>. ${x.metre?"Compté dans ce devis.":"Pas compté dans ce devis."}</div>`}
+  return`<div class="dvmetopt">Métré sur place : <b>${plNf(ra.mj)} j</b> à 1 personne (objectif ${plEur(O.obj/2)} par jour à 1 personne) + <b>${plEur(ra.mf)}</b> de frais · marge jour <b class="dvmj ${cls(ma)}">${ma!=null?plEur(ma*Math.max(1,+x.pers||2)/2):"–"}</b> avec, <b class="dvmj ${cls(ms)}">${ms!=null?plEur(ms*Math.max(1,+x.pers||2)/2):"–"}</b> sans (métré fait par le maître d'œuvre ou facturé à part) · supplément pour le vendre à part sans baisser la marge jour : <b>≈ ${plEur(sup)} HT</b>. ${x.metre?"Compté dans ce devis.":"Pas compté dans ce devis."}</div>`}
 // temps total d'un devis en journées d'équipe de 2 (sur place + route + métré)
 function dvJT(d){const r=dvDepRes(d);return r?r.jt:Math.ceil((+d.jp||0)*Math.max(1,+((d.dep||{}).pers)||2)-0.02)/2}
 function dvFrais(d){const r=dvDepRes(d);return r?r.total:0}
