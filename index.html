@@ -5194,7 +5194,10 @@ function dvAch(d){const id=esc(d.id),ro=plW()?"":"disabled";
   return`<div class="dvach"><label>Achats HT<input type="number" min="0" step="1" inputmode="decimal" data-dv="${id}" data-k="achats" value="${esc(d.achats??"")}" placeholder="Produit + Divers" ${ro}></label><label>Pose (main-d'œuvre HT)<input type="number" min="0" step="1" inputmode="decimal" data-dv="${id}" data-k="mo" value="${esc(d.mo??"")}" placeholder="ligne Pose" ${ro}></label><span class="sub">colonne ACHAT du tableau « Analyse des marges » : la marge jour se calcule tout de suite</span></div>`}
 function dvChif(d){const id=esc(d.id),c=d.chif;
   const up=plW()?`<span class="dvups"><label class="btn ghost dvup">📷 ${c?"Nouvelle photo":"Photo"}<input type="file" accept="image/*" capture="environment" data-dvchif="${id}" hidden></label><label class="btn ghost dvup">${c?"Remplacer le fichier":"Fichier ou capture"}<input type="file" accept="image/*,application/pdf" data-dvchif="${id}" hidden></label></span>`:"";
-  const al=d.alerte&&!(d.dep&&d.dep.lieu&&/frais de d[ée]placement/i.test(d.alerte))&&!(+d.ha>0&&/heures d'atelier/i.test(d.alerte))?`<div class="dvalert">⚠ ${esc(d.alerte)}</div>`:"";
+  // jours de pose saisis par l'équipe : ils font foi (Steven, 24/11/2026), on n'affiche pas l'alerte « main-d'œuvre ÷ 1 000 € »
+  const alT=String(d.alerte||"").split("; ").filter(x=>!(+d.jp>0&&/main-d.œuvre ÷|pose de la capture/.test(x))).join("; ")
+    .replace(/écart avec la saisie : achats saisis ([\d  ]+ €)\s*,?\s*capture ([\d  ]+ €)/,"la capture du logiciel de devis est retenue : achats $1 saisis dans l'appli, $2 sur la capture").replace(/,?\s*pose saisis ([\d  ]+ €)\s*,?\s*capture ([\d  ]+ €)/,", main-d'œuvre de pose $1 saisis dans l'appli, $2 sur la capture");
+  const al=alT&&!(d.dep&&d.dep.lieu&&/frais de d[ée]placement/i.test(alT))&&!(+d.ha>0&&/heures d'atelier/i.test(alT))?`<div class="dvalert">⚠ ${esc(alT)}</div>`:"";
   const st=c?`📷 Capture du ${fr(c.le)}${d.lu?" · relue par Claude":" · relue au prochain passage (12 h 27 ou 18 h 27)"}`:d.achats?"Achats saisis à la main · capture facultative (contrôle)":"Saisissez les achats ou joignez la capture du chiffrage";
   return`<div class="dvch ${!c&&!d.achats?"warn":""}"><span>${st}</span>${up}</div>${al}`}
 function dvHtml(DV){

@@ -19,7 +19,7 @@ Ligne Métré (Steven, 24/11/2026, simplifié) : si le tableau a une ligne main-
 son ACHAT à mo (jamais aux achats). Pour l'alerte des jours de pose, retire d'abord ce montant de mo avant de diviser
 par 1 000 € : le métré n'est pas de la pose (il est déjà compté à part dans le temps total de l'appli).
 """
-import json, os, sys, urllib.parse, urllib.request
+import json, os, re, sys, urllib.parse, urllib.request
 
 BASE = "https://azgvzgenfykvlkuwevty.supabase.co"
 H = {"apikey": "x", "Authorization": "Bearer x"}  # l'hôte est authentifié par le proxy de l'environnement
@@ -69,11 +69,14 @@ def note(devis, valeurs):
             if str(d.get("client", "")).startswith("Devis à lire") and v: d["client"] = v
             continue
         if k in ("achats", "mo") and d.get(k) not in (None, "") and v not in (None, "") and abs(float(d[k]) - float(v)) > max(20, 0.02 * float(v)):
-            ecarts.append(f"{ {'achats': 'achats', 'mo': 'pose'}.get(k, 'métré') } saisis {float(d[k]):,.0f} €, capture {float(v):,.0f} €".replace(",", " "))
+            ecarts.append(f"{ {'achats': 'achats', 'mo': 'main-d’œuvre de pose'}.get(k, k) } {float(d[k]):,.0f} € saisis dans l'appli, {float(v):,.0f} € sur la capture".replace(",", " "))
         if k in ("montant", "achats", "mo", "marge", "jp", "ha", "alerte") and v not in (None, ""):
             if k in ("jp", "ha") and d.get(k) not in (None, ""): continue   # ce que l'équipe a saisi reste
             d[k] = v
-    if ecarts: d["alerte"] = "; ".join(x for x in [d.get("alerte"), "écart avec la saisie : " + ", ".join(ecarts)] if x)
+    if ecarts: d["alerte"] = "; ".join(x for x in [d.get("alerte"), "la capture du logiciel de devis est retenue : " + ", ".join(ecarts) + " (vérifier que la capture est la dernière version)"] if x)
+    # jours de pose saisis par l'équipe (Steven, 24/11/2026) : ils font foi, pas d'alerte « main-d'œuvre ÷ 1 000 € »
+    if d.get("jp") not in (None, "") and d.get("alerte"):
+        d["alerte"] = "; ".join(x for x in d["alerte"].split("; ") if not re.search(r"main-d.œuvre ÷|pose de la capture", x)) or ""
     d["lu"] = True
     req("POST", "/rest/v1/devis", {"id": devis, "data": d}, {"Prefer": "resolution=merge-duplicates"})
     print(devis, "noté :", {k: d.get(k) for k in ("montant", "achats", "mo", "marge", "jp", "ha", "alerte")})
