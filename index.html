@@ -3753,7 +3753,7 @@ function rtMoisData(O,L){
   for(const o of L){const m=ix.get(o.mois);if(!m)continue;
     if(o.fin&&o.margeR!=null){m.r+=o.margeR;m.it.push({k:"r",o})}else if(o.margeP!=null){m.p+=o.margeP;m.it.push({k:"p",o})}else{m.manque++;m.it.push({k:"x",o})}}
   const DV=typeof dvLive==="function"?dvLive():[];
-  for(const d of DV){const m=ix.get(d.periode||"");if(!m)continue;const mg=+d.montant&&+d.achats?(+d.montant-+d.achats-(typeof dvFraisMarge==="function"?dvFraisMarge(d):0)+(+d.ha||0)*O.tauxAtl):null,ch=(DV_CH[d.chance]||DV_CH.moyenne)[1];
+  for(const d of DV){const m=ix.get(d.periode||"");if(!m)continue;const mg=+d.montant&&+d.achats?(+d.montant-+d.achats-(typeof dvFraisMarge==="function"?dvFraisMarge(d):0)):null,ch=(DV_CH[d.chance]||DV_CH.moyenne)[1];
     if(mg!=null)m.d+=mg*ch;m.it.push({k:"d",d,mg,ch})}
   return M}
 function rtChart(O,L){
@@ -4971,8 +4971,10 @@ function dvAnnexHtml(d){const A=dvAnnexes(d),id=esc(d.id),ro=plW()?"":"disabled"
    <pre class="dvannexp">${esc(dvAnnexTexte(d))}</pre><div class="dvannexh"><button type="button" class="btn ghost" data-dvannexcopy="${id}">Copier les lignes</button></div>${chk}</details>`}
 // Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
 // (outil/chiffrage.py) qui remplit achats, main-d'œuvre, marge prévue et jours de pose. Marge jour prévue =
-// (montant HT − achats) ÷ (jours de pose + heures d'atelier ÷ 17,5), face à l'objectif de la page Direction > Rentabilité.
-const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,h=+d.ha||0,j=dvJT(d)+h/PL_EQ;return m&&a&&j?(m-a-dvFraisMarge(d)+h*rtObj().tauxAtl)/j:null};
+// (montant HT − achats) ÷ temps total de pose (heures d'atelier exclues, 24/11/2026), face à l'objectif de la page Direction > Rentabilité.
+// Heures d'atelier (Steven, 24/11/2026) : la case ne sert qu'au planning prévisionnel de l'atelier ; l'atelier est déjà vendu
+// dans le chantier (prix de Christophe dans les achats) : elles ne changent pas la marge jour du devis.
+const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,j=dvJT(d);return m&&a&&j?(m-a-dvFraisMarge(d))/j:null};
 // ---------- Frais de déplacement par devis (Steven, 23/11/2026) ----------
 // Repris de l'artefact « Frais de déplacement MGDS » : départ Orléans, camion type Crafter, organisation automatique
 // selon le temps de route (retour chaque soir ≤ 1 h, départ le matin, la veille, ou la veille + retour le lendemain ≥ 4 h),
@@ -5177,7 +5179,7 @@ function dvHtml(DV){
   const O=rtObj(),mjs=L.map(d=>[dvMj(d),+d.montant||0]).filter(x=>x[0]!=null),tm=mjs.reduce((s,x)=>s+x[1],0);
   return `<div class="plcard"><h3>Devis en attente</h3>
    <div class="dvobj"><p style="margin:0"><b>Objectif : ${plEur(O.obj)} de marge par journée d'équipe de 2</b>, soit ${plEur(O.taux)} par heure de production, en pose comme à l'atelier.</p>
-    <span>Marge jour d'un devis = (prix de vente HT − achats − frais de déplacement + heures d'atelier × ${plEur(O.tauxAtl)}) ÷ (temps total : jours sur place + jours de route + métré lointain, + heures d'atelier ÷ ${plNf(PL_EQ)}). La main-d'œuvre d'atelier comprise dans le prix de Christophe est rajoutée à la marge, comme la pose : elle est déjà payée par nos charges. Jours de pose = main-d'œuvre de pose ÷ ${plEur(O.moJour)} environ par jour d'équipe. Une heure d'atelier se vend au moins ${plEur(O.taux)}, comme une heure de pose. À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
+    <span>Marge jour d'un devis = (prix de vente HT − achats − frais de déplacement non compris dans le devis) ÷ temps total (jours sur place + route + métré, arrondi à la demi-journée). Les heures d'atelier ne servent qu'au planning prévisionnel de l'atelier : elles ne changent pas la marge jour. Jours de pose = main-d'œuvre de pose ÷ ${plEur(O.moJour)} environ par jour d'équipe. Une heure d'atelier se vend au moins ${plEur(O.taux)}, comme une heure de pose. À chaque devis, joignez la capture du tableau de marge : Claude en tire les achats et la marge jour.${mjs.length?` Devis chiffrés : marge jour moyenne ${plEur(mjs.reduce((s,x)=>s+x[0]*x[1],0)/(tm||1))}.`:""}</span></div>
    <p class="plnote">Astuce : glissez la capture d'écran du chiffrage sur la ligne « Nouveau devis » : le devis est créé et Claude remplit client, montant, jours et heures. Une ligne par devis chiffré. Mettez à jour la chance et la période en réunion commerciale. « Signé » ou « Perdu » retire la ligne de la liste ; elle est gardée en mémoire pour connaître plus tard votre taux de signature.</p>
    <datalist id="depVilles">${DEP_V.map(v=>`<option value="${esc(v[0])}">`).join("")}</datalist><div class="pldv">${dvCalcHtml()}${plW()?dvRow(null):""}${L.map(dvRow).join("")||(plW()?"":`<p class="sub">Aucun devis en attente.</p>`)}</div></div>`}
 // enregistrement : on relit la ligne juste avant d'écrire et on n'y change que les champs modifiés (23/11/2026 : une page
