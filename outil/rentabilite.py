@@ -138,7 +138,13 @@ def atelier(direction, essai, le):
         req("POST", "/rest/v1/direction", {"id": "atl_" + a["id"], "data": data}, {"Prefer": "resolution=merge-duplicates"})
 
 
+LIENS = {}
+
+
 def main(essai):
+    global LIENS
+    try: LIENS = (json.loads(req("GET", "/storage/v1/object/documents/serveur/_liens.json", raw=True)) or {}).get("chantiers") or {}
+    except Exception: LIENS = {}
     direction = {r["id"]: r["data"] for r in req("GET", "/rest/v1/direction?select=id,data")}
     le = datetime.date.today().isoformat()
     illis = []   # devis signés scannés (illisibles) : tâche pour Marine (consigne de Steven du 23/11/2026), sans aucun montant
@@ -154,12 +160,24 @@ def main(essai):
             except Exception as e: v = None
             if v is None: rates.append(d.get("name") or k)
             else: vente += v; srcs.append({"doc": d.get("name") or k, "ht": round(v, 2)})
-        arcs = []
+        arcs, vus = [], set()
         for d in docs:
             if d.get("type") != "ARC": continue
             try: v = total_arc(texte(d["id"]))
             except Exception: v = None
-            arcs.append({"doc": d.get("name") or d["id"], "ht": None if v is None else round(v, 2)})
+            arcs.append({"doc": d.get("name") or d["id"], "ht": None if v is None else round(v, 2)}); vus.add((d.get("name") or "").lower())
+        # ARC du dossier FOURNISSEURS/ARC du serveur (Steven, 24/11/2026 : « les achats, tu dois les retrouver sur les ARC ») :
+        # recopiés par l'iMac dans documents/serveur/<dossier>/FOURNISSEURS/ARC/… ; pas les ARC atelier (sans prix, l'atelier est à part)
+        c = LIENS.get(r["id"]) or {}; dos = c.get("chemin") or c.get("dossier") or ""
+        if dos:
+            try: fichiers = ls_tout(f"serveur/{dos}/FOURNISSEURS/ARC/")
+            except Exception: fichiers = []
+            for x in fichiers:
+                n = x["name"]
+                if not n.lower().endswith(".pdf") or n.lower() in vus or n.lower().startswith("arc atelier"): continue
+                try: v = total_arc(texte(x["chemin"]))
+                except Exception: v = None
+                arcs.append({"doc": n, "ht": None if v is None else round(v, 2)}); vus.add(n.lower())
         print(f"{r['id']:<22} vente {vente:>12,.2f}  ({len(srcs)} devis{', illisible : ' + ', '.join(rates) if rates else ''})"
               f"  ARC {sum(a['ht'] or 0 for a in arcs):>11,.2f} ({len(arcs)})")
         old = direction.get("vente_" + r["id"]) or {}

@@ -16,5 +16,9 @@ Rentabilité de l'atelier (consigne de Steven du 24/11/2026, même passage) : re
 « ÉLÉMENTS VALIDÉS » de ATELIER (ÉLÉMENTS VALIDÉS, ÉLÉMENTS VALIDÉS T1, T2…, avec leurs sous-dossiers sauf PLANS VALIDÉS)
 vers documents, chemin serveur/<dossier>/ATELIER/<même sous-dossier>/<nom du fichier>, sans rien modifier ni supprimer
 sur le serveur. Claude y lit seulement le total HT de chaque commande validée pour la page Direction.
+Achats des chantiers (consigne de Steven du 24/11/2026, même passage) : recopie aussi tous les PDF du dossier
+FOURNISSEURS/ARC de chaque chantier (ARC VALIDE et les autres sous-dossiers compris) vers « documents », chemin
+serveur/<dossier>/FOURNISSEURS/ARC/<même sous-dossier>/<nom du fichier>, sans rien modifier ni supprimer sur le serveur.
+Claude y lit seulement le total HT de chaque ARC pour la page Direction.
 Plus tard (pas encore) : pour un client extérieur, le dossier sera dans CLIENT/ATELIER et non dans 3. CHANTIERS.
 --- fin ---
