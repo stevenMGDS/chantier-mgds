@@ -4950,7 +4950,10 @@ const depNorm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCa
 const depListe=l=>DEP_V.find(x=>depNorm(x[0])===depNorm(l));
 function depCalc(p){const T=DEP_T,addD=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
   let d=new Date(p.debut+"T12:00:00");const wd=[];while(wd.length<p.jours){const k=d.getDay();if(k&&k!==6)wd.push(new Date(d));d=addD(d,1)}
-  const org=p.heures<=1?"jour":p.heures>=4?"both":p.heures>=2.5?"veille":"matin";
+  // organisation (Steven, 24/11/2026 : « 3 nuits au maximum pour 3 jours », pas 4) : on part la veille et on rentre le soir du
+  // dernier jour (autant de nuits que de jours sur place) ; départ le matin si moins de 2 h 30 de route ; on ne rentre le
+  // lendemain que si la route dépasse 7 h (côte d'Azur, montagne)
+  const org=p.heures<=1?"jour":p.heures>=7?"both":p.heures>=2.5?"veille":"matin";
   let seq=[];if(org==="jour")seq=wd.map(x=>[x,x]);else wd.forEach((x,i)=>{if(i&&(x-wd[i-1])<1.5*864e5)seq[seq.length-1][1]=x;else seq.push([x,x])});
   // retours à Orléans (Steven, 23/11/2026) : chaque week-end par défaut ; sinon k retours sur tout le chantier (0 = on reste
   // sur place, comme au Cap-Ferret) : les semaines sont regroupées en k+1 séjours, nuits et primes du week-end comptées
