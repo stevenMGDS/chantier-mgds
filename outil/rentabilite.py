@@ -200,5 +200,15 @@ def main(essai):
             {"Prefer": "resolution=merge-duplicates"})
 
 
+def arc_valides(essai):
+    """ARC validés rangés sur le serveur -> lignes ARC cochées (outil/arc_valide.py, Steven 25/11/2026), lancé à chaque passage
+    avec la Direction pour que la liste de Yannick ne réclame plus des ARC déjà validés."""
+    try:
+        code = req("GET", "/storage/v1/object/outil/arc_valide.py", raw=True).decode()
+        ns = {"__name__": "arc_valide"}; exec(compile(code, "arc_valide.py", "exec"), ns); ns["main"](essai)
+    except Exception as e: print("ARC validés : échec", type(e).__name__, e)
+
+
 if __name__ == "__main__":
     main(len(sys.argv) > 1 and sys.argv[1] == "essai")
+    arc_valides(len(sys.argv) > 1 and sys.argv[1] == "essai")
