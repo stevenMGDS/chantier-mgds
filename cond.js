@@ -22,7 +22,7 @@ const REG=[
  ["maxH","Hauteur chargée maxi (mm)",1700],
  ["palBase","Hauteur du socle (mm)",150],
  ["prot","Protection par pièce (mm)",20],
- ["coffre","Coffre de volet, épaisseur (mm)",200],
+ ["coffre","Épaisseur avec coffre de volet (mm)",320],
  ["teteBeche","Volets tête-bêche (1 = oui, 0 = non)",1],
  ["coefAlu","Coefficient poids alu (1 = normal)",1],
  ["frappeSep","Fenêtres et portes : ouvrants séparés du cadre (1 = oui, 0 = montés)",0],
@@ -32,6 +32,8 @@ const R={hCamion:2600,palDepth:800,margeL:0};
 function readReg(){let s={};try{s=JSON.parse(localStorage.getItem("mgdsCondReg")||"{}")}catch(e){}REG.forEach(([k,,d])=>R[k]=num(s[k],d))}
 function saveReg(o){try{localStorage.setItem("mgdsCondReg",JSON.stringify(o))}catch(e){}}
 readReg();
+// 25/11/2026 (Steven, Christophe) : épaisseur coffre compris 320 mm ; un ancien réglage à 200 est remplacé
+if(R.coffre===200)R.coffre=320;
 
 const TYPES={fenetre:"Fenêtre / OB",porte:"Porte",fixe:"Châssis fixe",coulissant:"Coulissant",autre:"Autre (monté)"};
 let lignes=[], stock=[], pupitres=[];
@@ -69,20 +71,30 @@ function pieces(){
     const vk=verreKgm2(l.vitrage), sv=surfVerre(l.type,W,H);
     const perim=2*(W+H)/1000;
     const vrKg=l.vr? (4*W/1000 + 1.6*H/1000 + 4*W*H/1e6):0;
-    const hVR=l.vr?100:0;
+    // dimensions réelles des pièces (Steven et Christophe, 25/11/2026), à partir des cotes du devis (largeur × hauteur) :
+    // - coulissant Soléal : dormant hors tout = largeur + 68 (tapées) ; hauteur avec coffre = hauteur + 173, comptée
+    //   arrondie à la centaine supérieure (ex. 1812 × 2377 -> 1880 × 2550, compté 2600) ; vantail = largeur ÷ vantaux − 16
+    //   × hauteur − 67 (ex. 890 × 2310) ;
+    // - coulissant Luméal : cotes du devis = dormant hors tout (ni coffre ni tapée) ; vantail = largeur ÷ vantaux + 3
+    //   × hauteur − 68 (ex. 2654 × 2718 -> vantaux 1330 × 2650) ;
+    // - fenêtres et fixes Soléal FZ65 : avec coffre largeur + 88 × hauteur + 280 (612 × 1420 -> 700 × 1700) ; sans coffre
+    //   largeur + 78 × hauteur + 49 (3142 × 1496 -> 3220 × 1545) ;
+    // - épaisseur : 320 mm avec coffre ; FZ65 sans coffre 202 (bavette en bas, 176 en haut).
+    const lumC=l.type==="coulissant"&&l.gamme==="lumeal",coulS=l.type==="coulissant"&&!lumC,c100=v=>Math.ceil(v/100)*100;
+    const Wht=lumC?W:coulS?W+68:l.vr?W+88:W+78,Hht=lumC?H:coulS?(l.vr?c100(H+173):H+49):(l.vr?H+280:H+49);
     const refs=splitRefs(l.ref,q);
     const ordre=k=>ext? nv-1-k : k; // position dans l'ordre de rangement
     for(let i=0;i<q;i++){
       const ref=refs[i], base={ref,zone:l.zone,li,inst:i,grp:li+"-"+i,face};
       if(l.type==="coulissant"){
         const lum=l.gamme==="lumeal";
-        P.push({...base,label:"Cadre (dormant) de baie coulissante",short:"dormant",role:"dormant",seq:0,a:W,b:H+hVR,ep:(lum?130:110),vr:l.vr,kg:(perim*(lum?3.0:2.6))*kgAlu+vrKg,kind:"cadre"});
-        const vw=W/nv+60, vh=H-60;
+        P.push({...base,label:"Cadre (dormant) de baie coulissante",short:"dormant",role:"dormant",seq:0,a:Wht,b:Hht,ep:l.vr?R.coffre:(lum?130:110),vr:l.vr,kg:(perim*(lum?3.0:2.6))*kgAlu+vrKg,kind:"cadre"});
+        const vw=lum?W/nv+3:W/nv-16, vh=lum?H-68:H-67;
         for(let k=0;k<nv;k++){const nm=nomCoul(k,nv);P.push({...base,label:"Vantail "+nm+" de baie coulissante",short:"vantail "+nm.slice(0,3)+".",role:"ouvrant",seq:1+ordre(k),a:vw,b:vh,ep:(lum?65:55),vr:false,
           kg:(2*(vw+vh)/1000*(lum?2.4:2.0))*kgAlu+sv/nv*vk,kind:"ouvrant"});}
       } else if((l.type==="fenetre"||l.type==="porte")&&R.frappeSep>=1){
         const porte=l.type==="porte";
-        P.push({...base,label:porte?"Cadre (dormant) de porte":"Cadre (dormant) de fenêtre",short:"dormant",role:"dormant",seq:0,a:W,b:H+hVR,ep:75,vr:l.vr,kg:perim*(porte?2.0:1.6)*kgAlu+vrKg,kind:"cadre"});
+        P.push({...base,label:porte?"Cadre (dormant) de porte":"Cadre (dormant) de fenêtre",short:"dormant",role:"dormant",seq:0,a:Wht,b:Hht,ep:l.vr?R.coffre:202,vr:l.vr,kg:perim*(porte?2.0:1.6)*kgAlu+vrKg,kind:"cadre"});
         const vw=W/nv, vh=H-40;
         for(let k=0;k<nv;k++){const nm=nomFrappe(k,nv);P.push({...base,label:(porte?"Ouvrant de porte":"Ouvrant de fenêtre")+(nm?" "+nm:""),short:"ouvrant"+(nm?" "+nm.slice(0,3)+".":""),role:"ouvrant",seq:1+ordre(k),a:vw,b:vh,ep:75,vr:false,
           kg:(2*(vw+vh)/1000*(porte?2.8:1.6))*kgAlu+sv/nv*vk,kind:"ouvrant"});}
@@ -92,8 +104,8 @@ function pieces(){
         else if(l.type==="porte") alu=perim*2.0+ (2*(W/nv+H)/1000*2.8)*nv;
         else alu=perim*1.6+(2*(W/nv+H)/1000*1.6)*nv;
         const fixe=l.type==="fixe";
-        P.push({...base,label:fixe?"Châssis fixe vitré":l.type==="porte"?"Porte complète (cadre + ouvrant)":"Fenêtre complète (cadre + ouvrant)",short:fixe?"fixe":"complète",role:fixe?"fixe":"monte",seq:0,a:W,b:H+hVR,
-          ep:(fixe?75:90),vr:l.vr,kg:alu*kgAlu+sv*vk+vrKg,kind:fixe?"fixe":"cadre"});
+        P.push({...base,label:fixe?"Châssis fixe vitré":l.type==="porte"?"Porte complète (cadre + ouvrant)":"Fenêtre complète (cadre + ouvrant)",short:fixe?"fixe":"complète",role:fixe?"fixe":"monte",seq:0,a:Wht,b:Hht,
+          ep:l.vr?R.coffre:202,vr:l.vr,kg:alu*kgAlu+sv*vk+vrKg,kind:fixe?"fixe":"cadre"});
       }
     }
   });
@@ -127,7 +139,7 @@ function palettiser(P){
   zones.forEach(z=>{
     const ps=P.filter(p=>(p.zone||"Sans niveau")===z).map(p=>{
       const L=Math.max(p.a,p.b), S=Math.min(p.a,p.b);
-      const th=p.vr? (R.teteBeche>=1? (R.coffre+p.ep)/2 : R.coffre)+R.prot : p.ep+R.prot;
+      const th=p.ep+R.prot; // épaisseur réelle de la pièce, coffre compris (320) quand il y a un volet
       return {...p,L,S,th,mode:S+base>R.maxH?"haute":"debout"};
     });
     const gm=new Map();
@@ -280,6 +292,7 @@ const FICHE_CSS=`.fiche{border:1px solid #d3dae4;border-radius:12px;padding:12px
 @media(max-width:700px){.vues{grid-template-columns:1fr}}`;
 
 /* ---------- Lecture du devis ---------- */
+window.condLireAtelier=t=>lireDevisAtelier(t);
 function lireDevis(txt){
   const L=txt.split(/\r?\n/).map(s=>s.replace(/ /g," ").trim()).filter(Boolean);
   const out=[]; let cur=null, keller=false, ignores=[];
@@ -312,9 +325,23 @@ function lireDevis(txt){
   }
   return {out:out.filter(o=>o.W&&o.H),keller,ignores};
 }
+// devis client de Christophe (atelier) : « <désignation> / Ligne étude n°22 - Affaire n°ME 16 [LUM] / Largeur : 412 mm /
+// Hauteur : 1 006 mm / … / <qté> <prix> € <total> € » (Steven, 25/11/2026 : les repères du devis MGDS peuvent être faux)
+function lireDevisAtelier(txt){
+  const L=txt.split(/\r?\n/).map(s=>s.replace(/\u00a0|\u202f/g," ").trim()).filter(Boolean),out=[];let cur=null,buf=[];
+  const fin=()=>{if(!cur)return;const b=buf.join(" ");const w=b.match(/Largeur\s*:\s*([\d ]+?)\s*mm/i),h=b.match(/Hauteur\s*:\s*([\d ]+?)\s*mm/i);
+    cur.W=w?+w[1].replace(/\D/g,""):"";cur.H=h?+h[1].replace(/\D/g,""):"";
+    if(/volet|coffre|flip|\bVR\b/i.test(b))cur.vr=true;if(cur.W&&cur.H)out.push(cur);cur=null;buf=[]};
+  for(let i=0;i<L.length;i++){const s=L[i],m=s.match(/Affaire\s*n°\s*(ME[\s\d\-\/]+?(?:\s*bis)?)(\s+LU\w*)?\s*$/i);
+    if(m){fin();let des="",q=1;for(let k=i-1;k>=Math.max(0,i-4);k--){const qm=L[k].match(/^(\d{1,3})\s+[\d ]+[.,]\d{2}\s*€/);if(qm){q=+qm[1];break}}
+      for(let k=i-1;k>=Math.max(0,i-4);k--){if(!/^(Désignation|Qté|Prix|Total|K\/|\d+\s*\/\s*\d+$|POSE)/i.test(L[k])&&!/€/.test(L[k])){des=L[k];break}}
+      const ref=m[1].replace(/\s+/g," ").trim().replace(/^ME\s*/i,"ME").replace(/\s*bis$/i," bis");
+      cur={ref,type:"autre",gamme:/lu/i.test(m[2]||"")||/lum[eé]al/i.test(des)?"lumeal":"soleal",W:"",H:"",q:1,vt:1,vitrage:"",vpar:"int",vr:false,zone:""};typer(cur,des);cur.q=q;continue}
+    if(cur)buf.push(s)}
+  fin();return out}
 function typer(o,s){
   const t=s.toLowerCase();
-  if(/coulissant/.test(t)){o.type="coulissant";const v=t.match(/(\d)\s*vtx/);o.vt=v?+v[1]:2;}
+  if(/coulissant|galandage/.test(t)){o.type="coulissant";const v=t.match(/(\d)\s*vtx/);o.vt=v?+v[1]:2;}
   else if(/ch[aâ]ssis fixe|fixe/.test(t)&&!/porte|fen[eê]tre|oscillo/.test(t)) {o.type="fixe";o.vt=1;}
   else if(/porte/.test(t)){o.type="porte";const v=t.match(/(\d)\s*(vtl|vtx|vantaux|vantail)/);o.vt=v?+v[1]:1;}
   else if(/fen[eê]tre|oscillo|ob\b|of\b/.test(t)){o.type="fenetre";const v=t.match(/(\d)\s*(vtl|vtx|vantaux|vantail)/);o.vt=v?+v[1]:1;}
@@ -404,6 +431,12 @@ async function texteDevis(doc){
   return out.join("\n")}
 const devisDoc=c=>c?(c.docs||[]).filter(d=>d.type==="Devis"&&/\.pdf$/i.test(d.name||"")).sort((x,y)=>String(y.at||"").localeCompare(String(x.at||"")))[0]:null;
 async function lignesDepart(a,c){
+  // d'abord le devis client de Christophe (celui de l'atelier, repères et cotes de fabrication justes), sinon le devis MGDS
+  const dc=(a.docs||[]).filter(x=>x.type==="Devis client"&&/\.pdf$/i.test(x.name||"")).sort((x,y)=>String(y.at||"").localeCompare(String(x.at||"")))[0];
+  if(dc){try{const r=lireDevisAtelier(await texteDevis(dc));if(r.length){st.ignores=[];st.src=`lu dans le devis client de l'atelier « ${dc.name} »`;
+    const dm=devisDoc(c);if(dm){try{const k=x=>(String(x).match(/\d+/g)||[]).map(Number).join("/"),V=new Set(lireDevis(await texteDevis(dm)).out.filter(o=>o.vr).flatMap(o=>o.ref.split(" / ").map(k)));
+      r.forEach(o=>{if(V.has(k(o.ref)))o.vr=true});if(V.size)st.src+=" · volets roulants repris du devis MGDS"}catch(_){}}
+    return r}}catch(e){console.warn(e)}}
   const d=devisDoc(c);
   if(d){try{const r=lireDevis(await texteDevis(d));if(r.out.length){st.ignores=r.ignores;st.src=`lu dans le devis « ${d.name} »`+(r.keller?" (Keller : livré par le fournisseur, non palettisé)":"");return r.out}}catch(e){console.warn(e)}}
   const L=(a.lignes||[]).filter(l=>num(l.l)&&num(l.h)).map(l=>{const o={ref:l.rep||"?",type:"autre",gamme:"soleal",W:num(l.l),H:num(l.h),q:Math.max(1,num(l.q,1)),vt:1,vitrage:"",vpar:"int",vr:false,zone:""};typer(o,l.des||"");return o});
