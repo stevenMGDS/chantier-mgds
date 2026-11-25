@@ -22,3 +22,11 @@ serveur/<dossier>/FOURNISSEURS/ARC/<même sous-dossier>/<nom du fichier>, sans r
 Claude y lit seulement le total HT de chaque ARC pour la page Direction.
 Plus tard (pas encore) : pour un client extérieur, le dossier sera dans CLIENT/ATELIER et non dans 3. CHANTIERS.
 --- fin ---
+
+--- consigne comptabilité (Steven, 25/11/2026) : texte à coller sur l'iMac ---
+Ajoute à la fin du point 1 de ta consigne : « Comptabilité (consigne de Steven du 25/11/2026, même passage) : si le dossier
+/Volumes/Public/MGDS/COMPTABILITE n'existe pas, crée-le (mkdir, rien d'autre). Puis recopie chaque fichier de ce dossier et
+de ses sous-dossiers (xlsx, xls, csv, pdf) vers le stockage privé « compta », même chemin relatif, sans écraser un fichier
+déjà recopié identique, sans rien modifier ni supprimer sur le serveur. Ne les lis pas et ne cite aucun montant. » Et ajoute
+dans la dernière phrase que la création de ce dossier et la recopie vers « compta » sont des écritures permises.
+--- fin ---
