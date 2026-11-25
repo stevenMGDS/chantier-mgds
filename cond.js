@@ -128,6 +128,10 @@ const cle=p=>p.li*10000+p.inst*100+p.seq;
 
 /* ---------- Palettisation (pupitres) ---------- */
 const CAT=p=>p.role==="ouvrant"?"O":"D";
+// orientations possibles d'une pièce sur un pupitre [longueur le long du pupitre, hauteur] (Steven, 25/11/2026) :
+// avec un volet roulant, le coffre reste horizontal (largeur le long du pupitre, jamais tournée) ; sinon couchée d'abord,
+// debout si besoin
+const orients=p=>p.vr?[[p.a,p.b]]:[[p.Lm,p.Sm],[p.Sm,p.Lm]];
 function palettiser(P){
   const pals=[], alertes=[];
   const base=R.palBase, gap=50, sep=R.sepDO>=1;
@@ -137,8 +141,10 @@ function palettiser(P){
   // pourquoi une pièce ne va sur aucun pupitre de chez nous
   const raison=p=>{const inv=stock.filter(s=>num(s.L)),maxL=Math.max(0,...inv.map(s=>num(s.L))),ok=inv.filter(s=>num(s.L)>=p.L),maxHd=Math.max(0,...ok.map(s=>num(s.Hd)));
     let r;
-    const Lm=p.Lm||Math.max(p.a,p.b),Sm=p.Sm||Math.min(p.a,p.b),tient=x=>[[Lm,Sm],[Sm,Lm]].some(([L,S])=>num(x.L)+R.debL>=L&&(!num(x.Hd)||num(x.Hd)+R.depH>=S));
+    const Lm=p.Lm||Math.max(p.a,p.b),Sm=p.Sm||Math.min(p.a,p.b),tient=x=>orients({...p,Lm,Sm}).some(([L,S])=>num(x.L)+R.debL>=L&&(!num(x.Hd)||num(x.Hd)+R.depH>=S));
     if(inv.some(tient)&&p.kg<=R.maxKg) r=`les pupitres où elle tient (n° ${inv.filter(tient).map(s=>s.nom||s.numero).join(", ")}) sont déjà pleins avec d'autres pièces de ce chantier`;
+    else if(p.vr&&p.b>Math.max(0,...inv.map(s=>num(s.Hd)))+R.depH) r=`avec volet roulant, le coffre reste en haut : ${mm(p.b)} mm de haut, trop haut pour nos dossiers (+ ${mm(R.depH)} admis)`;
+    else if(p.vr&&p.a>maxL+R.debL) r=`avec volet roulant, le coffre reste horizontal : ${mm(p.a)} mm de large, plus que nos pupitres (${mm(maxL)} mm)`;
     else if(Sm>maxL+R.debL) r=`trop longue : ${mm(Sm)} mm même debout, le plus long pupitre fait ${mm(maxL)} mm (+ ${mm(R.debL)} de débord admis)`;
     else if(Lm>maxL+R.debL&&Lm>Math.max(0,...inv.map(s=>num(s.Hd)))+R.depH) r=`trop grande : ${mm(Lm)} × ${mm(Sm)} mm, ni couchée sur nos pupitres (${mm(maxL)} mm + ${mm(R.debL)}) ni debout sous un dossier`;
     else if(p.L>maxL+R.debL) r=`trop longue : ${mm(p.L)} mm, le plus long pupitre fait ${mm(maxL)} mm`;
@@ -165,7 +171,7 @@ function palettiser(P){
       // Steven, 25/11/2026 : de préférence couchée (grand côté le long du pupitre, la pièce bascule moins), sinon debout si elle
       // tient (on peut dépasser le dossier en hauteur) ; jamais plus large que le pupitre ; pièces bout à bout sur une rangée
       const used=pal.rows.reduce((s,r)=>s+r.th,0);let ok=false;
-      for(const[L,S]of[[p.Lm,p.Sm],[p.Sm,p.Lm]]){
+      for(const[L,S]of orients(p)){
         if(L>pal.L+R.debL) continue;
         if(pal.Hd&&S>pal.Hd+R.depH) continue;
         let row=pal.rows.find(r=>r.len+gap+L<=pal.L+R.debL && p.th<=r.th+5 && !(p.role==="ouvrant"&&r.items.some(x=>x.grp===p.grp)));
@@ -179,7 +185,7 @@ function palettiser(P){
     const newPal=p=>{
       const pal={zone:z,cat:CAT(p),haute:p.mode==="haute",rows:[],items:[],kg:0,hMax:0};
       let s=null;
-      const tient=s=>[[p.Lm,p.Sm],[p.Sm,p.Lm]].some(([L,S])=>s.L+R.debL>=L&&(!s.Hd||s.Hd+R.depH>=S));
+      const tient=s=>orients(p).some(([L,S])=>s.L+R.debL>=L&&(!s.Hd||s.Hd+R.depH>=S));
       if(useStock) s=dispo.filter(s=>s.q>0&&tient(s)&&s.P>=Math.min(p.th,R.palDepth)).sort((a,b)=>a.L*a.P-b.L*b.P)[0];
       if(s){s.q--;Object.assign(pal,{L:s.L,P:s.P,Hd:s.Hd||0,stock:s.nom||"stock"});}
       else if(useStock) return null; // aucun pupitre de chez nous : la pièce part en vrac
