@@ -25,7 +25,8 @@ const REG=[
  ["coffre","Épaisseur avec coffre de volet (mm)",320],
  ["teteBeche","Volets tête-bêche (1 = oui, 0 = non)",1],
  ["coefAlu","Coefficient poids alu (1 = normal)",1],
- ["frappeSep","Fenêtres et portes : ouvrants séparés du cadre (1 = oui, 0 = montés)",0],
+ ["frappeSep","Fenêtres et portes : ouvrants toujours séparés du cadre (1 = oui, 0 = selon le poids)",0],
+ ["sepKg","Fenêtre ou porte plus lourde que (kg, vitrage compris) : ouvrants sortis du dormant",80],
  ["sepDO","Séparer dormants et ouvrants (1 = oui, 0 = non)",1]
 ];
 const R={hCamion:2600,palDepth:800,margeL:0};
@@ -88,11 +89,13 @@ function pieces(){
       const ref=refs[i], base={ref,zone:l.zone,li,inst:i,grp:li+"-"+i,face};
       if(l.type==="coulissant"){
         const lum=l.gamme==="lumeal";
-        P.push({...base,label:"Cadre (dormant) de baie coulissante",short:"dormant",role:"dormant",seq:0,a:Wht,b:Hht,ep:l.vr?R.coffre:(lum?130:110),vr:l.vr,kg:(perim*(lum?3.0:2.6))*kgAlu+vrKg,kind:"cadre"});
+        P.push({...base,prio:2,label:"Cadre (dormant) de baie coulissante",short:"dormant",role:"dormant",seq:0,a:Wht,b:Hht,ep:l.vr?R.coffre:(lum?130:110),vr:l.vr,kg:(perim*(lum?3.0:2.6))*kgAlu+vrKg,kind:"cadre"});
         const vw=lum?W/nv+3:W/nv-16, vh=lum?H-68:H-67;
-        for(let k=0;k<nv;k++){const nm=nomCoul(k,nv);P.push({...base,label:"Vantail "+nm+" de baie coulissante",short:"vantail "+nm.slice(0,3)+".",role:"ouvrant",seq:1+ordre(k),a:vw,b:vh,ep:(lum?65:55),vr:false,
+        for(let k=0;k<nv;k++){const nm=nomCoul(k,nv);P.push({...base,prio:0,label:"Vantail "+nm+" de baie coulissante",short:"vantail "+nm.slice(0,3)+".",role:"ouvrant",seq:1+ordre(k),a:vw,b:vh,ep:(lum?65:55),vr:false,
           kg:(2*(vw+vh)/1000*(lum?2.4:2.0))*kgAlu+sv/nv*vk,kind:"ouvrant"});}
-      } else if((l.type==="fenetre"||l.type==="porte")&&R.frappeSep>=1){
+      } else if((l.type==="fenetre"||l.type==="porte")&&(R.frappeSep>=1||(()=>{
+        // Steven, 25/11/2026 : les ouvrants restent dans le dormant, sauf si la menuiserie complète (vitrage compris) dépasse 80 kg
+        const alu=l.type==="porte"?perim*2.0+(2*(W/nv+H)/1000*2.8)*nv:perim*1.6+(2*(W/nv+H)/1000*1.6)*nv;return alu*kgAlu+sv*vk+vrKg>R.sepKg})())){
         const porte=l.type==="porte";
         P.push({...base,label:porte?"Cadre (dormant) de porte":"Cadre (dormant) de fenêtre",short:"dormant",role:"dormant",seq:0,a:Wht,b:Hht,ep:l.vr?R.coffre:202,vr:l.vr,kg:perim*(porte?2.0:1.6)*kgAlu+vrKg,kind:"cadre"});
         const vw=W/nv, vh=H-40;
@@ -178,6 +181,10 @@ function palettiser(P){
       if(!pal){vrac.push({...p,raison:raison(p)});return}
       if(!tryPiece(pal,p)){pal.rows.push({th:p.th,len:p.L,items:[p]});pal.hMax=Math.max(pal.hMax,p.S);pal.items.push(p);pal.kg+=p.kg;}
     };
+    // ordre de chargement (Steven, 25/11/2026) : d'abord les vantaux de coulissants (les plus lourds), puis fenêtres, portes et
+    // fixes (avec leurs ouvrants), en dernier les dormants de coulissants : ce sont eux qui partent en vrac si les pupitres manquent
+    const prio=g=>Math.min(...g.map(p=>p.prio??1));
+    groups.sort((a,b)=>prio(a)-prio(b));
     groups.forEach(g=>{
       for(const pal of zp){const s=snap(pal);if(g.every(p=>tryPiece(pal,p)))return;Object.assign(pal,s);}
       if(g.length>1){
@@ -214,6 +221,8 @@ function palettiser(P){
 }
 
 
+// calcul sans écran (contrôle)
+window.condCalcul=(L,S)=>{const l0=lignes,s0=stock;lignes=L;stock=S||[];try{const P=pieces();return{P,...palettiser(P)}}finally{lignes=l0;stock=s0}};
 const COUL={dormant:"#10407e",fixe:"#10407e",ouvrant:"#a9cdee",monte:"#136bb3"};
 const TXT=r=>r==="ouvrant"?"#10407e":"#fff";
 const FONT='font-family="Barlow,Arial,sans-serif"';
