@@ -209,6 +209,15 @@ def arc_valides(essai):
     except Exception as e: print("ARC validés : échec", type(e).__name__, e)
 
 
+def outil(nom, essai):
+    """outil annexe rangé dans le stockage « outil », lancé au même passage (arc_valide.py, plans_exe.py)"""
+    try:
+        code = req("GET", "/storage/v1/object/outil/" + nom, raw=True).decode()
+        ns = {"__name__": nom[:-3]}; exec(compile(code, nom, "exec"), ns); ns["main"](essai)
+    except Exception as e: print(nom, ": échec", type(e).__name__, e)
+
+
 if __name__ == "__main__":
     main(len(sys.argv) > 1 and sys.argv[1] == "essai")
     arc_valides(len(sys.argv) > 1 and sys.argv[1] == "essai")
+    outil("plans_exe.py", len(sys.argv) > 1 and sys.argv[1] == "essai")   # plans d'exé -> conditionnement (25/11/2026)

@@ -431,7 +431,11 @@ async function texteDevis(doc){
   return out.join("\n")}
 const devisDoc=c=>c?(c.docs||[]).filter(d=>d.type==="Devis"&&/\.pdf$/i.test(d.name||"")).sort((x,y)=>String(y.at||"").localeCompare(String(x.at||"")))[0]:null;
 async function lignesDepart(a,c){
-  // d'abord le devis client de Christophe (celui de l'atelier, repères et cotes de fabrication justes), sinon le devis MGDS
+  // en premier le plan d'exé (repères et cotes définitifs, Steven 25/11/2026), lu par outil/plans_exe.py dans la commande
+  const X=a.exe&&Array.isArray(a.exe.lignes)?a.exe.lignes:[];
+  if(X.length){st.ignores=[];st.src=`lu dans le plan d'exé « ${a.exe.nom||""} »`;
+    return X.map(x=>{const o={ref:x.variantes&&x.variantes.length>1?x.variantes.map(v=>"ME"+v).join(" / "):x.ref,type:"autre",gamme:/lum[eé]al/i.test(x.des||"")?"lumeal":"soleal",W:+x.W,H:+x.H,q:Math.max(1,+x.q||1),vt:1,vitrage:"",vpar:"int",vr:!!x.vr,zone:x.lieu||""};typer(o,x.des||"");return o})}
+  // sinon le devis client de Christophe (celui de l'atelier, repères et cotes de fabrication justes), sinon le devis MGDS
   const dc=(a.docs||[]).filter(x=>x.type==="Devis client"&&/\.pdf$/i.test(x.name||"")).sort((x,y)=>String(y.at||"").localeCompare(String(x.at||"")))[0];
   if(dc){try{const r=lireDevisAtelier(await texteDevis(dc));if(r.length){st.ignores=[];st.src=`lu dans le devis client de l'atelier « ${dc.name} »`;
     const dm=devisDoc(c);if(dm){try{const k=x=>(String(x).match(/\d+/g)||[]).map(Number).join("/"),V=new Set(lireDevis(await texteDevis(dm)).out.filter(o=>o.vr).flatMap(o=>o.ref.split(" / ").map(k)));
