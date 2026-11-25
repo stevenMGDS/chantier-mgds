@@ -27,7 +27,8 @@ const REG=[
  ["coefAlu","Coefficient poids alu (1 = normal)",1],
  ["frappeSep","Fenêtres et portes : ouvrants toujours séparés du cadre (1 = oui, 0 = selon le poids)",0],
  ["sepKg","Fenêtre ou porte plus lourde que (kg, vitrage compris) : ouvrants sortis du dormant",80],
- ["sepDO","Séparer dormants et ouvrants (1 = oui, 0 = non)",1]
+ ["sepDO","Séparer dormants et ouvrants sur des pupitres différents (1 = oui, 0 = non)",0],
+ ["debL","Pièce plus longue que le pupitre : débord admis en bout (mm)",300]
 ];
 const R={hCamion:2600,palDepth:800,margeL:0};
 function readReg(){let s={};try{s=JSON.parse(localStorage.getItem("mgdsCondReg")||"{}")}catch(e){}REG.forEach(([k,,d])=>R[k]=num(s[k],d))}
@@ -35,6 +36,8 @@ function saveReg(o){try{localStorage.setItem("mgdsCondReg",JSON.stringify(o))}ca
 readReg();
 // 25/11/2026 (Steven, Christophe) : épaisseur coffre compris 320 mm ; un ancien réglage à 200 est remplacé
 if(R.coffre===200)R.coffre=320;
+// 25/11/2026 (Steven : « tes pupitres sont bien vides ») : dormants et ouvrants peuvent partager un pupitre, réglage remis à 0 une fois
+try{if(!localStorage.getItem("mgdsCondReg2511")){R.sepDO=0;R.frappeSep=0;localStorage.setItem("mgdsCondReg2511","1")}}catch(e){}
 
 const TYPES={fenetre:"Fenêtre / OB",porte:"Porte",fixe:"Châssis fixe",coulissant:"Coulissant",autre:"Autre (monté)"};
 let lignes=[], stock=[], pupitres=[];
@@ -93,7 +96,7 @@ function pieces(){
         const vw=lum?W/nv+3:W/nv-16, vh=lum?H-68:H-67;
         for(let k=0;k<nv;k++){const nm=nomCoul(k,nv);P.push({...base,prio:0,label:"Vantail "+nm+" de baie coulissante",short:"vantail "+nm.slice(0,3)+".",role:"ouvrant",seq:1+ordre(k),a:vw,b:vh,ep:(lum?65:55),vr:false,
           kg:(2*(vw+vh)/1000*(lum?2.4:2.0))*kgAlu+sv/nv*vk,kind:"ouvrant"});}
-      } else if((l.type==="fenetre"||l.type==="porte")&&(R.frappeSep>=1||(()=>{
+      } else if((l.type==="fenetre"||l.type==="porte")&&(R.frappeSep>=1||l.type==="fenetre"&&(()=>{
         // Steven, 25/11/2026 : les ouvrants restent dans le dormant, sauf si la menuiserie complète (vitrage compris) dépasse 80 kg
         const alu=l.type==="porte"?perim*2.0+(2*(W/nv+H)/1000*2.8)*nv:perim*1.6+(2*(W/nv+H)/1000*1.6)*nv;return alu*kgAlu+sv*vk+vrKg>R.sepKg})())){
         const porte=l.type==="porte";
@@ -132,7 +135,11 @@ function palettiser(P){
   // pourquoi une pièce ne va sur aucun pupitre de chez nous
   const raison=p=>{const inv=stock.filter(s=>num(s.L)),maxL=Math.max(0,...inv.map(s=>num(s.L))),ok=inv.filter(s=>num(s.L)>=p.L),maxHd=Math.max(0,...ok.map(s=>num(s.Hd)));
     let r;
-    if(p.L>maxL) r=`trop longue : ${mm(p.L)} mm, le plus long pupitre fait ${mm(maxL)} mm`;
+    const Lm=p.Lm||Math.max(p.a,p.b),Sm=p.Sm||Math.min(p.a,p.b),tient=x=>[[Lm,Sm],[Sm,Lm]].some(([L,S])=>num(x.L)+R.debL>=L&&(!num(x.Hd)||num(x.Hd)+R.depH>=S));
+    if(inv.some(tient)&&p.kg<=R.maxKg) r=`les pupitres où elle tient (n° ${inv.filter(tient).map(s=>s.nom||s.numero).join(", ")}) sont déjà pleins avec d'autres pièces de ce chantier`;
+    else if(Sm>maxL+R.debL) r=`trop longue : ${mm(Sm)} mm même debout, le plus long pupitre fait ${mm(maxL)} mm (+ ${mm(R.debL)} de débord admis)`;
+    else if(Lm>maxL+R.debL&&Lm>Math.max(0,...inv.map(s=>num(s.Hd)))+R.depH) r=`trop grande : ${mm(Lm)} × ${mm(Sm)} mm, ni couchée sur nos pupitres (${mm(maxL)} mm + ${mm(R.debL)}) ni debout sous un dossier`;
+    else if(p.L>maxL+R.debL) r=`trop longue : ${mm(p.L)} mm, le plus long pupitre fait ${mm(maxL)} mm`;
     else if(p.S>maxHd+R.depH) r=`trop haute posée sur un pupitre : ${mm(p.S)} mm pour un dossier de ${mm(maxHd)} mm (+ ${mm(R.depH)} admis)`;
     else if(p.kg>R.maxKg) r=`trop lourde : environ ${kg(p.kg)} pour ${kg(R.maxKg)} maxi par pupitre`;
     else r=`nos pupitres assez longs (n° ${ok.map(s=>s.nom).join(", ")}) sont déjà pleins avec d'autres pièces de ce chantier`;
@@ -143,7 +150,7 @@ function palettiser(P){
     const ps=P.filter(p=>(p.zone||"Sans niveau")===z).map(p=>{
       const L=Math.max(p.a,p.b), S=Math.min(p.a,p.b);
       const th=p.ep+R.prot; // épaisseur réelle de la pièce, coffre compris (320) quand il y a un volet
-      return {...p,L,S,th,mode:S+base>R.maxH?"haute":"debout"};
+      return {...p,L,S,Lm:L,Sm:S,th,mode:S+base>R.maxH?"haute":"debout"};
     });
     const gm=new Map();
     ps.forEach(p=>{const k=p.role==="ouvrant"?p.grp+"-o":p.grp+"-"+p.role+p.seq;if(!gm.has(k))gm.set(k,[]);gm.get(k).push(p);});
@@ -153,23 +160,25 @@ function palettiser(P){
     const tryPiece=(pal,p)=>{
       if(sep&&pal.cat!==CAT(p)) return false;
       if(pal.kg+p.kg>R.maxKg) return false;
-      if(p.L>pal.L) return false;            // jamais plus long que le pupitre
-      if(pal.Hd&&p.S>pal.Hd+R.depH) return false; // pas plus haut que le dossier (+ tolérance)
-      if((p.mode==="haute")!==pal.haute) return false;
-      let row=pal.rows.find(r=>r.len+gap+p.L<=pal.L && p.th<=r.th+5 && !(p.role==="ouvrant"&&r.items.some(x=>x.grp===p.grp)));
-      if(row){row.len+=gap+p.L;row.items.push(p);}
-      else{
-        const used=pal.rows.reduce((s,r)=>s+r.th,0);
-        if(used+p.th>pal.P) return false;
-        pal.rows.push({th:p.th,len:p.L,items:[p]});
+      // Steven, 25/11/2026 : pièce couchée (grand côté le long du pupitre) ou debout (petit côté le long du pupitre) si elle
+      // tient sous le dossier ; débord admis en bout de pupitre ; plusieurs pièces bout à bout sur une même rangée
+      const used=pal.rows.reduce((s,r)=>s+r.th,0);let ok=false;
+      for(const[L,S]of[[p.Lm,p.Sm],[p.Sm,p.Lm]]){
+        if(L>pal.L+R.debL) continue;
+        if(pal.Hd&&S>pal.Hd+R.depH) continue;
+        let row=pal.rows.find(r=>r.len+gap+L<=pal.L+R.debL && p.th<=r.th+5 && !(p.role==="ouvrant"&&r.items.some(x=>x.grp===p.grp)));
+        if(row){row.len+=gap+L;row.items.push(p);p.L=L;p.S=S;ok=true;break}
+        if(used+p.th<=pal.P){pal.rows.push({th:p.th,len:L,items:[p]});p.L=L;p.S=S;ok=true;break}
       }
+      if(!ok) return false;
       pal.items.push(p); pal.kg+=p.kg; pal.hMax=Math.max(pal.hMax,p.S); return true;
     };
     const snap=pal=>({kg:pal.kg,hMax:pal.hMax,items:[...pal.items],rows:pal.rows.map(r=>({...r,items:[...r.items]}))});
     const newPal=p=>{
       const pal={zone:z,cat:CAT(p),haute:p.mode==="haute",rows:[],items:[],kg:0,hMax:0};
       let s=null;
-      if(useStock) s=dispo.filter(s=>s.q>0&&s.L>=p.L&&s.P>=Math.min(p.th,R.palDepth)&&(!s.Hd||s.Hd+R.depH>=p.S)).sort((a,b)=>a.L*a.P-b.L*b.P)[0];
+      const tient=s=>[[p.Lm,p.Sm],[p.Sm,p.Lm]].some(([L,S])=>s.L+R.debL>=L&&(!s.Hd||s.Hd+R.depH>=S));
+      if(useStock) s=dispo.filter(s=>s.q>0&&tient(s)&&s.P>=Math.min(p.th,R.palDepth)).sort((a,b)=>a.L*a.P-b.L*b.P)[0];
       if(s){s.q--;Object.assign(pal,{L:s.L,P:s.P,Hd:s.Hd||0,stock:s.nom||"stock"});}
       else if(useStock) return null; // aucun pupitre de chez nous : la pièce part en vrac
       else Object.assign(pal,{L:Math.ceil((p.L+R.margeL)/100)*100,P:R.palDepth});
