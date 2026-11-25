@@ -4241,23 +4241,27 @@ function atsBarres(L,{max,unit,cls,cible,lab}){const W=760,LW=250,RW=70,row=28,H
 function atsNoteH(){const N=new Map();for(const h of ats.hs){const k=h.atelier;N.set(k,(N.get(k)||0)+(+h.heures||0))}return N}
 // projection : reste à faire des commandes en cours (réparti comme la charge de l'atelier) + devis en attente (heures × chance)
 function atsProj(){const all=[...atl.rows.entries()].map(([id,a])=>({id,...a})),live=all.filter(a=>!atlDone(a)),{wk}=atlWeekLoad(live);
-  const M=[...Array(12)].map((_,i)=>({m:atsMois(i),c:0,d:0,cap:0}));const ix=new Map(M.map(x=>[x.m,x]));
+  const {by}=atlWeekLoad(live),nm=id=>{const a=atl.rows.get(id);return a?atlName({id,...a}):id};
+  const M=[...Array(12)].map((_,i)=>({m:atsMois(i),c:0,d:0,cap:0,qui:new Map(),dv:[]}));const ix=new Map(M.map(x=>[x.m,x]));
   for(const[f,v]of Object.entries(wk)){const x=ix.get(f.slice(0,7));if(x)x.c+=+v||0}
+  // chantiers prévus chaque mois (Steven, 25/11/2026) : heures de chaque commande dans le mois
+  for(const[f,L]of Object.entries(by||{})){const x=ix.get(f.slice(0,7));if(!x)continue;for(const e of L){const k=nm(e.id);x.qui.set(k,(x.qui.get(k)||0)+(+e.h||0))}}
   // capacité : Manu ${ATL_H_SEM} h par semaine (vendredis du mois)
   M.forEach(x=>{const d=new Date(x.m+"-01T12:00");let n=0;while(d.getMonth()+1===+x.m.slice(5)){if(d.getDay()===5)n++;d.setDate(d.getDate()+1)}x.cap=n*ATL_H_SEM});
-  try{if(typeof dvLive==="function")for(const d of dvLive()){const x=ix.get(d.periode||"");if(x&&+d.ha>0)x.d+=(+d.ha)*((DV_CH[d.chance]||DV_CH.moyenne)[1])}}catch(_){}
+  try{if(typeof dvLive==="function")for(const d of dvLive()){const x=ix.get(d.periode||"");if(x&&+d.ha>0){const h=(+d.ha)*((DV_CH[d.chance]||DV_CH.moyenne)[1]);x.d+=h;x.dv.push([d.client||"Devis",h,Math.round(((DV_CH[d.chance]||DV_CH.moyenne)[1])*100)])}}}catch(_){}
+  const quiTxt=x=>[...x.qui].filter(([,h])=>h>=.5).sort((a,b)=>b[1]-a[1]).map(([n,h])=>n+" "+Math.round(h)+" h");
   const mx=Math.max(...M.map(x=>Math.max(x.cap,x.c+x.d)),1),h1=v=>String(Math.round(v)).replace(".",",");
   atsTips.length=0;const W=760,H=240,L0=44,B=26,T=10,pw=(W-L0)/M.length,bw=Math.min(40,pw-14),top=Math.ceil(mx*1.1/50)*50,y=v=>T+(H-T-B)*(1-v/top);
   let g="";for(let v=0;v<=top;v+=top>300?100:50)g+=`<line class="atsgl" x1="${L0}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text class="atsax" x="${L0-6}" y="${y(v)+4}" text-anchor="end">${v} h</text>`;
-  const cols=M.map((m,i)=>{const x0=L0+i*pw+(pw-bw)/2,t=m.c+m.d,ec=t-m.cap,k=atsTips.push({v:h1(t)+" h prévues",n:atsML(m.m),l:[`Commandes : ${h1(m.c)} h`,`Devis probables : ${h1(m.d)} h`,`Capacité : ${h1(m.cap)} h`],e:ec>0.5?`Dépassement : +${h1(ec)} h`:`Place libre : ${h1(-ec)} h`,ec:ec>0.5?"r":"ok"})-1;
+  const cols=M.map((m,i)=>{const x0=L0+i*pw+(pw-bw)/2,t=m.c+m.d,ec=t-m.cap,k=atsTips.push({v:h1(t)+" h prévues",n:atsML(m.m),l:[`Commandes : ${h1(m.c)} h`,...quiTxt(m).slice(0,8).map(x=>"  · "+x),...(quiTxt(m).length>8?[`  · et ${quiTxt(m).length-8} autres`]:[]),`Devis probables : ${h1(m.d)} h`,...m.dv.slice(0,5).map(([n,h,c])=>`  · ${n} ${Math.round(h)} h (${c} %)`),`Capacité : ${h1(m.cap)} h`],e:ec>0.5?`Dépassement : +${h1(ec)} h`:`Place libre : ${h1(-ec)} h`,ec:ec>0.5?"r":"ok"})-1;
     const yc=y(m.c),yd=y(m.c+m.d);
     return`<g data-atstip="${k}" tabindex="0" role="img" aria-label="${esc(atsML(m.m)+" : "+h1(t)+" h pour "+h1(m.cap)+" h")}"><rect class="atshit" x="${L0+i*pw}" y="${T}" width="${pw}" height="${H-T-B}"/>
       ${m.c>0?`<rect class="atscol ${ec>0.5?"r":""}" x="${x0}" y="${yc}" width="${bw}" height="${Math.max(1,y(0)-yc)}" rx="3"/>`:""}${m.d>0?`<rect class="atscol d" x="${x0}" y="${yd}" width="${bw}" height="${Math.max(1,yc-yd-2)}" rx="3"/>`:""}
       <line class="atscib" x1="${x0-5}" x2="${x0+bw+5}" y1="${y(m.cap)}" y2="${y(m.cap)}"/><text class="atsax" x="${x0+bw/2}" y="${H-8}" text-anchor="middle">${esc(atsML(m.m))}</text></g>`}).join("");
   const chart=`<div class="atsleg"><span><i class="sw atscol"></i>Commandes en cours</span><span><i class="sw atscol d"></i>Devis probables</span><span><i class="sw atscib"></i>Capacité de l'atelier</span><span><i class="sw atscol r"></i>Au-dessus de la capacité</span></div>
     <svg class="atschart" viewBox="0 0 ${W} ${H}" role="group" aria-label="Charge de l'atelier sur 12 mois">${g}${cols}</svg>`;
-  return chart+`<details class="atsdet"><summary>Voir le tableau</summary><div class="tbl"><table class="rttab"><thead><tr><th>Mois</th><th class="n">Commandes</th><th class="n">Devis probables</th><th class="n">Capacité</th><th>Charge</th></tr></thead><tbody>${M.map(x=>{const t=x.c+x.d,cl=t>x.cap+.5?"r":t>x.cap*.85?"o":"";
-    return`<tr><td>${atsML(x.m)}</td><td class="n">${h1(x.c)} h</td><td class="n">${x.d?h1(x.d)+" h":"–"}</td><td class="n">${h1(x.cap)} h</td><td><span class="g atsg"><i class="${cl}" style="width:${Math.min(100,x.c/mx*100)}%"></i><i class="d" style="width:${Math.min(100,x.d/mx*100)}%"></i><b style="left:${Math.min(100,x.cap/mx*100)}%"></b></span></td></tr>`}).join("")}</tbody></table></div>
+  return chart+`<details class="atsdet" open><summary>Tableau : chantiers prévus chaque mois</summary><div class="tbl"><table class="rttab"><thead><tr><th>Mois</th><th class="n">Commandes</th><th class="n">Devis probables</th><th class="n">Capacité</th><th>Chantiers prévus</th></tr></thead><tbody>${M.map(x=>{const t=x.c+x.d,cl=t>x.cap+.5?"r":t>x.cap*.85?"o":"";
+    return`<tr><td>${atsML(x.m)}</td><td class="n">${h1(x.c)} h</td><td class="n">${x.d?h1(x.d)+" h":"–"}</td><td class="n">${h1(x.cap)} h</td><td><small>${quiTxt(x).map(esc).join(" · ")||"–"}${x.dv.length?`<br><span class="sub">devis : ${x.dv.map(([n,h,c])=>esc(n)+" "+Math.round(h)+" h ("+c+" %)").join(" · ")}</span>`:""}</small></td></tr>`}).join("")}</tbody></table></div>
    </details><p class="sub">Commandes en cours : temps de production restant, placé comme la charge de l'atelier. Devis probables : heures d'atelier des devis en attente × chance de signature, au mois de pose souhaité. Capacité : ${ATL_H_SEM} h par semaine, hors renfort des poseurs.</p>`}
 // heures : par commande (12 mois, livrées comprises), prévu / noté, par personne ; Christophe ajoute les heures manquantes
 function atsCmds(){const de=atsMois(-12),N=atsNoteH();
@@ -4330,7 +4334,7 @@ function atlWeekLoad(live){
   live.forEach(a=>{const p=atlPlan(a),h=atlHeures(a);if(!h||atlD(a,"fin"))return;
     let d=atlD(a,"debut")?maxS(nextJo(today()),p.P.debut):p.P.debut;const ds=[];while(d<=p.P.fin&&ds.length<60){ds.push(d);d=addJo(d,1)}
     const restant=atlSuivi(a)?atlReste(a):atlD(a,"debut")?h*ds.length/Math.max(ds.length,p.pj):h;
-    ds.forEach(x=>{const f=aFri(x);wk[f]=(wk[f]||0)+restant/ds.length;(who[f]=who[f]||new Set).add(atlName(a))})});
+    ds.forEach(x=>{const f=aFri(x);wk[f]=(wk[f]||0)+restant/ds.length;(who[f]=who[f]||new Set).add(atlName(a));(by[f]=by[f]||[]).push({lab:atlName(a),id:a.id,h:restant/ds.length,obj:a.objet||""})})});
   return{wk,who,by}}
 function atlLoadHtml(live){
   const {wk,who}=atlWeekLoad(live),mon=addJo(addDays(today(),-((aD(today()).getDay()+6)%7)),0),pl=window.PLN_OK&&window.PLN_OK();
