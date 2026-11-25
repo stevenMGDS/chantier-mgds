@@ -76,7 +76,7 @@ h3{font:700 19px var(--f-display);margin:18px 0 6px}
 .hline .h{font:600 18px var(--f-mono);text-align:right}
 .hline.ok{border-left:6px solid var(--s-vert)}
 .hline.atl{background:var(--t-orange);border-left:6px solid var(--s-orange)}.hline.atl.ok{border-left-color:var(--s-vert)}
-table.h tr.atl td{background:var(--t-orange)}
+table.h tr.atl td{background:var(--t-orange)}table.h tr.off td{color:var(--muted);font-style:italic}table.h tr.miss td{background:var(--t-rouge,#fdecea)}
 .jl{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;display:grid;gap:8px}
 .jl select,.jl input{font-size:17px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-height:46px;width:100%}
 .jl .r{display:flex;gap:8px;align-items:center}.jl .r>*{flex:1}.jl .r>.x{flex:none}
@@ -953,25 +953,40 @@ async function vGHeures(v){
   const days=weekDays();let a=days[0],b=days[6],titre;
   if(gMode==="mois"){const d=addDays(week,3);a=iso(new Date(d.getFullYear(),d.getMonth(),1));b=iso(new Date(d.getFullYear(),d.getMonth()+1,0));titre=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"][d.getMonth()]+" "+d.getFullYear()}
   const hs=await loadHeures(a,b),ps=[...new Set([...poseurs().map(p=>p.id),...hs.map(h=>h.poseur)])];
+  // jours sans heures (Steven, 25/11/2026 : les gars ne remplissent pas leurs heures quand ils sont absents) : congé, férié,
+  // repos ou maladie notés au planning -> ligne « congé » à 0 h ; sinon « pas d'heures saisies », et Marine peut noter l'absence
+  let pl=[];try{pl=await loadPlanning(a,b)}catch(_){}
+  const OFF=/^\s*(f[ée]ri[ée]s?|cong[ée]s?|repos|maladie|rtt|absen)/i,jt=today(),jours=[];
+  for(let d=parse(a);iso(d)<=b&&iso(d)<jt;d=addDays(d,1))if(d.getDay()%6)jours.push(iso(d));
+  const vides=pid=>jours.filter(d=>!hs.some(h=>h.poseur===pid&&h.jour===d)).map(d=>{const o=pl.find(x=>x.poseur===pid&&x.jour===d&&!x.chantier&&OFF.test(x.libelle||""));return{jour:d,poseur:pid,virt:true,off:o?String(o.libelle).trim():""}});
+  v._vides=ps.flatMap(pid=>poseurs().some(p=>p.id===pid)?vides(pid):[]);
   v._heures=hs;v._range=[a,b];
   const nv=hs.filter(h=>!h.valide_le).length;
   v.innerHTML=weekNav()+`<div class="chips"><button class="chip" data-gmode="semaine" aria-pressed="${gMode==="semaine"}">Cette semaine</button><button class="chip" data-gmode="mois" aria-pressed="${gMode==="mois"}">Tout le mois${titre?" ("+titre+")":""}</button></div>
    <div class="links"><button class="btn" data-export>Télécharger pour Excel</button>${nv?`<button class="btn ghost" data-valall>Valider les ${nv} ligne${nv>1?"s":""} affichée${nv>1?"s":""}</button>`:""}</div>
-   ${ps.length?ps.map(pid=>{const L=hs.filter(h=>h.poseur===pid),tot=L.reduce((s,h)=>s+(+h.heures||0),0);
+   ${ps.length?ps.map(pid=>{const L=[...hs.filter(h=>h.poseur===pid),...v._vides.filter(x=>x.poseur===pid)].sort((x,y)=>x.jour.localeCompare(y.jour)||(x.debut||"").localeCompare(y.debut||"")),tot=L.reduce((s,h)=>s+(+h.heures||0),0);
      return`<h3>${esc(nameOf(pid))} · ${hfmt(tot)}</h3>${L.length?`<div class="gridwrap"><table class="h"><thead><tr><th>Jour</th><th>Chantier</th><th>Arrivée</th><th>Départ</th><th class="n">Pause</th><th class="n">Heures</th><th>Remarque</th><th></th></tr></thead><tbody>
-      ${L.map(h=>`<tr class="${isAtl(h)?"atl":""}"><td>${esc(dayLabel(h.jour))}</td><td>${esc(hLab(h))}</td><td>${(h.debut||"").slice(0,5)}</td><td>${(h.fin||"").slice(0,5)}</td><td class="n">${h.pause_min||0}</td><td class="n">${hfmt(+h.heures)}</td><td>${esc(h.note||"")}</td>
+      ${L.map(h=>h.virt?`<tr class="${h.off?"off":"miss"}"><td>${esc(dayLabel(h.jour))}</td><td colspan="4">${h.off?esc(h.off)+" (d'après le planning)":"<b>Pas d'heures saisies</b>"}</td><td class="n">0 h</td><td>${h.off?"absent":""}</td>
+        <td>${h.off?'<span class="tag">congé</span>':`<button class="btn ghost small" data-habs="${h.poseur}|${h.jour}">Absent…</button>`}</td></tr>`:`<tr class="${isAtl(h)?"atl":""}"><td>${esc(dayLabel(h.jour))}</td><td>${esc(hLab(h))}</td><td>${(h.debut||"").slice(0,5)}</td><td>${(h.fin||"").slice(0,5)}</td><td class="n">${h.pause_min||0}</td><td class="n">${hfmt(+h.heures)}</td><td>${esc(h.note||"")}</td>
         <td>${h.valide_le?'<span class="tag">validé ✓</span>':'<span class="tag o">à valider</span>'} <button class="btn ghost small" data-hedit="${h.id}">Modifier</button></td></tr>`).join("")}
-      <tr class="sum"><td colspan="5">Total</td><td class="n">${hfmt(tot)}</td><td colspan="2"></td></tr></tbody></table></div>`:`<p class="none">Aucune heure saisie.</p>`}`}).join("")
+      <tr class="sum"><td colspan="5">Total</td><td class="n">${hfmt(tot)}</td><td colspan="2"></td></tr></tbody></table></div>`:`<p class="none">Aucune heure saisie.</p>`}`}).join("")+`<p class="sub">Jours ouvrés sans heures : « congé » quand le planning indique congé, férié, repos ou maladie (ligne à 0 h dans l'Excel) ; sinon « Pas d'heures saisies » : bouton « Absent… » pour noter congé, maladie ou RTT.</p>`
    :`<div class="empty">Aucun poseur n'a encore d'accès.</div>`}`;
 }
 document.addEventListener("click",async e=>{
+  const ab=e.target.closest("[data-habs]");if(ab){const[pid,jour]=ab.dataset.habs.split("|");
+    const mo=modal(`<h2>Absence</h2><div class="sub">${esc(nameOf(pid))} · ${esc(dayLabel(jour))}</div><label class="fld">Motif<select name="m">${["Congé","Maladie","RTT","Férié","Autre absence"].map(x=>`<option>${x}</option>`).join("")}</select></label>
+      <div class="links"><button class="btn" data-ok>Noter 0 h</button><button class="btn ghost" data-x>Annuler</button></div>`);
+    mo.querySelector("[data-x]").onclick=()=>mo.close();
+    mo.querySelector("[data-ok]").onclick=async()=>{const m2=mo.querySelector("[name=m]").value;
+      const{error}=await sb.from("heures").insert({poseur:pid,jour,chantier:null,heures:0,pause_min:0,motif:"absence",motif_detail:m2,note:m2});
+      if(error){toast("Enregistrement impossible.");return}mo.close();toast("Absence notée ✓");render()};return}
   const m=e.target.closest("[data-gmode]");if(m){gMode=m.dataset.gmode;render();return}
   if(e.target.closest("[data-valall]")){
     const ids=($("view")._heures||[]).filter(h=>!h.valide_le).map(h=>h.id);
     const{error}=await sb.from("heures").update({valide_le:new Date().toISOString(),valide_par:me}).in("id",ids);
     toast(error?"Validation impossible.":"Heures validées ✓");render();return}
   if(e.target.closest("[data-export]")){
-    const hs=$("view")._heures||[],[a,b]=$("view")._range;
+    const hs=[...($("view")._heures||[]),...($("view")._vides||[]).filter(x=>x.off).map(x=>({...x,heures:0,note:x.off+" (planning)",pause_min:0}))],[a,b]=$("view")._range;
     // vrai fichier Excel : heures faites à l'atelier en orange, comme au planning (Steven, 12/11/2026) ; CSV si Excel indisponible
     try{await loadCmd();await xlsxHeures(hs,a,b);return}catch(_){}
     const cell=s=>{s=String(s??"");return/[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
