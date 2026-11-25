@@ -954,7 +954,13 @@ function avHtml(id,j){const E=avancement(j),C=poseCible(id,j),cur=E.findIndex(e=
 function poseRef(j){return poseOk(j)||poseDates(j).sort()[0]||""}
 function fillMail(s,j){const pd=poseDates(j);const prop=pd.length>1?"Nous vous proposons deux dates pour la pose : le "+frLong(pd[0])+" ou le "+frLong(pd[1])+".":"Nous vous proposons la pose le "+frLong(pd[0])+".";
   return s.replaceAll("{nom}",j.civilite||("Madame, Monsieur "+(j.client||""))).replaceAll("{drdv}",frLong(sd(j,"rdv"))).replaceAll("{propose}",prop).replaceAll("{dposeok}",frLong(poseRef(j))).replaceAll("{dpose}",frLong(sd(j,"poseprop")))}
-async function renderSheet(){
+// fiche qui ne s'affiche pas (Yannick, 25/11/2026 : « page blanche ») : au lieu d'une page vide, la cause s'affiche et
+// est gardée dans reglages/erreurs_appli (lue par Claude) pour corriger
+async function renderSheet(){try{await renderSheet0()}catch(e){
+  const msg=String(e&&e.message||e),pile=String(e&&e.stack||"").split("\n").slice(0,3).join(" | "),P=window.mgdsProfil||{};
+  const el=$("sheet");if(el)el.innerHTML=`<div class="head"><h2>Fiche indisponible</h2><button class="btn ghost" id="close">Fermer</button></div><p>Cette fiche n'a pas pu s'afficher. Faites une capture d'écran de ce message pour Steven :</p><pre class="dvannexp">${esc(openId+" · "+msg+" · "+pile)}</pre>`;
+  try{await window.sbClient.rpc("note_erreur",{texte:(P.nom||"?")+" · fiche "+openId+" · "+msg+" · "+pile+" · "+navigator.userAgent})}catch(_){}}}
+async function renderSheet0(){
   if(!openId)return;
   if(openId==="__new"){renderNew();return}
   const j={id:openId,...(jobs.get(openId)||{})};
