@@ -986,7 +986,7 @@ async function renderSheet0(){
   const tl=k=>(j[k]||[]).map((t,i)=>`<div class="task ${t.f?"done":""}"><input type="checkbox" data-task="${k}" data-i="${i}" ${t.f?"checked":""} ${canWrite||canFill?"":"disabled"} aria-label="${esc(t.t)}"><span>${esc(t.t)}${t.f?` <span class="mono">${fr(t.f)}</span>`:""}</span>${canWrite?`<button class="x" data-deltask="${k}" data-i="${i}" aria-label="Supprimer">×</button>`:""}</div>`).join("");
   // les fiches à remplir (préparation, métré / réception de support, réception de fin de chantier, toujours en dernier) à part
   // des documents repris du serveur ou déposés (devis, plans, factures…) — Steven, 09/11/2026
-  const FICHE_ORD={"Préparation":0,"Métré":1,"Support":2,"Réception":3},docLi=([d,i])=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.type==="Métré"&&!d.mt&&window.mtNew&&j.type!=="neuf"?"Métré (tablette)":d.type==="Support"&&window.rsOpen?"Réception de support (tablette)":d.name)}</button>${(d.type==="Métré"&&!d.mt&&window.mtNew&&j.type!=="neuf")||(d.type==="Support"&&window.rsOpen)?` <button class="lnk" data-viewpdf="${i}" title="Ouvrir la fiche PDF d'origine">PDF</button>`:""}${d.traite?"":`<span class="new">nouveau</span>`}${d.mt&&window.mtEcarts&&mtEcarts(d.mt)?`<span class="new" style="background:var(--s-orange,#c96a2c);color:#fff">⚠ ${mtEcarts(d.mt)} écart${mtEcarts(d.mt)>1?"s":""} avec le devis</span>`:""}${d.rempli?d.rempli.reste?`<span class="new">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:`<span class="new ok">fiche complète</span>`:""}<br><span class="mono">${fr(d.at)} · ${d.mt?"sur tablette":Math.max(1,Math.round((d.size||0)/1024))+" ko"}</span></span>
+  const FICHE_ORD={"Préparation":0,"Métré":1,"Support":2,"Réception":3},docLi=([d,i])=>`<li><span class="dtype">${esc(d.type)}</span><span style="min-width:0"><button class="doclink" data-view="${i}">${esc(d.type==="Métré"&&!d.mt&&window.mtNew&&j.type!=="neuf"?"Métré (tablette)":d.type==="Support"&&window.rsOpen?"Réception de support (tablette)":d.type==="Préparation"&&window.ficheTel?"Préparation de chantier":d.type==="Réception"&&window.ficheTel?(d.recep?"Réception de chantier (signée)":"Réception de chantier"):d.name)}</button>${(d.type==="Métré"&&!d.mt&&window.mtNew&&j.type!=="neuf")||(d.type==="Support"&&window.rsOpen)||((d.type==="Préparation"||d.type==="Réception")&&window.ficheTel)?` <button class="lnk" data-viewpdf="${i}" title="Ouvrir la fiche PDF d'origine">PDF</button>`:""}${d.traite?"":`<span class="new">nouveau</span>`}${d.mt&&window.mtEcarts&&mtEcarts(d.mt)?`<span class="new" style="background:var(--s-orange,#c96a2c);color:#fff">⚠ ${mtEcarts(d.mt)} écart${mtEcarts(d.mt)>1?"s":""} avec le devis</span>`:""}${d.rempli?d.rempli.reste?`<span class="new">${d.rempli.reste} case${d.rempli.reste>1?"s":""} vide${d.rempli.reste>1?"s":""}</span>`:`<span class="new ok">fiche complète</span>`:""}<br><span class="mono">${fr(d.at)} · ${d.mt?"sur tablette":Math.max(1,Math.round((d.size||0)/1024))+" ko"}</span></span>
     ${canWrite?`<span class="docact"><select data-doctype="${i}" aria-label="Type de document">${DOC_TYPES.map(t=>`<option ${t===d.type?"selected":""}>${t}</option>`).join("")}</select><button class="x" data-deldoc="${i}" aria-label="Retirer ce document" title="Retirer ce document (erreur)">×</button></span>`:""}</li>`;
   const allDocs=(j.docs||[]).map((d,i)=>[d,i]),isFiche=([d])=>d.type in FICHE_ORD;
   const fiches=allDocs.filter(isFiche).sort(([a],[b])=>FICHE_ORD[a.type]-FICHE_ORD[b.type]).map(docLi).join("");
@@ -1230,6 +1230,8 @@ document.addEventListener("click",async e=>{
     if(d&&d.type==="Métré"&&!d.mt&&window.mtNew&&j.type!=="neuf"&&(canWrite||canFill)){const t2=(j.docs||[]).find(x=>x.mt);if(t2&&window.mtOpen)mtOpen(openId,t2.id);else mtNew(openId);return}
     // réception de support (chantier neuf, avant la pose) au format HTML (Steven, 25/11/2026), voir rs.js
     if(d&&d.type==="Support"&&window.rsOpen&&(d.rs||canWrite||canFill)){rsOpen(openId,d.id);return}
+    // préparation et réception de chantier : mêmes écrans que les poseurs (fiches-tel.js), le lien « PDF » garde la fiche PDF
+    if(d&&(d.type==="Préparation"||d.type==="Réception")&&window.ficheBureau&&window.ficheTel){openId=openId;ficheBureau(d,{id:openId,...j});return}
     viewDoc(d)}
   else if(t.dataset.viewpdf!==undefined){viewDoc((jobs.get(openId).docs||[])[+t.dataset.viewpdf])}
   else if(t.dataset.mtnew){t.disabled=true;mtNew(openId)}
@@ -5414,5 +5416,7 @@ window.planRender=planRender;window.PLN_OK=()=>PLN.ok;window.plLoad=plLoad;windo
 </script>
 <script src="metre.js"></script>
 <script src="rs.js"></script>
+<script src="fiches-bureau.js"></script>
+<script src="fiches-tel.js"></script>
 <script src="cond.js"></script>
 </html>
