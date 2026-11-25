@@ -167,7 +167,8 @@ function palettiser(P){
     const zp=[];
     const tryPiece=(pal,p)=>{
       if(sep&&pal.cat!==CAT(p)) return false;
-      if(pal.kg+p.kg>R.maxKg) return false;
+      // Steven, 25/11/2026 : un peu plus de 500 kg est accepté (pupitre renforcé au besoin), jusqu'à +10 %, avec une alerte
+      if(pal.kg+p.kg>R.maxKg*1.1) return false;
       // Steven, 25/11/2026 : de préférence couchée (grand côté le long du pupitre, la pièce bascule moins), sinon debout si elle
       // tient (on peut dépasser le dossier en hauteur) ; jamais plus large que le pupitre ; pièces bout à bout sur une rangée
       const used=pal.rows.reduce((s,r)=>s+r.th,0);let ok=false;
@@ -235,7 +236,7 @@ function palettiser(P){
     });
   });
 
-  pals.forEach((p,i)=>p.n=i+1);
+  pals.forEach((p,i)=>{p.n=i+1;p.surpoids=p.kg>R.maxKg;if(p.surpoids)alertes.push(`Pupitre ${p.n} (n° ${p.stock||"?"}) : ${kg(p.kg)}, plus de ${kg(R.maxKg)} : à renforcer si besoin`)});
   return {pals,alertes,vrac};
 }
 
@@ -289,12 +290,13 @@ function svgCoupe(p){
 }
 function fiche(p,total){
   const st=p.stock?`<span class="cftag">pupitre de l'inventaire n° ${esc(p.stock)}</span>`:p.horsStock?`<span class="cftag w">à fabriquer : aucun pupitre de l'inventaire ne convient</span>`:"";
+  const lourd=p.surpoids?`<span class="cftag w">⚠ ${kg(p.kg)} : plus de ${kg(R.maxKg)}, à renforcer si besoin</span>`:"";
   const hors=p.H>R.hCamion?`<span class="cftag w">trop haut pour un camion standard</span>`:p.haute?`<span class="cftag w">pupitre haut</span>`:"";
   const lignesR=p.rows.map((r,i)=>r.items.map((it,j)=>`<tr><td class="rg">${j?"":i+1}</td><td><b>${esc(it.ref)}</b></td><td>${esc(it.label)}${j?` <span class="foot">(à côté, bout à bout)</span>`:""}</td><td class="n">${mm(it.L)} × ${mm(it.S)}</td><td><b>${faceTxt(it)}</b><br><span class="foot">${esc(sensTxt(it))}</span></td></tr>`).join("")).join("");
   return `<div class="fiche">
    <div class="fh"><div><div class="fn">PUPITRE ${p.n} / ${total}${p.stock?" · n° "+esc(p.stock):""}</div><div class="ft">${esc(p.zone)} · ${catNom(p)}</div></div>
    <div class="fr"><div>Long. ${mm(p.L)} · socle ${mm(p.P)} · haut. ${mm(p.H)} mm</div><div>${kg(p.kg)} <span class="foot">+ pupitre ${kg(p.tare)}</span></div></div></div>
-   <div class="cfrow" style="gap:6px">${st}${hors}${p.cat==="D"&&!p.mixte?`<span class="cftag">à poser en premier</span>`:`<span class="cftag">à poser après les dormants</span>`}</div>
+   <div class="cfrow" style="gap:6px">${st}${lourd}${hors}${p.cat==="D"&&!p.mixte?`<span class="cftag">à poser en premier</span>`:`<span class="cftag">à poser après les dormants</span>`}</div>
    <div class="vues">${svgDessus(p)}${svgCoupe(p)}</div>
    <table class="ft2"><thead><tr><th>Rang</th><th>Repère</th><th>Pièce</th><th class="n">Long. × haut. (mm)</th><th>Sens</th></tr></thead><tbody>${lignesR}</tbody></table>
   </div>`;
