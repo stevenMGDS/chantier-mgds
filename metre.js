@@ -139,8 +139,8 @@ async function save(){if(!S||!S.dirty||S.saving)return;S.saving=true;S.dirty=fal
 // ---------- création, reprise des lignes du métré PDF ----------
 // lecture du métré PDF pré-rempli (et éventuellement déjà rempli) : une ligne par menuiserie, puis les cases du bloc de chaque
 // menuiserie (isolation, coloris, vitrage, allège, type de pose, sens, ventilation) et le jeu de pose (Steven, 23/11/2026)
-async function lignesPdf(j){
-  const d=(j.docs||[]).find(d=>d.type==="Métré"&&!d.mt&&/\.pdf$/i.test(d.name||""));if(!d||!window.PDFLib)return{prod:[],jeu:null};
+async function lignesPdf(j,d0){
+  const d=d0||(j.docs||[]).find(d=>d.type==="Métré"&&!d.mt&&/\.pdf$/i.test(d.name||""));if(!d||!window.PDFLib)return{prod:[],jeu:null};
   try{const r=await fetch("/_blob/"+d.id);if(!r.ok)return{prod:[],jeu:null};const doc=await PDFLib.PDFDocument.load(await r.arrayBuffer(),{ignoreEncryption:true});
     const pages=doc.getPages(),pIx=ref=>pages.findIndex(pg=>pg.ref===ref);
     const F=doc.getForm().getFields().map(f=>{const n=f.getName(),m=/^(cellule|ligne|case|posex)_(\d+)_(\d+)$/.exec(n);if(!m)return null;let v="",on=false,y=0,top=0,pi=+m[2];
@@ -173,6 +173,8 @@ async function completePdf(){if(!S||ro())return;const j=jobs.get(S.jid);if(!j)re
     p.src=p.src||{};for(const[k2,v]of Object.entries(q.v)){if(p.v[k2]===undefined||p.v[k2]===""){p.v[k2]=v;p.src[k2]=v;n++}}
     p.devis={...q.devis,v:{...(p.devis&&p.devis.v||{}),...(q.devis&&q.devis.v||{})}}});
   sched();draw();if(n)toast(n+" informations reprises du métré PDF (coloris, vitrage, allège…) : à vérifier")}
+// lignes d'un métré PDF (aussi pour la réception de support d'un chantier passé en neuf, rs.js)
+window.mtLignes=(j,d)=>lignesPdf(j,d);
 window.mtNew=async jid=>{const j=jobs.get(jid);if(!j)return;
   const{prod,jeu}=await lignesPdf(j);prod.forEach(p=>p.pdf=1);
   const doc={id:"mt-"+Math.random().toString(36).slice(2,12),type:"Métré",name:"Métré tablette",at:today(),by:me||"",size:0,traite:true,mt:{jeu:jeu||{c:5,t:5},prod,cree:today()},rempli:{le:today(),reste:1,total:1}};
