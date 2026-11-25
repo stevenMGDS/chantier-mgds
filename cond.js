@@ -28,7 +28,7 @@ const REG=[
  ["frappeSep","Fenêtres et portes : ouvrants toujours séparés du cadre (1 = oui, 0 = selon le poids)",0],
  ["sepKg","Fenêtre ou porte plus lourde que (kg, vitrage compris) : ouvrants sortis du dormant",80],
  ["sepDO","Séparer dormants et ouvrants sur des pupitres différents (1 = oui, 0 = non)",0],
- ["debL","Pièce plus longue que le pupitre : débord admis en bout (mm)",300]
+ ["debL","Débord admis en largeur, au-delà du pupitre (mm) — 0 : la jambe de force l'empêche",0]
 ];
 const R={hCamion:2600,palDepth:800,margeL:0};
 function readReg(){let s={};try{s=JSON.parse(localStorage.getItem("mgdsCondReg")||"{}")}catch(e){}REG.forEach(([k,,d])=>R[k]=num(s[k],d))}
@@ -38,6 +38,8 @@ readReg();
 if(R.coffre===200)R.coffre=320;
 // 25/11/2026 (Steven : « tes pupitres sont bien vides ») : dormants et ouvrants peuvent partager un pupitre, réglage remis à 0 une fois
 try{if(!localStorage.getItem("mgdsCondReg2511")){R.sepDO=0;R.frappeSep=0;localStorage.setItem("mgdsCondReg2511","1")}}catch(e){}
+// 25/11/2026 (Steven) : jamais de débord en largeur (jambe de force diagonale) ; on peut dépasser le dossier en hauteur
+try{if(!localStorage.getItem("mgdsCondReg2511b")){R.debL=0;localStorage.setItem("mgdsCondReg2511b","1")}}catch(e){}
 
 const TYPES={fenetre:"Fenêtre / OB",porte:"Porte",fixe:"Châssis fixe",coulissant:"Coulissant",autre:"Autre (monté)"};
 let lignes=[], stock=[], pupitres=[];
@@ -160,8 +162,8 @@ function palettiser(P){
     const tryPiece=(pal,p)=>{
       if(sep&&pal.cat!==CAT(p)) return false;
       if(pal.kg+p.kg>R.maxKg) return false;
-      // Steven, 25/11/2026 : pièce couchée (grand côté le long du pupitre) ou debout (petit côté le long du pupitre) si elle
-      // tient sous le dossier ; débord admis en bout de pupitre ; plusieurs pièces bout à bout sur une même rangée
+      // Steven, 25/11/2026 : de préférence couchée (grand côté le long du pupitre, la pièce bascule moins), sinon debout si elle
+      // tient (on peut dépasser le dossier en hauteur) ; jamais plus large que le pupitre ; pièces bout à bout sur une rangée
       const used=pal.rows.reduce((s,r)=>s+r.th,0);let ok=false;
       for(const[L,S]of[[p.Lm,p.Sm],[p.Sm,p.Lm]]){
         if(L>pal.L+R.debL) continue;
@@ -212,7 +214,9 @@ function palettiser(P){
       pal.rows.forEach(r=>r.items.sort((a,b)=>cle(a)-cle(b)));
       const gk=it=>it.role==="ouvrant"?it.grp+"o":it.grp+it.role+it.seq, gl={};
       pal.items.forEach(it=>{gl[gk(it)]=Math.max(gl[gk(it)]||0,it.L);});
-      pal.rows.sort((a,b)=>(gl[gk(b.items[0])]-gl[gk(a.items[0])])||(cle(a.items[0])-cle(b.items[0])));
+      // au fond du pupitre : les plus grandes pièces, puis les plus lourdes (Steven, 25/11/2026)
+      const surf=r=>Math.max(...r.items.map(it=>it.a*it.b)),poids=r=>r.items.reduce((s,it)=>s+it.kg,0);
+      pal.rows.sort((a,b)=>(surf(b)-surf(a))||(poids(b)-poids(a))||(cle(a.items[0])-cle(b.items[0])));
       let alt=0;
       pal.rows.forEach(r=>r.items.forEach(it=>{
         const large=it.a>=it.b; // plus large que haute : posée dans son sens normal
