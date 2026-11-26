@@ -4307,7 +4307,7 @@ function atsLignes(a){const H=ats.hs.filter(h=>h.atelier===a.id).sort((x,y)=>Str
   return`<div class="tbl"><table class="rttab"><thead><tr><th>Jour</th><th>Personne</th><th>Tâche</th><th class="n">Heures</th><th>Remarque</th><th></th></tr></thead><tbody>${H.map(h=>`<tr><td>${esc(fr(h.jour))}</td><td>${esc(nom(h.poseur))}</td><td>${esc(h.tache||"")}</td><td class="n">${String(+h.heures).replace(".",",")} h</td><td><small>${esc(h.note||"")}</small></td>
     <td>${h.valide_le?`<span class="sub">validée ✓</span>`:`<button type="button" class="btn ghost" data-atsedit="${h.id}">Modifier</button> <button type="button" class="btn ghost" data-atsdel="${h.id}" aria-label="Supprimer">🗑</button>`}</td></tr>`).join("")}</tbody></table></div>`}
 // rentabilité : prix de l'atelier (devis de Christophe) − matière (éléments validés) ÷ heures notées (sinon prévues)
-function atsRenta(){const O=rtObj(),L=atsCmds(),eur=v=>plEur(v);let tv=0,tm=0,th=0;const G=[];atsTips.length=0;
+function atsRenta(){const O=rtObj(),L=atsCmds().filter(x=>(x.a.dest||"mgds")!=="mgds"),eur=v=>plEur(v);let tv=0,tm=0,th=0;const G=[];atsTips.length=0;
   const rows=L.map(x=>{const a=x.a,A=ats.dir.get("atl_"+a.id)||{},V=a.chantier?ats.dir.get("atlv_"+a.chantier):null;
     const v=V&&V.man?+V.ht:A.ht!=null?+A.ht:null,mat=A.mat!=null?+A.mat:null,inc=x.prev&&x.note<x.prev*.5,h=inc?x.prev:x.note||x.prev,mg=v!=null&&mat!=null?v-mat:null,mh=mg!=null&&h?mg/h:null;
     if(mh!=null){tv+=v;tm+=mg;th+=h;const ec=mh-O.taux;
@@ -4319,6 +4319,7 @@ function atsRenta(){const O=rtObj(),L=atsCmds(),eur=v=>plEur(v);let tv=0,tm=0,th
   return`<div class="kpis"><div class="kpi"><b>${eur(O.taux)}/h</b><span>Objectif par heure de production</span></div><div class="kpi ${th&&tm/th<O.taux?"r":""}"><b>${th?eur(tm/th)+"/h":"–"}</b><span>Marge par heure de l'atelier (12 mois)</span></div><div class="kpi"><b>${eur(tv)}</b><span>Vendu par l'atelier (commandes chiffrées)</span></div></div>
    ${G.length?`<div class="atsleg"><span><i class="sw atsbar ok"></i>Au-dessus de l'objectif</span><span><i class="sw atsbar r"></i>En dessous</span><span><i class="sw atscib"></i>Objectif ${eur(O.taux)}/h</span></div>`+atsBarres(G.sort((p,q)=>p.v-q.v),{max:Math.max(O.taux*1.6,...G.map(d=>d.v))*1.05,unit:" €",cible:"Marge par heure de chaque commande face à l'objectif",cls:d=>d.v>=d.c?"ok":"r",lab:d=>eur(d.v)+"/h"}):`<p class="sub">Aucune commande n'a encore son prix et sa matière : le graphique apparaîtra dès que les devis client et les éléments validés seront lus.</p>`}
    <details class="atsdet"><summary>Voir le tableau (${L.length} commandes)</summary><div class="tbl"><table class="rttab"><thead><tr><th>Commande</th><th class="n">Prix atelier</th><th class="n">Matière</th><th class="n">Heures</th><th class="n">Marge</th><th class="n">Par heure</th></tr></thead><tbody>${rows}</tbody></table></div></details>
+   <p class="sub"><b>Chantiers MGDS</b> (26/11/2026) : Christophe ne chiffre plus la main-d'œuvre ; leur rentabilité se suit en heures (prévues / notées, onglet « Heures 12 mois ») et dans la marge jour du devis du chantier, qui compte les heures d'atelier. Ici : commandes pour des clients extérieurs.</p>
    <p class="sub">Prix de l'atelier = total HT du devis client de Christophe ; matière = commandes du dossier ATELIER/ÉLÉMENTS VALIDÉS (Technal, accessoires, Foussier, vitrages) ; heures = heures notées (les heures prévues tant que moins de la moitié est notée). Objectif : ${eur(O.taux)} de marge par heure, comme la pose.</p>`}
 document.addEventListener("click",e=>{const s=e.target.closest&&e.target.closest("[data-atlsub]");if(s){atl.sub=s.dataset.atlsub;try{localStorage.setItem("atelier-sub",atl.sub)}catch(_){}atlRender();return}
   const ed=e.target.closest&&e.target.closest("[data-atsedit],[data-atsdel]");
@@ -4817,6 +4818,7 @@ button.plc{cursor:pointer}
 .pldvr .acts{display:flex;gap:6px}
 .dvdep{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end;font-size:13px}.dvdep>label{width:auto;flex:0 1 170px}.dvdep>label:nth-child(2){flex-basis:90px}.dvdepx{flex:1 1 100%}.dvdepx summary{cursor:pointer;color:var(--muted);font-size:12.5px}.dvdepx[open]{display:flex;flex-wrap:wrap;gap:6px 10px}.dvdepx label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 150px}.dvach{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:end}.dvach label{display:grid;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);flex:0 1 170px}.dvach .sub{font-size:12px;flex:1 1 200px}
 .dvwarn{color:var(--bad,#b3261e);font-weight:600}
+.dvprix{display:flex;flex-wrap:wrap;gap:4px 18px;align-items:baseline;margin:8px 0 2px;padding:8px 12px;border-radius:10px;background:var(--sunk);font-size:14px}.dvprix .pm b{font-size:16px}.dvprix.ok{background:#e7f5ec}.dvprix.ko{background:#fdecea}
 .dvbr{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--atl-bg,#FBE9D6);border-radius:8px;padding:8px 10px;font-size:13.5px}.dvbr span{flex:1 1 260px}.dvcard.dvbrc{border-style:dashed}
 .dvcalc .dvfl input,.dvcalc .dvfl select,.dvcalc .dvdepx input{font:15px var(--f-body);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);width:100%;box-sizing:border-box;min-width:0}
 .dvcalc{border:2px solid var(--pose,#2a78d6);border-radius:12px;padding:10px 14px;background:var(--surface);display:grid;gap:10px}.dvcalc>summary{cursor:pointer;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-size:16px}.dvcalc[open]>summary{margin-bottom:6px}
@@ -5099,7 +5101,7 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
   const num=(k,step,ph="",mode="decimal")=>`<input type="number" min="0" step="any" inputmode="${mode}" id="dv-${k}-${id}" ${a} data-k="${k}" value="${v(k)}" placeholder="${ph}" ${ro}>`;
   // nouveau devis (Steven, 23/11/2026 : tout saisir d'un coup, sans revenir sur la carte) : chiffrage complet + déplacement
   if(!d)return`<form class="pldvr dvnew" data-dvadd="1" novalidate><div class="dvnewh"><b>＋ Nouveau devis</b><span class="sub">tout se remplit ici, ou glissez la capture du chiffrage</span></div>
-   <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">${F("Client, affaire",`<input type="text" id="dv-client-new" data-k="client" placeholder="ex. DUPONT – baie coulissante" ${ro}>`,"w2")}${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
+   <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">${F("Client, affaire",`<input type="text" id="dv-client-new" data-k="client" placeholder="ex. DUPONT – baie coulissante" ${ro}>`,"w2")}${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats réels HT",num("achats",1,"matière + fournisseurs, sans main-d'œuvre"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
     ${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-new" data-k="periode" ${ro}>${dvMois("")}</select>`)}</div></div>
    <div class="dvsec"><h4>Déplacement et livraison</h4><div class="dvf">${F("Lieu du chantier",`<input type="text" list="depVilles" data-k="lieu" placeholder="ville (vide = pas de déplacement)" ${ro}>`)}${F("Équipe (pers.)",`<input type="number" min="1" step="1" inputmode="numeric" data-k="pers" value="2" ${ro}>`)}
     ${F("Retours à Orléans",`<select data-k="retours" ${ro}>${[["we","chaque week-end"],["0","aucun (reste sur place)"],...[1,2,3,4,5,6].map(n=>[String(n),n+" fois pendant le chantier"])].map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select>`)}
@@ -5116,9 +5118,9 @@ function dvRow(d){const ro=plW()?"":"disabled",a=d?`data-dv="${esc(d.id)}"`:"",i
     <div class="acts">${plW()?`<button type="button" class="btn ghost" data-dvset="signe" data-id="${id}">✓ Signé</button><button type="button" class="btn ghost" data-dvset="perdu" data-id="${id}">Perdu</button>`:""}</div></div>
    ${dvSug(d)}
    <div class="dvsec"><h4>Chiffrage</h4><div class="dvf">
-    ${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats HT",num("achats",1,"Produit + Divers"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
+    ${F("Montant HT (€)",num("montant",100,"","numeric"))}${F("Achats réels HT",num("achats",1,"matière + fournisseurs, sans main-d'œuvre"))}${F("Pose, main-d'œuvre HT",num("mo",1,"ligne Pose"),"fpose")}
     ${F("Pose sur place (j)",num("jp",.5),"fpose")}${F("Atelier (h)",num("ha",1,"","numeric"),"fatl")}${F("Chance",chance)}${F("Pose souhaitée",`<select id="dv-periode-${id}" ${a} data-k="periode" ${ro}>${dvMois(d.periode||"")}</select>`)}
-   </div>${dvChif(d)}</div>
+   </div>${dvPrixHtml(d)}${dvChif(d)}</div>
    <div class="dvsec"><h4>Déplacement et livraison</h4>${dvDep(d)}${dvAnnexHtml(d)}</div></div>`}
 // ---------- Calculateur de frais (pré-chiffrage, Steven 24/11/2026) ----------
 // Avant de faire le devis : lieu, équipe, jours sur place, retours, livraison, métré -> frais de déplacement et de livraison
@@ -5128,18 +5130,18 @@ const dvCalcSave=()=>{try{localStorage.setItem("dvCalc",JSON.stringify(DV_CALC))
 function dvCalcHtml(){const c=DV_CALC,x=c.dep||{},A=dvAnnexes(c),r=A&&A.r;const sel=(k,opts,v)=>`<select data-calc="${k}">${opts.map(([a,b])=>`<option value="${a}" ${String(v??"")===a?"selected":""}>${b}</option>`).join("")}</select>`;
   const F=(l,inner,cls="")=>`<label class="dvfl ${cls}"><span>${l}</span>${inner}</label>`;
   const res=!x.lieu?`<p class="sub" style="margin:0">Saisissez le lieu et les jours sur place pour obtenir les frais à intégrer au devis.</p>`:x.km===""||x.km==null?`<p class="sub" style="margin:0">${x.src==="cherche"?"Recherche de la distance…":"Commune introuvable : saisissez les km, le péage et le temps de route ci-dessous."}</p>`:!A?`<p class="sub" style="margin:0">Jours sur place à saisir.</p>`
-   :`<div class="dvpills"><span class="dvpill"><b>${plNf(r.jt)} journées d'équipe de 2</b> au total${r.pers!==2?` (${plNf(+c.jp)} j sur place à ${r.pers} pers.)`:""}${r.jt0<r.jt-0.01?` · ${plNf(r.jt0)} arrondi`:""}</span><span class="dvpill"><b>${plNf(r.jr)} j</b> de route · ${r.ar} A/R</span>${r.nuits?`<span class="dvpill"><b>${r.nuits}</b> nuit${r.nuits>1?"s":""}</span>`:""}<span class="dvpill c"><b>${plEur(A.venteDep)}</b> déplacement à vendre (coût ${plEur(A.dep)})</span>${A.venteMet?`<span class="dvpill c"><b>${plEur(A.venteMet)}</b> métré à vendre (${plNf(A.mh)} h + ${plEur(A.met)} de frais)</span>`:""}${A.liv?`<span class="dvpill c"><b>${plEur(A.venteLiv)}</b> transport à vendre (coût ${plEur(A.liv)})</span>`:""}</div>
+   :`<div class="dvpills"><span class="dvpill"><b>${plNf(r.jt)} journées d'équipe de 2</b> de pose et route${r.pers!==2?` (${plNf(+c.jp)} j sur place à ${r.pers} pers.)`:""}${r.jt0<r.jt-0.01?` · ${plNf(r.jt0)} arrondi`:""}</span>${+c.ha?`<span class="dvpill"><b>${plNf(r.jt+(+c.ha)/PL_EQ)} j</b> avec l'atelier · marge à dégager ${plEur((r.jt+(+c.ha)/PL_EQ)*rtObj().obj)}</span>`:""}<span class="dvpill"><b>${plNf(r.jr)} j</b> de route · ${r.ar} A/R</span>${r.nuits?`<span class="dvpill"><b>${r.nuits}</b> nuit${r.nuits>1?"s":""}</span>`:""}<span class="dvpill c"><b>${plEur(A.venteDep)}</b> déplacement à vendre (coût ${plEur(A.dep)})</span>${A.venteMet?`<span class="dvpill c"><b>${plEur(A.venteMet)}</b> métré à vendre (${plNf(A.mh)} h + ${plEur(A.met)} de frais)</span>`:""}${A.liv?`<span class="dvpill c"><b>${plEur(A.venteLiv)}</b> transport à vendre (coût ${plEur(A.liv)})</span>`:""}</div>
     <pre class="dvannexp">${esc(dvAnnexTexte(c))}</pre><div><button type="button" class="btn ghost" data-calccopy="1">Copier les lignes pour le devis</button> <button type="button" class="btn ghost" data-calcraz="1">Effacer</button></div>`;
   return`<details class="dvcalc" ${x.lieu?"open":""} id="dvcalc"><summary><b>🧮 Calculateur de frais (pré-chiffrage)</b><span class="sub">déplacement, découchers et livraison à intégrer au devis, avant de le créer</span></summary>
    <div class="dvf">${F("Lieu du chantier",`<input type="text" list="depVilles" data-calc="lieu" value="${esc(x.lieu||"")}" placeholder="ville">`)}${F("Équipe (pers.)",`<input type="number" min="1" step="1" inputmode="numeric" data-calc="pers" value="${esc(x.pers||2)}">`)}
-    ${F("Pose sur place (j)",`<input type="number" min="0" step="any" inputmode="decimal" data-calc="jp" value="${esc(c.jp||"")}">`,"fpose")}${F("Mois de pose",`<select data-calc="periode">${dvMois(c.periode||"")}</select>`)}
+    ${F("Pose sur place (j)",`<input type="number" min="0" step="any" inputmode="decimal" data-calc="jp" value="${esc(c.jp||"")}">`,"fpose")}${F("Atelier (h)",`<input type="number" min="0" step="any" inputmode="decimal" data-calc="ha" value="${esc(c.ha||"")}">`,"fatl")}${F("Mois de pose",`<select data-calc="periode">${dvMois(c.periode||"")}</select>`)}
     ${F("Retours à Orléans",sel("retours",[["we","chaque week-end"],["0","aucun (reste sur place)"],...[1,2,3,4,5,6].map(n=>[String(n),n+" fois pendant le chantier"])],x.retours??"we"))}${F("Livraison du matériel",sel("liv",LIV_OPT,x.liv||""),"w2")}
     <label class="dvmet"><input type="checkbox" data-calc="metre" ${x.metre?"checked":""}> Métré sur place (1 personne)</label></div>
    ${x.lieu?`<details class="dvdepx"><summary>Corriger km, péage, temps</summary><label>Km aller<input type="number" min="0" step="any" data-calc="km" value="${esc(x.km??"")}"></label><label>Péage aller (€ HT)<input type="number" min="0" step="any" data-calc="peage" value="${esc(x.peage??"")}"></label><label>Route aller (h, camion)<input type="number" min="0" step="any" data-calc="h" value="${esc(x.h??"")}"></label></details>`:""}
    ${res}</details>`}
 async function dvCalcChange(t){const k=t.dataset.calc,c=DV_CALC,x={...(c.dep||{})};
   if(k==="lieu"){const l=t.value.trim();if(!l){c.dep={pers:x.pers||2,retours:x.retours||"we",liv:x.liv||"",metre:!!x.metre}}else{c.dep={...x,lieu:l,km:"",src:"cherche"};dvCalcSave();dvCalcMaj();c.dep=await depDuLieu(l,{...x})}}
-  else if(k==="jp"||k==="periode")c[k]=t.value;
+  else if(k==="jp"||k==="periode"||k==="ha")c[k]=t.value;
   else if(k==="metre")c.dep={...x,metre:t.checked};
   else if(k==="retours"||k==="liv")c.dep={...x,[k]:t.value};
   else c.dep={...x,[k]:t.value===""?"":Math.max(k==="pers"?1:0,+String(t.value).replace(",",".")||0),...(k==="pers"?{}:{src:"saisi"})};
@@ -5164,9 +5166,17 @@ function dvAnnexHtml(d){const A=dvAnnexes(d),id=esc(d.id),ro=plW()?"":"disabled"
 // Capture du tableau de marge du logiciel de devis (Steven, 18/11/2026) : déposée ici à chaque devis, lue par Claude
 // (outil/chiffrage.py) qui remplit achats, main-d'œuvre, marge prévue et jours de pose. Marge jour prévue =
 // (montant HT − achats) ÷ temps total de pose (heures d'atelier exclues, 24/11/2026), face à l'objectif de la page Direction > Rentabilité.
-// Heures d'atelier (Steven, 24/11/2026) : la case ne sert qu'au planning prévisionnel de l'atelier ; l'atelier est déjà vendu
-// dans le chantier (prix de Christophe dans les achats) : elles ne changent pas la marge jour du devis.
-const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,j=dvJT(d);return m&&a&&j?(m-a-dvFraisMarge(d))/j:null};
+// Méthode du 26/11/2026 (Steven) : Christophe ne chiffre plus la main-d'œuvre de l'atelier pour nos chantiers (matière au
+// prix coûtant + heures) ; « achats » = vrais achats seulement (matière, fournisseurs, livraisons) ; pose, divers et atelier
+// sont du temps. Temps total = pose + route + métré + heures d'atelier ÷ 17,5 ; marge à dégager = temps × objectif ;
+// prix minimum = achats + marge à dégager.
+const dvTemps=d=>dvJT(d)+(+d.ha||0)/PL_EQ;
+const dvMj=d=>{const m=+d.montant||0,a=+d.achats||0,j=dvTemps(d);return m&&a&&j?(m-a-dvFraisMarge(d))/j:null};
+function dvPrixMin(d){const a=+d.achats||0,T=dvTemps(d);if(!a||!T)return null;const O=rtObj(),mg=T*O.obj;return{T,mg,min:a+dvFraisMarge(d)+mg,obj:O.obj}}
+function dvPrixHtml(d){const P=dvPrixMin(d);if(!P)return`<p class="sub dvprix">Saisissez les achats, les jours de pose et les heures d'atelier : l'appli donne le prix de vente minimum.</p>`;
+  const m=+d.montant||0,ok=m>=P.min-1,ec=m-P.min;
+  return`<div class="dvprix ${m?(ok?"ok":"ko"):""}"><span>Temps total <b>${plNf(P.T)} journées d'équipe de 2</b>${+d.ha?` (dont atelier ${plNf(+d.ha/PL_EQ)} j)`:""}</span><span>Marge à dégager <b>${plEur(P.mg)}</b> <small>(${plEur(P.obj)} × ${plNf(P.T)} j)</small></span>
+    <span class="pm">Prix de vente minimum <b>${plEur(P.min)} HT</b></span>${m?`<span>${ok?"✓ prix du devis au-dessus":"⚠ prix du devis en dessous"} : ${ec>=0?"+":"−"}${plEur(Math.abs(ec))}</span>`:""}</div>`}
 // ---------- Frais de déplacement par devis (Steven, 23/11/2026) ----------
 // Repris de l'artefact « Frais de déplacement MGDS » : départ Orléans, camion type Crafter, organisation automatique
 // selon le temps de route (retour chaque soir ≤ 1 h, départ le matin, la veille, ou la veille + retour le lendemain ≥ 4 h),

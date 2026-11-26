@@ -18,6 +18,11 @@ différent de celui saisi sur la ligne est signalé dans « alerte », sans écr
 Ligne Métré (Steven, 24/11/2026, simplifié) : si le tableau a une ligne main-d'œuvre « Métré » (ou « Maîtrise »), ajoute
 son ACHAT à mo (jamais aux achats). Pour l'alerte des jours de pose, retire d'abord ce montant de mo avant de diviser
 par 1 000 € : le métré n'est pas de la pose (il est déjà compté à part dans le temps total de l'appli).
+RÈGLE DU 26/11/2026 (Steven), PRIORITAIRE sur la consigne de la tâche : dans le tableau « Analyse des marges », les lignes
+« Pose » et « Divers » sont de la MAIN-D'ŒUVRE, jamais des achats. Relève achats = ACHAT de la ligne Produit SEULE ;
+mo = ACHAT de Pose + ACHAT de Divers. (Christophe ne chiffre plus la main-d'œuvre de l'atelier pour nos chantiers : la
+matière de l'atelier est un vrai achat, ses heures se saisissent dans la case « Atelier (h) » de l'appli.) L'alerte des jours
+de pose (mo ÷ 1 000 €) ne s'applique pas quand les jours sont saisis.
 """
 import json, os, re, sys, urllib.parse, urllib.request
 
