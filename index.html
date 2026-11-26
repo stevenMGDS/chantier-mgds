@@ -4298,7 +4298,14 @@ function atsForm(a){const P=[...ats.noms.values()].filter(p=>["atelier","poseur"
   const T=["Débit","Usinage","Montage","Vitrage","Divers"];
   return`<form class="add arcadd" data-atsform="${esc(a.id)}" novalidate><select name="p" aria-label="Personne">${P.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join("")}</select>
     <input type="date" name="j" value="${today()}" max="${today()}" aria-label="Jour"><select name="t" aria-label="Tâche">${T.map(t=>`<option>${t}</option>`).join("")}</select>
-    <input type="number" name="h" min="0" step="any" inputmode="decimal" placeholder="heures" aria-label="Heures" style="flex:0 1 90px"><button class="btn">Ajouter</button><button type="button" class="btn ghost" data-atsadd="">Fermer</button></form>`}
+    <input type="number" name="h" min="0" step="any" inputmode="decimal" placeholder="heures" aria-label="Heures" style="flex:0 1 90px"><input type="text" name="n" placeholder="remarque (ex. avant l'appli)" aria-label="Remarque" style="flex:1 1 160px"><button class="btn" data-atsok>Ajouter</button><button type="button" class="btn ghost" data-atsadd="">Fermer</button></form>
+    ${atsLignes(a)}`}
+// lignes déjà notées sur la commande : modifiables et supprimables par Marine, Steven et Christophe (Steven, 26/11/2026 :
+// Marine reprend les heures faites avant l'appli), sauf une ligne validée pour les salaires
+function atsLignes(a){const H=ats.hs.filter(h=>h.atelier===a.id).sort((x,y)=>String(y.jour).localeCompare(String(x.jour)));if(!H.length)return`<p class="sub">Aucune heure notée sur cette commande.</p>`;
+  const nom=id=>{const p=ats.noms.get(id);return p?p.nom:"?"};
+  return`<div class="tbl"><table class="rttab"><thead><tr><th>Jour</th><th>Personne</th><th>Tâche</th><th class="n">Heures</th><th>Remarque</th><th></th></tr></thead><tbody>${H.map(h=>`<tr><td>${esc(fr(h.jour))}</td><td>${esc(nom(h.poseur))}</td><td>${esc(h.tache||"")}</td><td class="n">${String(+h.heures).replace(".",",")} h</td><td><small>${esc(h.note||"")}</small></td>
+    <td>${h.valide_le?`<span class="sub">validée ✓</span>`:`<button type="button" class="btn ghost" data-atsedit="${h.id}">Modifier</button> <button type="button" class="btn ghost" data-atsdel="${h.id}" aria-label="Supprimer">🗑</button>`}</td></tr>`).join("")}</tbody></table></div>`}
 // rentabilité : prix de l'atelier (devis de Christophe) − matière (éléments validés) ÷ heures notées (sinon prévues)
 function atsRenta(){const O=rtObj(),L=atsCmds(),eur=v=>plEur(v);let tv=0,tm=0,th=0;const G=[];atsTips.length=0;
   const rows=L.map(x=>{const a=x.a,A=ats.dir.get("atl_"+a.id)||{},V=a.chantier?ats.dir.get("atlv_"+a.chantier):null;
@@ -4314,15 +4321,22 @@ function atsRenta(){const O=rtObj(),L=atsCmds(),eur=v=>plEur(v);let tv=0,tm=0,th
    <details class="atsdet"><summary>Voir le tableau (${L.length} commandes)</summary><div class="tbl"><table class="rttab"><thead><tr><th>Commande</th><th class="n">Prix atelier</th><th class="n">Matière</th><th class="n">Heures</th><th class="n">Marge</th><th class="n">Par heure</th></tr></thead><tbody>${rows}</tbody></table></div></details>
    <p class="sub">Prix de l'atelier = total HT du devis client de Christophe ; matière = commandes du dossier ATELIER/ÉLÉMENTS VALIDÉS (Technal, accessoires, Foussier, vitrages) ; heures = heures notées (les heures prévues tant que moins de la moitié est notée). Objectif : ${eur(O.taux)} de marge par heure, comme la pose.</p>`}
 document.addEventListener("click",e=>{const s=e.target.closest&&e.target.closest("[data-atlsub]");if(s){atl.sub=s.dataset.atlsub;try{localStorage.setItem("atelier-sub",atl.sub)}catch(_){}atlRender();return}
+  const ed=e.target.closest&&e.target.closest("[data-atsedit],[data-atsdel]");
+  if(ed){const id=+(ed.dataset.atsedit||ed.dataset.atsdel),h=ats.hs.find(x=>x.id===id);if(!h)return;
+    if(ed.dataset.atsdel){if(!confirm(`Supprimer ${String(+h.heures).replace(".",",")} h du ${fr(h.jour)} ?`))return;
+      window.sbClient.from("heures").delete().eq("id",id).then(({error})=>{if(error){toast("Suppression refusée par la base.");return}toast("Ligne supprimée.");ats.ok=false;atsRender()});return}
+    const f=document.querySelector(`[data-atsform="${CSS.escape(h.atelier)}"]`);if(!f)return;f.dataset.hid=id;f.p.value=h.poseur;f.j.value=h.jour;if([...f.t.options].some(o=>o.value===h.tache))f.t.value=h.tache;f.h.value=h.heures;f.n.value=h.note||"";
+    f.querySelector("[data-atsok]").textContent="Enregistrer la modification";f.scrollIntoView({block:"center"});return}
   const v=e.target.closest&&e.target.closest("[data-atsv],[data-atsadd]");if(!v)return;
   if(v.dataset.atsv){ats.vue=v.dataset.atsv;atsRender();return}
   ats.add=v.dataset.atsadd&&ats.add!==v.dataset.atsadd?v.dataset.atsadd:null;atsRender()});
 document.addEventListener("submit",async e=>{const f=e.target.closest&&e.target.closest("[data-atsform]");if(!f)return;e.preventDefault();
-  const aid=f.dataset.atsform,a=atl.rows.get(aid)||{},h=+String(f.h.value).replace(",",".");if(!(h>0&&h<=12)){toast("Nombre d'heures entre 0 et 12.");return}
-  const row={poseur:f.p.value,jour:f.j.value||today(),chantier:a.chantier||null,atelier:aid,tache:f.t.value,heures:h,note:"ajouté par "+((window.mgdsProfil||{}).nom||"Christophe")};
-  const{error}=await window.sbClient.from("heures").insert(row);
+  const aid=f.dataset.atsform,a=atl.rows.get(aid)||{},h=+String(f.h.value).replace(",",".");if(!(h>0&&h<=24)){toast("Nombre d'heures entre 0 et 24 par ligne (une ligne par jour).");return}
+  const qui=(window.mgdsProfil||{}).nom||"le bureau",rq=(f.n.value||"").trim();
+  const row={poseur:f.p.value,jour:f.j.value||today(),chantier:a.chantier||null,atelier:aid,tache:f.t.value,heures:h,note:(rq?rq+" · ":"")+(f.dataset.hid?"corrigé":"ajouté")+" par "+qui};
+  const{error}=f.dataset.hid?await window.sbClient.from("heures").update(row).eq("id",+f.dataset.hid):await window.sbClient.from("heures").insert(row);
   if(error){toast(/row-level|policy|permission/i.test(error.message||"")?"Ajout refusé par la base : le SQL outil/atelier-suivi.sql n'est pas encore lancé.":"Ajout impossible, réessayez.");return}
-  toast("Heures ajoutées.");ats.add=null;ats.ok=false;atsRender()});
+  toast(f.dataset.hid?"Ligne modifiée.":"Heures ajoutées.");ats.ok=false;atsRender()});
 function atlRow(a){
   const ss=atlStepsOf(a),c=atlCur(a),p=atlPlan(a),al=atlAlerts(a),red=al.some(x=>x[0]==="r"),fin=atlD(a,"fin");
   const st=k=>atlD(a,k)?"done":a.bloque&&k===c?"blk":p.L[k]&&p.L[k]<today()?"late":"";
