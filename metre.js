@@ -129,12 +129,20 @@ const dims=p=>[+p.v["Tableau L"]||+p.v["Largeur entre tableaux"]||0,+p.v["Tablea
 // ---------- enregistrement ----------
 function docOf(){const j=jobs.get(S.jid);return j&&(j.docs||[]).find(d=>d.id===S.did)}
 function sched(){if(ro())return;S.dirty=true;$m("mtetat").textContent="Modifications non enregistrées…";clearTimeout(S.t);S.t=setTimeout(save,1500)}
-async function save(){if(!S||!S.dirty||S.saving)return;S.saving=true;S.dirty=false;clearTimeout(S.t);
-  const tot=S.mt.prod.reduce((s,p)=>{const[a,b]=prog(p);return[s[0]+a,s[1]+b]},[0,0]);
-  const j=jobs.get(S.jid),docs=(j.docs||[]).map(d=>d.id===S.did?{...d,mt:S.mt,at:today(),rempli:{le:today(),reste:S.mt.prod.length?tot[1]-tot[0]:1,total:Math.max(1,tot[1])},traite:true}:d);
-  try{await db.doc("chantiers/"+S.jid).update({docs});if(S){$m("mtetat").textContent="Enregistré à "+new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}}
-  catch(e){if(S){S.dirty=true;$m("mtetat").textContent="⚠️ Pas enregistré (réseau ?) : nouvel essai dans 10 s";clearTimeout(S.t);S.t=setTimeout(save,10000)}}
-  finally{if(S)S.saving=false;if(S&&S.dirty&&!S.t)sched()}}
+// 26/11/2026 (Yannick : « plus de touche enregistrer, les cases s'effacent ») : une saisie faite pendant un enregistrement
+// en cours n'était jamais envoyée (l'enregistrement suivant s'arrêtait) ; elle est maintenant renvoyée juste après. Chaque
+// enregistrement porte l'heure (maj) : la base garde toujours le métré le plus récent, même si une autre écriture de la fiche
+// part d'une copie ancienne (tablette sortie de veille). Bouton « Enregistrer » et enregistrement immédiat en quittant l'écran.
+async function save(){if(!S||!S.dirty)return;if(S.saving){S.again=true;return}S.saving=true;S.dirty=false;S.again=false;clearTimeout(S.t);const S0=S;
+  const tot=S.mt.prod.reduce((s,p)=>{const[a,b]=prog(p);return[s[0]+a,s[1]+b]},[0,0]),maj=Date.now();
+  const j=jobs.get(S.jid),docs=(j.docs||[]).map(d=>d.id===S.did?{...d,mt:JSON.parse(JSON.stringify(S.mt)),maj,at:today(),rempli:{le:today(),reste:S.mt.prod.length?tot[1]-tot[0]:1,total:Math.max(1,tot[1])},traite:true}:d);
+  $m("mtetat").textContent="Enregistrement…";
+  try{await db.doc("chantiers/"+S0.jid).update({docs});j.docs=docs;if(S===S0&&!S.dirty){$m("mtetat").textContent="✓ Enregistré à "+new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}}
+  catch(e){S0.dirty=true;if(S===S0){$m("mtetat").textContent="⚠️ Pas enregistré (réseau ?) : nouvel essai dans 10 s";clearTimeout(S.t);S.t=setTimeout(save,10000)}}
+  finally{S0.saving=false;if(S===S0&&S.dirty&&(S.again||!/⚠️/.test($m("mtetat").textContent))){clearTimeout(S.t);S.t=setTimeout(save,300)}}}
+window.mtSaveNow=()=>{if(S&&!ro()){S.dirty=true;return save()}};
+addEventListener("pagehide",()=>{if(S&&S.dirty)save()});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&S&&S.dirty)save()});
 
 // ---------- création, reprise des lignes du métré PDF ----------
 // lecture du métré PDF pré-rempli (et éventuellement déjà rempli) : une ligne par menuiserie, puis les cases du bloc de chaque
@@ -192,7 +200,7 @@ window.mtOpen=(jid,did)=>{const j=jobs.get(jid),d=j&&(j.docs||[]).find(d=>d.id==
   if(!S.mt.prod.length)S.cur=-2;
   $m("mttitre").textContent="Métré · "+(j.client||"");$m("mtsous").textContent=[j.adresse,j.ville].filter(Boolean).join(", ");
   $m("mtov").hidden=false;$m("mtov").classList.toggle("ro",ro());document.body.style.overflow="hidden";draw();if(rep){sched();toast(rep+" produit"+(rep>1?"s reclassés":" reclassé")+" d'après le devis (volets, stores…)")}completePdf()};
-window.mtClose=async()=>{if(!S)return;if(S.dirty){await save()}S=null;$m("mtov").hidden=true;document.body.style.overflow=""};
+window.mtClose=async()=>{if(!S)return;if(S.dirty||S.saving){for(let n=0;n<40&&S.saving;n++)await new Promise(r=>setTimeout(r,150));if(S.dirty)await save()}S=null;$m("mtov").hidden=true;document.body.style.overflow=""};
 
 // ---------- affichage ----------
 function liste(){const L=$m("mtliste");const P=S.mt.prod;
@@ -523,7 +531,7 @@ const css=`#mtov[hidden]{display:none!important}#mtov{position:fixed;inset:0;z-i
 #mtov .mbar b{font-size:19px}#mtov .mbar .s{font-size:13px;opacity:.85}#mtov .mbar .sp{margin-left:auto}
 #mtov .mbar label{font-size:13px;display:flex;align-items:center;gap:4px}#mtov .mbar input{width:46px;font:600 15px inherit;padding:5px;border-radius:7px;border:0;text-align:center}
 #mtov .mbar button{font:600 14px inherit;border:0;border-radius:10px;padding:9px 13px;background:#fff;color:#10407e;cursor:pointer}
-#mtov .mbar #mtetat{font-size:12px;opacity:.85}
+#mtov .mbar #mtetat{font-size:13px;opacity:.95}#mtov.ro #mtsv{display:none}
 #mtov .corps{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:0}
 #mtov .liste{border-right:1px solid var(--line,#e3e3e8);padding:10px;display:grid;gap:8px;align-content:start;overflow:auto;background:var(--sunk,#ededf0)}
 #mtov .liste .it{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:2px;padding:9px 11px;border-radius:12px;border:1.5px solid var(--line,#e3e3e8);background:var(--surface,#fff)}
@@ -581,10 +589,10 @@ const css=`#mtov[hidden]{display:none!important}#mtov{position:fixed;inset:0;z-i
  #mtprint .cw{margin-top:6px;width:80%}#mtprint header b{white-space:nowrap}@page{size:A4;margin:12mm}}`;
 const st=document.createElement("style");st.textContent=css;document.head.appendChild(st);
 const ov=document.createElement("div");ov.id="mtov";ov.hidden=true;ov.setAttribute("role","dialog");ov.setAttribute("aria-label","Métré sur tablette");
-ov.innerHTML=`<div class="mbar"><b id="mttitre">Métré</b><span class="s" id="mtsous"></span><span class="s" id="mtglob"></span><span class="sp"></span><label>Jeu de pose<input id="mtjc" inputmode="numeric" aria-label="Jeu de pose par côté en mm"> mm / côté</label><label><input id="mtjt" inputmode="numeric" aria-label="Jeu de pose en tête en mm"> mm en tête</label><span id="mtetat"></span><button type="button" id="mtpr">🖨️ Imprimer / PDF</button><button type="button" id="mtx">Fermer</button></div>
+ov.innerHTML=`<div class="mbar"><b id="mttitre">Métré</b><span class="s" id="mtsous"></span><span class="s" id="mtglob"></span><span class="sp"></span><label>Jeu de pose<input id="mtjc" inputmode="numeric" aria-label="Jeu de pose par côté en mm"> mm / côté</label><label><input id="mtjt" inputmode="numeric" aria-label="Jeu de pose en tête en mm"> mm en tête</label><span id="mtetat"></span><button type="button" id="mtsv">💾 Enregistrer</button><button type="button" id="mtpr">🖨️ Imprimer / PDF</button><button type="button" id="mtx">Fermer</button></div>
  <div class="corps"><nav class="liste" id="mtliste" aria-label="Produits"></nav><div class="fiche" id="mtfiche"></div></div>`;
 document.body.appendChild(ov);const pr=document.createElement("div");pr.id="mtprint";document.body.appendChild(pr);
-$m("mtx").onclick=()=>mtClose();$m("mtpr").onclick=()=>{save();imprimer()};
+$m("mtx").onclick=()=>mtClose();$m("mtsv").onclick=()=>mtSaveNow();$m("mtpr").onclick=()=>{save();imprimer()};
 [["mtjc","c"],["mtjt","t"]].forEach(([id,k])=>{$m(id).oninput=e=>{if(ro())return;S.mt.jeu[k]=+e.target.value.replace(/\D/g,"")||0;sched()};$m(id).onchange=()=>redraw()});
 addEventListener("beforeunload",e=>{if(S&&S.dirty){save();e.preventDefault();e.returnValue=""}});
 })();

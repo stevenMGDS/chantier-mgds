@@ -37,12 +37,17 @@ function docOf(){const j=jobs.get(S.jid);return j&&(j.docs||[]).find(d=>d.id===S
 function etat(t){const e=$r("rsetat");if(e)e.textContent=t}
 function sched(){if(ro())return;S.dirty=true;etat("Modifications non enregistrées…");clearTimeout(S.t);S.t=setTimeout(save,1200)}
 const reste=rs=>{let r=0;rs.men.forEach(m=>{if(!m.v.bl||!m.v.bh)r++;if(!m.v.vr)r++;if(!m.v.rej)r++});if(!rs.sp.marque)r++;if(!rs.sp.mat)r++;if(!rs.sp.pose)r++;if(!rs.syn.conf)r++;if(!(rs.sig.ctrl&&rs.sig.ctrl.img))r++;return r};
-async function save(){if(!S||!S.dirty||S.saving)return;S.saving=true;S.dirty=false;clearTimeout(S.t);
-  const j=jobs.get(S.jid),total=S.rs.men.length*3+5,rst=reste(S.rs);
-  const docs=(j.docs||[]).map(d=>d.id===S.did?{...d,rs:S.rs,rempli:{le:today(),reste:rst,total},traite:true}:d);
-  try{await db.doc("chantiers/"+S.jid).update({docs});j.docs=docs;if(S)etat("Enregistré à "+new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}))}
-  catch(_){if(S){S.dirty=true;etat("⚠️ Pas enregistré (réseau ?) : nouvel essai dans 10 s");clearTimeout(S.t);S.t=setTimeout(save,10000)}}
-  finally{if(S)S.saving=false}}
+// 26/11/2026 : comme le métré, une saisie faite pendant un enregistrement est renvoyée juste après, l'heure (maj) protège la
+// fiche d'une écriture partie d'une copie ancienne, bouton « Enregistrer » et enregistrement en quittant l'écran
+async function save(){if(!S||!S.dirty)return;if(S.saving){S.again=true;return}S.saving=true;S.dirty=false;S.again=false;clearTimeout(S.t);const S0=S;
+  const j=jobs.get(S.jid),total=S.rs.men.length*3+5,rst=reste(S.rs),maj=Date.now();
+  const docs=(j.docs||[]).map(d=>d.id===S.did?{...d,rs:JSON.parse(JSON.stringify(S.rs)),maj,rempli:{le:today(),reste:rst,total},traite:true}:d);
+  etat("Enregistrement…");let ko=false;
+  try{await db.doc("chantiers/"+S0.jid).update({docs});j.docs=docs;if(S===S0&&!S.dirty)etat("✓ Enregistré à "+new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}))}
+  catch(_){ko=true;S0.dirty=true;if(S===S0){etat("⚠️ Pas enregistré (réseau ?) : nouvel essai dans 10 s");clearTimeout(S.t);S.t=setTimeout(save,10000)}}
+  finally{S0.saving=false;if(S===S0&&S.dirty&&(S.again||!ko)){clearTimeout(S.t);S.t=setTimeout(save,300)}}}
+addEventListener("pagehide",()=>{if(S&&S.dirty)save()});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&S&&S.dirty)save()});
 
 // ---------- ouverture ----------
 window.rsOpen=async(jid,did)=>{const j=jobs.get(jid),d=j&&(j.docs||[]).find(x=>x.id===did);if(!d)return;
@@ -52,7 +57,7 @@ window.rsOpen=async(jid,did)=>{const j=jobs.get(jid),d=j&&(j.docs||[]).find(x=>x
   S={jid,did,rs,cur:"ch",dirty:false};$r("rstitre").textContent="Réception de support · "+(j.client||"");$r("rssous").textContent=rs.ch.adresse||"";
   $r("rsov").hidden=false;$r("rsov").classList.toggle("ro",ro());document.body.style.overflow="hidden";draw();
   if(neuf&&!ro()){S.dirty=true;save();toast(rs.men.length?rs.men.length+" menuiserie"+(rs.men.length>1?"s reprises":" reprise")+" de la fiche PDF":"Fiche créée : ajoutez les menuiseries")}};
-window.rsClose=async()=>{if(!S)return;if(S.dirty)await save();S=null;$r("rsov").hidden=true;document.body.style.overflow="";if(typeof renderSheet==="function")renderSheet()};
+window.rsClose=async()=>{if(!S)return;if(S.dirty||S.saving){for(let n=0;n<40&&S.saving;n++)await new Promise(r=>setTimeout(r,150));if(S.dirty)await save()}S=null;$r("rsov").hidden=true;document.body.style.overflow="";if(typeof renderSheet==="function")renderSheet()};
 
 // ---------- champs ----------
 function seg(lab,opts,get,set,oblig){const w=document.createElement("div");w.className="ch"+(oblig&&!get()?" vide":"");w.innerHTML=`<span>${E(lab)}</span>`;const d=document.createElement("div");d.className="seg";
@@ -153,7 +158,7 @@ window.rsDoc=(rs,j)=>ficheDoc(rs,j||{});
 const css=`#rsov[hidden]{display:none!important}#rsov{position:fixed;inset:0;z-index:60;background:var(--bg,#f5f5f7);color:var(--ink,#1d1d1f);display:grid;grid-template-rows:auto 1fr;font-size:16px}
 #rsov .mbar{background:#10407e;color:#fff;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
 #rsov .mbar b{font-size:19px}#rsov .mbar .s{font-size:13px;opacity:.85}#rsov .mbar .sp{margin-left:auto}
-#rsov .mbar button{font:600 14px inherit;border:0;border-radius:10px;padding:9px 13px;background:#fff;color:#10407e;cursor:pointer}#rsov #rsetat{font-size:12px;opacity:.85}
+#rsov .mbar button{font:600 14px inherit;border:0;border-radius:10px;padding:9px 13px;background:#fff;color:#10407e;cursor:pointer}#rsov #rsetat{font-size:13px;opacity:.95}#rsov.ro #rssv{display:none}
 #rsov .corps{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:0}
 #rsov .liste{border-right:1px solid var(--line,#e3e3e8);padding:10px;display:grid;gap:8px;align-content:start;overflow:auto;background:var(--sunk,#ededf0)}
 #rsov .liste .it{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:2px;padding:9px 11px;border-radius:12px;border:1.5px solid var(--line,#e3e3e8);background:var(--surface,#fff)}
@@ -184,9 +189,9 @@ const css=`#rsov[hidden]{display:none!important}#rsov{position:fixed;inset:0;z-i
  #rsprint .lg{font-size:9.5px;color:#566070}#rsprint .sgs{display:flex;gap:30px;margin-top:10px}#rsprint .sg img{display:block;max-width:220px}@page{size:A4;margin:12mm}}`;
 const st=document.createElement("style");st.textContent=css;document.head.appendChild(st);
 const ov=document.createElement("div");ov.id="rsov";ov.hidden=true;ov.setAttribute("role","dialog");ov.setAttribute("aria-label","Réception de support");
-ov.innerHTML=`<div class="mbar"><b id="rstitre">Réception de support</b><span class="s" id="rssous"></span><span class="s" id="rsglob"></span><span class="sp"></span><span id="rsetat"></span><button type="button" id="rspr">🖨️ Imprimer / PDF</button><button type="button" id="rsx">Fermer</button></div>
+ov.innerHTML=`<div class="mbar"><b id="rstitre">Réception de support</b><span class="s" id="rssous"></span><span class="s" id="rsglob"></span><span class="sp"></span><span id="rsetat"></span><button type="button" id="rssv">💾 Enregistrer</button><button type="button" id="rspr">🖨️ Imprimer / PDF</button><button type="button" id="rsx">Fermer</button></div>
  <div class="corps"><nav class="liste" id="rsliste" aria-label="Parties de la fiche"></nav><div class="fiche" id="rsfiche"></div></div>`;
 document.body.appendChild(ov);const pr=document.createElement("div");pr.id="rsprint";document.body.appendChild(pr);
-$r("rsx").onclick=()=>rsClose();$r("rspr").onclick=()=>{save();imprimer()};
+$r("rsx").onclick=()=>rsClose();$r("rssv").onclick=()=>{if(S&&!ro()){S.dirty=true;save()}};$r("rspr").onclick=()=>{save();imprimer()};
 addEventListener("beforeunload",e=>{if(S&&S.dirty){save();e.preventDefault();e.returnValue=""}});
 })();

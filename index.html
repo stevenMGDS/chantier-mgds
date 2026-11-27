@@ -534,6 +534,10 @@ function docRef(path){
       for(let n=0;n<6;n++){
         const {data:row,error:e1}=await sb.from("chantiers").select("data,version").eq("id",id).single();
         if(e1)throw err("unavailable",e1.message);
+        // fiches HTML (métré, réception de support) : chaque enregistrement porte son heure (maj) ; une écriture des documents
+        // partie d'une copie ancienne (temps réel décroché, tablette sortie de veille) ne remplace jamais une fiche plus récente (Yannick, 26/11/2026)
+        if(Array.isArray(patch.docs)&&Array.isArray(row.data&&row.data.docs)){const srv=new Map(row.data.docs.filter(d=>d&&d.id).map(d=>[d.id,d]));
+          patch={...patch,docs:patch.docs.map(d=>{const v=d&&srv.get(d.id);return v&&(+v.maj||0)>(+d.maj||0)?v:d})}}
         const {data:upd,error:e2}=await sb.from("chantiers").update({data:merge(row.data,patch)}).eq("id",id).eq("version",row.version).select("id");
         if(e2)throw err(/size|too large/i.test(e2.message)?"quota_exceeded":"unavailable",e2.message);
         if(upd&&upd.length)return;
